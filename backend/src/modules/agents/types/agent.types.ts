@@ -4,20 +4,20 @@ export interface AgentContext {
   sessionId: string;
   userId: string;
   startupId: string;
-  metadata?: Record<string, unknown>;
+  metadata: Record<string, unknown>;
 }
 
 export interface AgentInput {
   context: AgentContext;
   prompt: string;
-  documents?: string[];
+  documents: string[];
 }
 
 export interface AgentOutput {
   content: string;
   confidence: number;
-  sources?: string[];
-  metadata?: Record<string, unknown>;
+  sources: string[];
+  metadata: Record<string, unknown>;
 }
 
 export interface AgentPhaseResult {

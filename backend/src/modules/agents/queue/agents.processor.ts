@@ -22,11 +22,18 @@ export class AgentsProcessor extends WorkerHost {
       return {
         success: true,
         results,
+        error: '',
         completedAt: new Date(),
       };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Agent job ${jobId} failed`, error);
-      throw error;
+      return {
+        success: false,
+        results: [],
+        error: errorMessage,
+        completedAt: new Date(),
+      };
     }
   }
 

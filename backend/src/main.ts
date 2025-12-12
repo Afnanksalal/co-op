@@ -1,14 +1,28 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, Logger } from '@nestjs/common';
+import { ValidationPipe, Logger, LogLevel } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+
+function getLogLevels(env: string): LogLevel[] {
+  if (env === 'production') {
+    return ['error', 'warn', 'log'];
+  }
+  return ['error', 'warn', 'log', 'debug', 'verbose'];
+}
 
 async function bootstrap(): Promise<void> {
+  const isProduction = process.env.NODE_ENV === 'production';
   const logger = new Logger('Bootstrap');
+
   const app = await NestFactory.create(AppModule, {
-    logger: ['error', 'warn', 'log', 'debug', 'verbose'],
+    logger: getLogLevels(process.env.NODE_ENV ?? 'development'),
+    // In production, use JSON format for structured logging
+    ...(isProduction && {
+      bufferLogs: true,
+    }),
   });
 
   const configService = app.get(ConfigService);
@@ -24,6 +38,8 @@ async function bootstrap(): Promise<void> {
   });
 
   app.setGlobalPrefix(apiPrefix);
+
+  app.useGlobalFilters(new HttpExceptionFilter());
 
   app.useGlobalPipes(
     new ValidationPipe({

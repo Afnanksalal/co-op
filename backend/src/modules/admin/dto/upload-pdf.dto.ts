@@ -1,18 +1,16 @@
-import { IsString, IsUUID, IsOptional, IsObject } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsString, IsUUID, IsObject } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class UploadPdfDto {
-  @ApiProperty()
+  @ApiProperty({ description: 'Name of the PDF file' })
   @IsString()
   filename: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty({ description: 'UUID of the startup this document belongs to' })
   @IsUUID()
-  startupId?: string;
+  startupId: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty({ description: 'Additional metadata for the document' })
   @IsObject()
-  metadata?: Record<string, unknown>;
+  metadata: Record<string, unknown>;
 }

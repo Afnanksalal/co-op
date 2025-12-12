@@ -1,13 +1,12 @@
-import { IsUUID, IsOptional, IsObject } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsUUID, IsObject } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateSessionDto {
   @ApiProperty({ description: 'Startup ID' })
   @IsUUID()
   startupId: string;
 
-  @ApiPropertyOptional({ description: 'Additional metadata' })
-  @IsOptional()
+  @ApiProperty({ description: 'Session metadata' })
   @IsObject()
-  metadata?: Record<string, unknown>;
+  metadata: Record<string, unknown>;
 }

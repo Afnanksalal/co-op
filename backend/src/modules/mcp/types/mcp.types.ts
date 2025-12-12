@@ -5,8 +5,8 @@ export interface McpToolCall {
 
 export interface McpToolResult {
   success: boolean;
-  data?: unknown;
-  error?: string;
+  data: unknown;
+  error: string;
   toolName: string;
   executionTime: number;
 }
@@ -15,18 +15,52 @@ export interface McpProvider {
   id: string;
   name: string;
   description: string;
+  baseUrl: string;
   tools: McpToolDefinition[];
 }
 
 export interface McpToolDefinition {
   name: string;
   description: string;
-  inputSchema: Record<string, unknown>;
-  outputSchema?: Record<string, unknown>;
+  inputSchema: McpJsonSchema;
+  outputSchema: McpJsonSchema;
 }
 
-export interface McpIntegrationConfig {
-  providerId: string;
+export interface McpJsonSchema {
+  type: string;
+  properties: Record<string, McpSchemaProperty>;
+  required: string[];
+}
+
+export interface McpSchemaProperty {
+  type: string;
+  description: string;
+  enum?: string[];
+  default?: unknown;
+}
+
+export interface McpServerConfig {
+  id: string;
+  name: string;
+  baseUrl: string;
+  apiKey: string;
   enabled: boolean;
-  settings?: Record<string, unknown>;
+}
+
+export interface McpDiscoveryResponse {
+  name: string;
+  version: string;
+  tools: McpToolDefinition[];
+}
+
+export interface McpExecuteRequest {
+  tool: string;
+  arguments: Record<string, unknown>;
+}
+
+export interface McpExecuteResponse {
+  success: boolean;
+  result: unknown;
+  error: string;
+  executionTimeMs: number;
 }

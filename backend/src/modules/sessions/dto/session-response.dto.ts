@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class SessionResponseDto {
   @ApiProperty()
@@ -13,8 +13,8 @@ export class SessionResponseDto {
   @ApiProperty()
   status: string;
 
-  @ApiPropertyOptional()
-  metadata?: Record<string, unknown>;
+  @ApiProperty()
+  metadata: Record<string, unknown>;
 
   @ApiProperty()
   createdAt: Date;

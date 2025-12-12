@@ -1,6 +1,6 @@
 import { Injectable, Inject, NotFoundException, ConflictException } from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { eq } from 'drizzle-orm';
+import { eq, and, isNull } from 'drizzle-orm';
 import { DATABASE_CONNECTION } from '@/database/database.module';
 import * as schema from '@/database/schema';
 import { CreateUserDto, UpdateUserDto, UserResponseDto } from './dto';
@@ -16,7 +16,7 @@ export class UsersService {
     const existing = await this.db
       .select()
       .from(schema.users)
-      .where(eq(schema.users.email, dto.email.toLowerCase()))
+      .where(and(eq(schema.users.email, dto.email.toLowerCase()), isNull(schema.users.deletedAt)))
       .limit(1);
 
     if (existing.length > 0) {
@@ -38,7 +38,7 @@ export class UsersService {
     const results = await this.db
       .select()
       .from(schema.users)
-      .where(eq(schema.users.id, id))
+      .where(and(eq(schema.users.id, id), isNull(schema.users.deletedAt)))
       .limit(1);
 
     const user = results[0];
@@ -54,7 +54,7 @@ export class UsersService {
     const results = await this.db
       .select()
       .from(schema.users)
-      .where(eq(schema.users.email, email.toLowerCase()))
+      .where(and(eq(schema.users.email, email.toLowerCase()), isNull(schema.users.deletedAt)))
       .limit(1);
 
     return results[0] ?? null;
@@ -68,7 +68,7 @@ export class UsersService {
     const existing = await this.db
       .select()
       .from(schema.users)
-      .where(eq(schema.users.id, supabaseUserId))
+      .where(and(eq(schema.users.id, supabaseUserId), isNull(schema.users.deletedAt)))
       .limit(1);
 
     if (existing.length > 0) {
@@ -92,7 +92,7 @@ export class UsersService {
       const existing = await this.db
         .select()
         .from(schema.users)
-        .where(eq(schema.users.email, dto.email.toLowerCase()))
+        .where(and(eq(schema.users.email, dto.email.toLowerCase()), isNull(schema.users.deletedAt)))
         .limit(1);
 
       if (existing.length > 0 && existing[0].id !== id) {
@@ -116,7 +116,7 @@ export class UsersService {
     const results = await this.db
       .update(schema.users)
       .set(updateData)
-      .where(eq(schema.users.id, id))
+      .where(and(eq(schema.users.id, id), isNull(schema.users.deletedAt)))
       .returning();
 
     const user = results[0];
@@ -129,11 +129,14 @@ export class UsersService {
   }
 
   async delete(id: string): Promise<void> {
-    const results = await this.db.delete(schema.users).where(eq(schema.users.id, id)).returning();
+    // Soft delete - set deletedAt timestamp
+    const results = await this.db
+      .update(schema.users)
+      .set({ deletedAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(schema.users.id, id), isNull(schema.users.deletedAt)))
+      .returning();
 
-    const user = results[0];
-
-    if (!user) {
+    if (results.length === 0) {
       throw new NotFoundException('User not found');
     }
   }

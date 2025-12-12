@@ -91,11 +91,11 @@ export class InvestorAgentService implements BaseAgent {
   private buildUserPrompt(input: AgentInput): string {
     let prompt = input.prompt;
 
-    if (input.documents?.length) {
+    if (input.documents.length > 0) {
       prompt += `\n\nRelevant documents:\n${input.documents.join('\n---\n')}`;
     }
 
-    if (input.context.metadata) {
+    if (Object.keys(input.context.metadata).length > 0) {
       prompt += `\n\nContext: ${JSON.stringify(input.context.metadata)}`;
     }
 

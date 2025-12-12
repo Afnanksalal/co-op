@@ -7,7 +7,7 @@ Enterprise-grade NestJS backend with LLM Council architecture, Supabase Auth, Dr
 - **Framework**: NestJS 11
 - **Language**: TypeScript 5
 - **ORM**: Drizzle ORM
-- **Database**: PostgreSQL (Supabase)
+- **Database**: PostgreSQL (Neon/Supabase)
 - **Cache/Queue**: Upstash Redis + BullMQ
 - **Auth**: Supabase Auth
 - **Storage**: Supabase Storage
@@ -47,7 +47,7 @@ cp .env.example .env
 npm run db:push
 
 # Start development server
-npm run dev
+npm start
 ```
 
 ## Project Structure
@@ -55,10 +55,10 @@ npm run dev
 ```
 src/
 ├── common/
-│   ├── decorators/         # @CurrentUser decorator
+│   ├── decorators/         # @CurrentUser, @CurrentApiKey
 │   ├── dto/                # ApiResponse, Pagination DTOs
 │   ├── filters/            # Exception filters
-│   ├── guards/             # Auth & Admin guards (Supabase)
+│   ├── guards/             # Auth, Admin, ApiKey guards
 │   ├── llm/                # LLM Council system
 │   │   ├── providers/      # Groq, Google, HuggingFace
 │   │   ├── llm-council.service.ts
@@ -76,9 +76,11 @@ src/
     │   ├── orchestrator/
     │   └── queue/          # BullMQ processing
     ├── analytics/
+    ├── api-keys/           # API key management
     ├── health/
-    ├── mcp/
+    ├── mcp/                # MCP integration
     ├── sessions/
+    ├── startups/           # Startup CRUD
     └── users/
 ```
 
@@ -90,19 +92,22 @@ src/
 | `SUPABASE_URL` | Supabase project URL | Yes |
 | `SUPABASE_ANON_KEY` | Supabase anon key | Yes |
 | `SUPABASE_SERVICE_KEY` | Supabase service key | No |
-| `UPSTASH_REDIS_URL` | Upstash Redis URL | Yes |
+| `UPSTASH_REDIS_URL` | Upstash Redis REST URL | Yes |
 | `UPSTASH_REDIS_TOKEN` | Upstash Redis token | Yes |
+| `UPSTASH_REDIS_HOST` | Upstash Redis host (for BullMQ) | Yes |
+| `UPSTASH_REDIS_PORT` | Upstash Redis port | Yes |
+| `UPSTASH_REDIS_PASSWORD` | Upstash Redis password | Yes |
 | `GROQ_API_KEY` | Groq API key | At least one LLM |
 | `GOOGLE_AI_API_KEY` | Google AI API key | At least one LLM |
 | `HUGGINGFACE_API_KEY` | HuggingFace API key | At least one LLM |
+| `MASTER_API_KEY` | Master API key for services | No |
 | `PORT` | Server port | No (default: 3000) |
 
 ## Scripts
 
 ```bash
-npm run dev          # Start development server
+npm start            # Start server
 npm run build        # Build for production
-npm run start:prod   # Start production server
 npm run db:generate  # Generate migrations
 npm run db:migrate   # Run migrations
 npm run db:push      # Push schema (dev only)
@@ -114,12 +119,22 @@ npm run test         # Run tests
 ## API Endpoints
 
 ### Health
-- `GET /api/v1/health` - Health check
+- `GET /api/v1/health` - Health check (returns 503 when unhealthy)
 
 ### Users
+- `POST /api/v1/users` - Create user (admin)
 - `GET /api/v1/users/me` - Get current user profile
 - `PATCH /api/v1/users/me` - Update current user
 - `GET /api/v1/users/:id` - Get user by ID
+- `PATCH /api/v1/users/:id` - Update user (admin)
+- `DELETE /api/v1/users/:id` - Delete user (admin)
+
+### Startups
+- `POST /api/v1/startups` - Create startup (admin)
+- `GET /api/v1/startups` - List all startups
+- `GET /api/v1/startups/:id` - Get startup by ID
+- `PATCH /api/v1/startups/:id` - Update startup (admin)
+- `DELETE /api/v1/startups/:id` - Delete startup (admin)
 
 ### Sessions
 - `POST /api/v1/sessions` - Create session
@@ -140,12 +155,32 @@ npm run test         # Run tests
 - `GET /api/v1/admin/embeddings/:id` - Get embedding
 - `DELETE /api/v1/admin/embeddings/:id` - Delete embedding
 
+### MCP
+- `POST /api/v1/mcp/servers` - Register MCP server (admin)
+- `DELETE /api/v1/mcp/servers/:id` - Unregister server (admin)
+- `GET /api/v1/mcp/servers` - List MCP servers
+- `GET /api/v1/mcp/servers/:id/tools` - Get server tools
+- `POST /api/v1/mcp/servers/:id/discover` - Discover tools (admin)
+- `GET /api/v1/mcp/tools` - List all tools
+- `POST /api/v1/mcp/execute` - Execute MCP tool
+
+### API Keys
+- `POST /api/v1/api-keys` - Create API key
+- `GET /api/v1/api-keys` - List user's API keys
+- `DELETE /api/v1/api-keys/:id` - Revoke API key
+
 ## Authentication
 
-Uses Supabase Auth. Include the Supabase access token in the Authorization header:
-
+### Supabase Auth (User Authentication)
+Include the Supabase access token in the Authorization header:
 ```
 Authorization: Bearer <supabase_access_token>
+```
+
+### API Key (Service-to-Service)
+Include the API key in the X-API-Key header:
+```
+X-API-Key: coop_xxxxxxxxxxxxx
 ```
 
 ## Deployment
@@ -155,7 +190,7 @@ Authorization: Bearer <supabase_access_token>
 1. Connect your repository to Render
 2. Use the `render.yaml` blueprint or configure manually:
    - Build: `npm install && npm run build`
-   - Start: `npm run start:prod`
+   - Start: `npm start`
 3. Add environment variables
 4. Deploy
 

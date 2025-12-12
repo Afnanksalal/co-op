@@ -21,17 +21,18 @@ import { CompetitorAgentService } from './domains/competitor/competitor-agent.se
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
-        // Parse Upstash Redis URL for BullMQ connection
-        // Upstash provides: rediss://default:TOKEN@HOST:PORT
-        const upstashUrl = config.get<string>('UPSTASH_REDIS_URL', '');
-        const url = new URL(upstashUrl);
+        // Upstash Redis connection for BullMQ
+        // Uses rediss:// protocol (Redis over TLS)
+        const host = config.get<string>('UPSTASH_REDIS_HOST', '');
+        const port = config.get<number>('UPSTASH_REDIS_PORT', 6379);
+        const password = config.get<string>('UPSTASH_REDIS_PASSWORD', '');
 
         return {
           connection: {
-            host: url.hostname,
-            port: parseInt(url.port || '6379', 10),
-            password: url.password,
-            tls: url.protocol === 'rediss:' ? {} : undefined,
+            host,
+            port,
+            password,
+            tls: {},
           },
         };
       },

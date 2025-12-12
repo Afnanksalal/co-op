@@ -51,14 +51,7 @@ export class AdminController {
       throw new BadRequestException('Only PDF files are allowed');
     }
 
-    const filename = dto.filename ?? file.originalname;
-    const uploadDto: UploadPdfDto = {
-      filename,
-      startupId: dto.startupId,
-      metadata: dto.metadata,
-    };
-
-    const result = await this.adminService.uploadPdf(uploadDto, file.buffer, file.mimetype);
+    const result = await this.adminService.uploadPdf(dto, file.buffer, file.mimetype);
 
     return ApiResponseDto.success(result, 'PDF uploaded for processing');
   }

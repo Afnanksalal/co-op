@@ -38,11 +38,19 @@ export class HttpExceptionFilter implements ExceptionFilter {
         message = exceptionResponse;
       } else if (typeof exceptionResponse === 'object' && exceptionResponse !== null) {
         const res = exceptionResponse as Record<string, unknown>;
-        message = typeof res.message === 'string' ? res.message : message;
-        details = res.errors ?? res.details;
+        // Handle validation errors (array of messages)
+        if (Array.isArray(res.message)) {
+          message = 'Validation failed';
+          details = res.message;
+        } else {
+          message = typeof res.message === 'string' ? res.message : message;
+          details = res.errors ?? res.details;
+        }
       }
     } else if (exception instanceof Error) {
-      message = exception.message;
+      // Don't expose internal error messages in production
+      const isProduction = process.env.NODE_ENV === 'production';
+      message = isProduction ? 'Internal server error' : exception.message;
       this.logger.error(`Unhandled exception: ${exception.message}`, exception.stack);
     }
 

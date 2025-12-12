@@ -117,6 +117,8 @@ export class AgentsController {
 
           if (status.status === 'completed' || status.status === 'failed') {
             clearInterval(pollInterval);
+            clearInterval(keepAlive);
+            clearTimeout(timeout);
             const doneEvent: SSEDoneEvent = { status: status.status as TaskState };
             sendEvent('done', doneEvent);
             res.end();
@@ -129,9 +131,19 @@ export class AgentsController {
       res.write(':keepalive\n\n');
     }, 15000);
 
+    // Timeout after 5 minutes to prevent indefinite connections
+    const timeout = setTimeout(() => {
+      clearInterval(pollInterval);
+      clearInterval(keepAlive);
+      const doneEvent: SSEDoneEvent = { status: 'failed' };
+      sendEvent('done', doneEvent);
+      res.end();
+    }, 5 * 60 * 1000);
+
     res.on('close', () => {
       clearInterval(pollInterval);
       clearInterval(keepAlive);
+      clearTimeout(timeout);
       res.end();
     });
   }

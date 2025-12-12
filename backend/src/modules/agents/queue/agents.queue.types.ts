@@ -9,8 +9,8 @@ export interface AgentJobData {
 
 export interface AgentJobResult {
   success: boolean;
-  results?: AgentPhaseResult[];
-  error?: string;
+  results: AgentPhaseResult[];
+  error: string;
   completedAt: Date;
 }
 

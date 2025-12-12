@@ -14,9 +14,14 @@ export const envSchema = z.object({
   SUPABASE_SERVICE_KEY: z.string().optional(),
   SUPABASE_STORAGE_BUCKET: z.string().default('documents'),
 
-  // Upstash Redis (single source for caching + queues)
+  // Upstash Redis - REST API (for @upstash/redis caching)
   UPSTASH_REDIS_URL: z.string(),
   UPSTASH_REDIS_TOKEN: z.string(),
+
+  // Upstash Redis - Standard connection (for BullMQ queues)
+  UPSTASH_REDIS_HOST: z.string(),
+  UPSTASH_REDIS_PORT: z.string().default('6379').transform(Number),
+  UPSTASH_REDIS_PASSWORD: z.string(),
 
   // LLM Providers (configure at least one)
   GROQ_API_KEY: z.string().optional(),
@@ -30,6 +35,9 @@ export const envSchema = z.object({
   // MCP (optional)
   MCP_ENDPOINT: z.string().optional(),
   MCP_API_KEY: z.string().optional(),
+
+  // API Keys
+  MASTER_API_KEY: z.string().optional(),
 
   // Rate limiting
   THROTTLE_TTL: z.string().default('60').transform(Number),
