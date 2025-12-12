@@ -1,0 +1,35 @@
+# Render Blueprint for Co-Op Backend
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: co-op-backend
+    runtime: node
+    region: oregon
+    plan: starter
+    buildCommand: npm install && npm run build
+    startCommand: npm run start:prod
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: co-op-db
+          property: connectionString
+      - key: UPSTASH_REDIS_URL
+        sync: false
+      - key: UPSTASH_REDIS_TOKEN
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ORIGINS
+        sync: false
+
+databases:
+  - name: co-op-db
+    databaseName: coop
+    plan: starter
+    region: oregon
