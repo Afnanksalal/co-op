@@ -1,6 +1,7 @@
 import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RedisService } from '@/common/redis/redis.service';
+import { timingSafeEqual } from 'crypto';
 
 interface ApiKeyRequest {
   headers: { 'x-api-key'?: string };
@@ -31,9 +32,9 @@ export class ApiKeyGuard implements CanActivate {
       throw new UnauthorizedException('API key required');
     }
 
-    // Check master API key (for internal services)
+    // Check master API key (for internal services) - use timing-safe comparison
     const masterKey = this.configService.get<string>('MASTER_API_KEY');
-    if (masterKey && apiKey === masterKey) {
+    if (masterKey && this.timingSafeEqual(apiKey, masterKey)) {
       return true;
     }
 
@@ -46,5 +47,17 @@ export class ApiKeyGuard implements CanActivate {
     // Attach key data to request for downstream use
     (request as ApiKeyRequest & { apiKeyData: ApiKeyData }).apiKeyData = keyData;
     return true;
+  }
+
+  /**
+   * Timing-safe string comparison to prevent timing attacks
+   */
+  private timingSafeEqual(a: string, b: string): boolean {
+    if (a.length !== b.length) {
+      // Still do a comparison to maintain constant time
+      timingSafeEqual(Buffer.from(a), Buffer.from(a));
+      return false;
+    }
+    return timingSafeEqual(Buffer.from(a), Buffer.from(b));
   }
 }

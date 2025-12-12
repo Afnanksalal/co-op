@@ -87,8 +87,16 @@ export class SessionsService {
       .set({ status: 'ended', updatedAt: new Date() })
       .where(and(eq(schema.sessions.id, id), isNull(schema.sessions.deletedAt)));
 
-    await this.redis.del(`${this.SESSION_PREFIX}${id}`);
-    await this.redis.del(`${this.ACTIVITY_PREFIX}${id}`);
+    // Invalidate all session-related cache
+    await this.invalidateSessionCache(id);
+  }
+
+  /**
+   * Invalidate all cache entries for a session
+   */
+  private async invalidateSessionCache(sessionId: string): Promise<void> {
+    await this.redis.del(`${this.SESSION_PREFIX}${sessionId}`);
+    await this.redis.del(`${this.ACTIVITY_PREFIX}${sessionId}`);
   }
 
   async trackActivity(id: string, userId: string, action: string): Promise<void> {
@@ -96,8 +104,11 @@ export class SessionsService {
     await this.findById(id, userId);
 
     // Validate action string
-    if (!action || action.length > 255) {
-      throw new Error('Invalid action: must be 1-255 characters');
+    if (!action || action.trim().length === 0) {
+      throw new Error('Invalid action: must not be empty');
+    }
+    if (action.length > 255) {
+      throw new Error('Invalid action: must be 255 characters or less');
     }
 
     const activityKey = `${this.ACTIVITY_PREFIX}${id}`;
@@ -110,13 +121,13 @@ export class SessionsService {
     // Store activity in Redis
     await this.redis.set(activityKey, activity, this.SESSION_TTL);
 
-    // Update session's updatedAt to track last activity and invalidate cache
+    // Update session's updatedAt to track last activity
     await this.db
       .update(schema.sessions)
       .set({ updatedAt: new Date() })
       .where(eq(schema.sessions.id, id));
 
-    // Invalidate session cache to ensure fresh data
+    // Invalidate session cache to ensure fresh data on next read
     await this.redis.del(`${this.SESSION_PREFIX}${id}`);
   }
 

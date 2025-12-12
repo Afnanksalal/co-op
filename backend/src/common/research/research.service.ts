@@ -227,15 +227,17 @@ export class ResearchService {
     }
   }
 
-  async searchNews(query: string, _days = 30): Promise<WebSearchResult[]> {
+  async searchNews(query: string, days = 30): Promise<WebSearchResult[]> {
     if (!this.isAvailable()) {
       return [];
     }
 
     try {
+      // Include time constraint in query for more relevant results
+      const timeConstraint = days <= 7 ? 'past week' : days <= 30 ? 'past month' : `past ${String(days)} days`;
       const result = await this.searchWithGrounding({
-        query: `${query} news recent`,
-        context: 'Recent news search',
+        query: `${query} news ${timeConstraint}`,
+        context: `Recent news search (last ${String(days)} days)`,
         type: 'news',
       });
       return this.extractWebResults(result);

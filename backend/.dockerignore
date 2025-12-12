@@ -32,12 +32,10 @@ coverage
 *.spec.ts
 jest*.json
 
-# Development
+# Development (keep tsconfig and nest-cli for build)
 .editorconfig
 .prettierrc
 eslint.config.mjs
-tsconfig*.json
-nest-cli.json
 drizzle.config.ts
 
 # Render config (not needed in container)

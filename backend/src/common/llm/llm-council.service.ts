@@ -1,4 +1,4 @@
-import { Injectable, Logger, BadRequestException, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { v4 as uuid } from 'uuid';
 import { GroqProvider } from './providers/groq.provider';
 import { GoogleProvider } from './providers/google.provider';
@@ -32,7 +32,7 @@ CRITICAL: Be concise. No fluff. Bullet points preferred. Max 3-5 sentences per p
 - Cite specifics, not generalities`;
 
 @Injectable()
-export class LlmCouncilService implements OnModuleInit {
+export class LlmCouncilService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(LlmCouncilService.name);
   private readonly providers: Map<LlmProvider, LlmProviderService>;
   private availableModels: ModelConfig[] = [];
@@ -50,9 +50,24 @@ export class LlmCouncilService implements OnModuleInit {
     ]);
   }
 
+  private healthCheckInterval: NodeJS.Timeout | null = null;
+  private readonly HEALTH_CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+
   async onModuleInit(): Promise<void> {
     this.logger.log('Running LLM model health checks on boot...');
     await this.runHealthChecks();
+    
+    // Schedule periodic health checks to recover from transient failures
+    this.healthCheckInterval = setInterval(() => {
+      void this.runHealthChecks();
+    }, this.HEALTH_CHECK_INTERVAL_MS);
+  }
+
+  onModuleDestroy(): void {
+    if (this.healthCheckInterval) {
+      clearInterval(this.healthCheckInterval);
+      this.healthCheckInterval = null;
+    }
   }
 
   async runHealthChecks(): Promise<ModelHealthCheck[]> {
@@ -374,20 +389,113 @@ JSON format only:
       maxTokens: 1024,
     });
 
-    try {
-      const parsed = JSON.parse(result.content.trim()) as CritiqueJson;
+    const parsed = this.parseCritiqueWithFallback(result.content, criticModel.name);
+    
+    if (parsed) {
       return {
         responseId: response.id,
         criticId: `${criticModel.provider}:${criticModel.model}`,
-        score: Math.min(10, Math.max(1, parsed.score)),
+        score: parsed.score,
         feedback: parsed.feedback,
-        strengths: parsed.strengths ?? [],
-        weaknesses: parsed.weaknesses ?? [],
+        strengths: parsed.strengths,
+        weaknesses: parsed.weaknesses,
       };
-    } catch {
-      this.logger.warn(`Failed to parse critique from ${criticModel.name}`);
-      return null;
     }
+
+    this.logger.warn(`Failed to parse critique from ${criticModel.name}: ${result.content.slice(0, 100)}`);
+    return null;
+  }
+
+  private extractJsonFromResponse(content: string): string {
+    // Remove thinking tags from reasoning models (DeepSeek R1, etc.)
+    const cleaned = content
+      .replace(/<think>[\s\S]*?<\/think>/gi, '')
+      .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
+      .replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '')
+      .replace(/<reflection>[\s\S]*?<\/reflection>/gi, '')
+      .trim();
+
+    // Try to find JSON object in the response
+    const jsonMatch = /\{[\s\S]*\}/.exec(cleaned);
+    if (jsonMatch) {
+      return jsonMatch[0];
+    }
+
+    // If no JSON found in cleaned content, try the original (JSON might be inside think tags)
+    const originalJsonMatch = /\{[\s\S]*?"score"[\s\S]*?"feedback"[\s\S]*?\}/.exec(content);
+    if (originalJsonMatch) {
+      return originalJsonMatch[0];
+    }
+
+    // Last resort: try to extract any JSON-like structure
+    const anyJsonMatch = /\{[^{}]*\}/.exec(content);
+    if (anyJsonMatch) {
+      return anyJsonMatch[0];
+    }
+
+    // Fallback: return cleaned content
+    return cleaned;
+  }
+
+  private parseCritiqueWithFallback(content: string, modelName: string): CritiqueJson | null {
+    // Try standard JSON extraction first
+    try {
+      const jsonContent = this.extractJsonFromResponse(content);
+      const parsed = JSON.parse(jsonContent) as CritiqueJson;
+      if (typeof parsed.score === 'number' && typeof parsed.feedback === 'string') {
+        return parsed;
+      }
+    } catch {
+      // Continue to fallback parsing
+    }
+
+    // Fallback: Extract values using regex patterns
+    try {
+      const scoreMatch = /["']?score["']?\s*[:=]\s*(\d+)/i.exec(content);
+      const feedbackMatch = /["']?feedback["']?\s*[:=]\s*["']([^"']+)["']/i.exec(content);
+      
+      if (scoreMatch) {
+        const score = parseInt(scoreMatch[1], 10);
+        const feedback = feedbackMatch?.[1] ?? 'No detailed feedback provided';
+        
+        // Extract arrays if possible
+        const strengthsMatch = /["']?strengths["']?\s*[:=]\s*\[(.*?)\]/is.exec(content);
+        const weaknessesMatch = /["']?weaknesses["']?\s*[:=]\s*\[(.*?)\]/is.exec(content);
+        
+        const parseArray = (match: RegExpMatchArray | null): string[] => {
+          if (!match) return [];
+          return match[1]
+            .split(',')
+            .map(s => s.replace(/["']/g, '').trim())
+            .filter(s => s.length > 0)
+            .slice(0, 3);
+        };
+
+        this.logger.debug(`Fallback parsing succeeded for ${modelName}`);
+        return {
+          score: Math.min(10, Math.max(1, score)),
+          feedback,
+          strengths: parseArray(strengthsMatch),
+          weaknesses: parseArray(weaknessesMatch),
+        };
+      }
+    } catch {
+      // Fallback parsing also failed
+    }
+
+    // Last resort: Look for just a number that could be a score
+    const numberMatch = /\b([1-9]|10)\b/.exec(content);
+    if (numberMatch) {
+      this.logger.debug(`Minimal parsing for ${modelName} - extracted score only`);
+      return {
+        score: parseInt(numberMatch[1], 10),
+        feedback: 'Score extracted from unstructured response',
+        strengths: [],
+        weaknesses: [],
+      };
+    }
+
+    return null;
   }
 
   private async synthesizeFinal(

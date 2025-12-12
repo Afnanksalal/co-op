@@ -284,7 +284,38 @@ NOTION_DEFAULT_PAGE_ID="abc123..."
 - [ ] Configure at least one LLM provider
 - [ ] Set CORS_ORIGINS (not `*` in production)
 - [ ] Set NODE_ENV=production
+- [ ] Set MASTER_API_KEY for MCP server and metrics access
 - [ ] Run `npm run db:push`
 - [ ] (Optional) Deploy RAG service
 - [x] Web research enabled via GOOGLE_AI_API_KEY (no separate deployment)
 - [ ] (Optional) Configure Notion integration for export
+
+---
+
+## Code Audit - Issues Fixed (Dec 2025)
+
+### Security Fixes
+- [x] API Key Guard: Added timing-safe comparison to prevent timing attacks
+- [x] MCP Server Controller: Added timing-safe API key validation
+- [x] Metrics Controller: Added API key authentication (was publicly accessible)
+- [x] MCP Server: Added warning log when running without MASTER_API_KEY
+
+### Bug Fixes
+- [x] UserThrottleGuard: Fixed broken constructor (was extending ThrottlerGuard incorrectly)
+- [x] CircuitBreakerService: Added `executeOnce` method for dynamic functions
+- [x] A2A Service: Improved polling with exponential backoff (was busy-waiting)
+- [x] Sessions Service: Fixed cache invalidation on session end
+- [x] Research Service: Fixed unused `days` parameter in `searchNews`
+
+### Code Quality Improvements
+- [x] Agents Service: Refactored duplicate code into `buildAgentInput` method
+- [x] LLM Council: Added periodic health checks (every 5 minutes) to recover from transient failures
+- [x] Webhooks Service: Added retry mechanism with exponential backoff (3 retries)
+- [x] Sessions Service: Improved action validation error messages
+
+### Remaining Recommendations
+- [ ] Add database migrations (currently only .gitkeep exists)
+- [ ] Add integration tests for critical paths
+- [ ] Add request logging middleware for audit trail
+- [ ] Consider adding rate limiting per endpoint (not just per user)
+- [ ] Add webhook delivery status tracking in database

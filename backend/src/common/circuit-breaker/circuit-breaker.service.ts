@@ -1,5 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import CircuitBreaker from 'opossum';
+import * as Opossum from 'opossum';
+
+// Handle CommonJS/ESM interop
+const CircuitBreaker = (Opossum as { default?: typeof Opossum }).default ?? Opossum;
+type CircuitBreakerInstance = InstanceType<typeof CircuitBreaker>;
 
 interface CircuitBreakerOptions {
   timeout: number;
@@ -25,7 +29,7 @@ type AsyncFunction<T> = (...args: unknown[]) => Promise<T>;
 @Injectable()
 export class CircuitBreakerService {
   private readonly logger = new Logger(CircuitBreakerService.name);
-  private readonly breakers = new Map<string, CircuitBreaker>();
+  private readonly breakers = new Map<string, CircuitBreakerInstance>();
 
   private readonly defaultOptions: CircuitBreakerOptions = {
     timeout: 10000,
@@ -38,10 +42,10 @@ export class CircuitBreakerService {
     name: string,
     fn: AsyncFunction<T>,
     options?: Partial<CircuitBreakerOptions>,
-  ): CircuitBreaker<unknown[], T> {
+  ): CircuitBreakerInstance {
     const existingBreaker = this.breakers.get(name);
     if (existingBreaker) {
-      return existingBreaker as CircuitBreaker<unknown[], T>;
+      return existingBreaker;
     }
 
     const mergedOptions = { ...this.defaultOptions, ...options };
@@ -51,7 +55,7 @@ export class CircuitBreakerService {
       errorThresholdPercentage: mergedOptions.errorThresholdPercentage,
       resetTimeout: mergedOptions.resetTimeout,
       volumeThreshold: mergedOptions.volumeThreshold,
-    });
+    }) as CircuitBreakerInstance;
 
     breaker.on('open', () => {
       this.logger.warn(`Circuit breaker "${name}" opened`);
@@ -73,19 +77,51 @@ export class CircuitBreakerService {
       this.logger.warn(`Circuit breaker "${name}" timeout`);
     });
 
-    this.breakers.set(name, breaker as CircuitBreaker);
+    this.breakers.set(name, breaker);
     return breaker;
   }
 
   async execute<T>(name: string, fn: AsyncFunction<T>, fallback?: () => T): Promise<T> {
-    const existingBreaker = this.breakers.get(name) as CircuitBreaker<unknown[], T> | undefined;
-    const breaker = existingBreaker ?? this.create(name, fn);
+    const breaker = this.breakers.get(name) ?? this.create(name, fn);
 
     if (fallback) {
       breaker.fallback(fallback);
     }
 
-    return breaker.fire();
+    // Fire with the provided function arguments
+    return breaker.fire() as Promise<T>;
+  }
+
+  /**
+   * Execute a function with circuit breaker protection (one-time use)
+   * Use this when the function changes between calls
+   */
+  async executeOnce<T>(name: string, fn: AsyncFunction<T>, fallback?: () => T): Promise<T> {
+    const breaker = this.breakers.get(name);
+    
+    if (breaker) {
+      // Reuse existing breaker state but execute new function
+      if (breaker.opened) {
+        if (fallback) return fallback();
+        throw new Error(`Circuit breaker "${name}" is open`);
+      }
+      
+      try {
+        const result = await fn();
+        return result;
+      } catch (error) {
+        // Let the breaker track the failure - ignore the result
+        void breaker.fire().catch(() => undefined);
+        throw error;
+      }
+    }
+
+    // Create new breaker for first call
+    const newBreaker = this.create(name, fn);
+    if (fallback) {
+      newBreaker.fallback(fallback);
+    }
+    return newBreaker.fire() as Promise<T>;
   }
 
   getStats(name: string): CircuitBreakerStats | null {

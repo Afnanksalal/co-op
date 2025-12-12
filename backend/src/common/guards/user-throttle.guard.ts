@@ -1,18 +1,14 @@
-import { Injectable, ExecutionContext } from '@nestjs/common';
-import { ThrottlerGuard, ThrottlerException } from '@nestjs/throttler';
+import { Injectable, ExecutionContext, CanActivate } from '@nestjs/common';
+import { ThrottlerException } from '@nestjs/throttler';
 import { RedisService } from '@/common/redis/redis.service';
 
 @Injectable()
-export class UserThrottleGuard extends ThrottlerGuard {
-  private redis: RedisService;
+export class UserThrottleGuard implements CanActivate {
   private readonly THROTTLE_PREFIX = 'throttle:';
   private readonly DEFAULT_TTL = 60; // seconds
   private readonly DEFAULT_LIMIT = 100;
 
-  constructor(redis: RedisService) {
-    super([], {} as never, {} as never);
-    this.redis = redis;
-  }
+  constructor(private readonly redis: RedisService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<{

@@ -169,7 +169,10 @@ export class WebhooksService {
     );
   }
 
-  private async sendWebhook(webhook: schema.Webhook, payload: WebhookPayload): Promise<void> {
+  private async sendWebhook(webhook: schema.Webhook, payload: WebhookPayload, retryCount = 0): Promise<void> {
+    const MAX_RETRIES = 3;
+    const RETRY_DELAYS = [1000, 5000, 15000]; // Exponential backoff
+    
     const body = JSON.stringify(payload);
     const signature = this.generateSignature(body, webhook.secret);
 
@@ -180,13 +183,20 @@ export class WebhooksService {
           'Content-Type': 'application/json',
           'X-Webhook-Signature': signature,
           'X-Webhook-Event': payload.event,
+          'X-Webhook-Retry': String(retryCount),
         },
         body,
         signal: AbortSignal.timeout(10000),
       });
 
       if (!response.ok) {
-        this.logger.warn(`Webhook ${webhook.id} failed: HTTP ${String(response.status)}`);
+        const shouldRetry = response.status >= 500 || response.status === 429;
+        if (shouldRetry && retryCount < MAX_RETRIES) {
+          this.logger.warn(`Webhook ${webhook.id} failed with ${String(response.status)}, retrying (${String(retryCount + 1)}/${String(MAX_RETRIES)})`);
+          await this.delay(RETRY_DELAYS[retryCount]);
+          await this.sendWebhook(webhook, payload, retryCount + 1); return;
+        }
+        this.logger.warn(`Webhook ${webhook.id} failed: HTTP ${String(response.status)} after ${String(retryCount)} retries`);
       }
 
       await this.db
@@ -194,8 +204,17 @@ export class WebhooksService {
         .set({ lastTriggeredAt: new Date() })
         .where(eq(schema.webhooks.id, webhook.id));
     } catch (error) {
-      this.logger.error(`Webhook ${webhook.id} error: ${String(error)}`);
+      if (retryCount < MAX_RETRIES) {
+        this.logger.warn(`Webhook ${webhook.id} error, retrying (${String(retryCount + 1)}/${String(MAX_RETRIES)}): ${String(error)}`);
+        await this.delay(RETRY_DELAYS[retryCount]);
+        await this.sendWebhook(webhook, payload, retryCount + 1); return;
+      }
+      this.logger.error(`Webhook ${webhook.id} error after ${String(MAX_RETRIES)} retries: ${String(error)}`);
     }
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   private generateSignature(payload: string, secret: string): string {

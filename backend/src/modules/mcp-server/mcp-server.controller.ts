@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiHeader } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
+import { timingSafeEqual } from 'crypto';
 import { McpServerService } from './mcp-server.service';
 import { McpToolCallDto, McpToolResultDto, McpDiscoveryDto } from './dto/mcp-server.dto';
 
@@ -81,14 +82,28 @@ export class McpServerController {
 
   /**
    * Validate API key for MCP access
+   * Uses timing-safe comparison to prevent timing attacks
    */
   private validateApiKey(apiKey?: string): void {
-    // In dev mode without master key, allow access
+    // In dev mode without master key, allow access (log warning)
     if (!this.masterApiKey) {
+      this.logger.warn('MCP Server: No MASTER_API_KEY configured - running in insecure mode');
       return;
     }
 
-    if (!apiKey || apiKey !== this.masterApiKey) {
+    if (!apiKey) {
+      throw new UnauthorizedException('API key required');
+    }
+
+    // Use timing-safe comparison to prevent timing attacks
+    const apiKeyBuffer = Buffer.from(apiKey);
+    const masterKeyBuffer = Buffer.from(this.masterApiKey);
+    
+    if (apiKeyBuffer.length !== masterKeyBuffer.length) {
+      throw new UnauthorizedException('Invalid API key');
+    }
+
+    if (!timingSafeEqual(apiKeyBuffer, masterKeyBuffer)) {
       throw new UnauthorizedException('Invalid API key');
     }
   }

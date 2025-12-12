@@ -86,7 +86,8 @@ export class A2AService {
   }
 
   /**
-   * Wait for response with timeout
+   * Wait for response with timeout using exponential backoff
+   * Reduces Redis polling frequency over time
    */
   private async waitForResponse(
     correlationId: string,
@@ -94,6 +95,8 @@ export class A2AService {
   ): Promise<Record<string, unknown> | null> {
     const key = `${A2A_RESULTS}:${correlationId}`;
     const startTime = Date.now();
+    let pollInterval = 100; // Start with 100ms
+    const maxPollInterval = 2000; // Max 2 seconds between polls
 
     while (Date.now() - startTime < timeout) {
       const result = await this.redis.get<Record<string, unknown>>(key);
@@ -101,7 +104,11 @@ export class A2AService {
         await this.redis.del(key);
         return result;
       }
-      await this.sleep(100);
+      
+      await this.sleep(pollInterval);
+      
+      // Exponential backoff with cap
+      pollInterval = Math.min(pollInterval * 1.5, maxPollInterval);
     }
 
     return null;

@@ -1,5 +1,6 @@
 # ===========================================
 # Co-Op Backend - Production Dockerfile
+# Optimized for Render deployment
 # ===========================================
 
 # Build stage
@@ -11,8 +12,13 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --ignore-scripts
 
-# Copy source and build
-COPY . .
+# Copy TypeScript config files needed for build
+COPY tsconfig.json tsconfig.build.json nest-cli.json ./
+
+# Copy source code
+COPY src ./src
+
+# Build the application
 RUN npm run build
 
 # Prune dev dependencies
@@ -40,7 +46,7 @@ COPY --from=builder --chown=nestjs:nodejs /app/package.json ./
 # Switch to non-root user
 USER nestjs
 
-# Expose port
+# Expose port (Render uses PORT env var)
 EXPOSE 3000
 
 # Health check

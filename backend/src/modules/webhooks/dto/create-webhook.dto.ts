@@ -36,6 +36,6 @@ export class CreateWebhookDto {
   @IsArray()
   @ArrayNotEmpty()
   @IsString({ each: true })
-  @Matches(/^[a-z]+\.[a-z]+$|\*$/, { each: true, message: 'Invalid event format' })
-  events: string[];
+  @Matches(/^[a-z_]+\.[a-z_]+$|\*$/, { each: true, message: 'Invalid event format. Use format: resource.action or * for all events' })
+  events: WebhookEvent[];
 }
