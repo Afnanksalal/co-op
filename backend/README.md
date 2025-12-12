@@ -1,19 +1,38 @@
 # Co-Op Backend
 
-Enterprise-grade NestJS backend with Drizzle ORM, Upstash Redis, and PostgreSQL.
+Enterprise-grade NestJS backend with LLM Council architecture, Supabase Auth, Drizzle ORM, and Upstash Redis.
 
 ## Tech Stack
 
 - **Framework**: NestJS 11
 - **Language**: TypeScript 5
 - **ORM**: Drizzle ORM
-- **Database**: PostgreSQL
-- **Cache**: Upstash Redis
-- **Queue**: BullMQ
-- **Auth**: JWT with bcrypt
+- **Database**: PostgreSQL (Supabase)
+- **Cache/Queue**: Upstash Redis + BullMQ
+- **Auth**: Supabase Auth
+- **Storage**: Supabase Storage
+- **LLM**: Multi-provider (Groq, Google AI, HuggingFace)
 - **Validation**: class-validator + Zod
 - **Documentation**: Swagger/OpenAPI
 - **Hosting**: Render
+
+## LLM Council Architecture
+
+The system uses an "LLM Council" pattern for improved accuracy and reduced hallucination:
+
+1. **Anonymous Generation**: 3-5 LLMs independently generate responses
+2. **Shuffle**: Responses are shuffled and anonymized
+3. **Cross-Critique**: Each model critiques other models' responses
+4. **Scoring**: Critiques include scores (1-10), strengths, weaknesses
+5. **Synthesis**: Best-rated response is enhanced based on feedback
+
+### Available Models (7 distinct families)
+
+| Provider | Model | 
+|----------|-------|
+| Groq | Llama 3.3 70B, Mixtral 8x7B, Gemma 2 9B |
+| Google | Gemini 2.0 Flash |
+| HuggingFace | Mistral Small 24B, Qwen 2.5 72B, DeepSeek R1 32B |
 
 ## Quick Start
 
@@ -35,32 +54,32 @@ npm run dev
 
 ```
 src/
-├── common/                 # Shared utilities
-│   ├── decorators/         # Custom decorators (@CurrentUser)
-│   ├── dto/                # Common DTOs (ApiResponse, Pagination)
+├── common/
+│   ├── decorators/         # @CurrentUser decorator
+│   ├── dto/                # ApiResponse, Pagination DTOs
 │   ├── filters/            # Exception filters
-│   ├── guards/             # Auth & Admin guards
-│   └── redis/              # Upstash Redis service
+│   ├── guards/             # Auth & Admin guards (Supabase)
+│   ├── llm/                # LLM Council system
+│   │   ├── providers/      # Groq, Google, HuggingFace
+│   │   ├── llm-council.service.ts
+│   │   └── types/
+│   ├── redis/              # Upstash Redis service
+│   └── supabase/           # Supabase Auth & Storage
 ├── config/                 # Zod-validated env config
-├── database/               # Drizzle setup
-│   ├── migrations/         # SQL migrations
-│   └── schema/             # Table definitions
-└── modules/                # Feature modules
-    ├── admin/              # Embeddings management
-    ├── agents/             # Agent orchestration
-    │   ├── domains/        # Domain-specific agents
-    │   │   ├── competitor/
-    │   │   ├── finance/
-    │   │   ├── investor/
-    │   │   └── legal/
-    │   ├── orchestrator/   # Agent orchestrator
-    │   └── queue/          # BullMQ job processing
-    ├── analytics/          # Event tracking
-    ├── auth/               # JWT authentication
-    ├── health/             # Health checks
-    ├── mcp/                # MCP integration
-    ├── sessions/           # Session management
-    └── users/              # User management
+├── database/
+│   ├── migrations/
+│   └── schema/
+└── modules/
+    ├── admin/              # PDF uploads, embeddings
+    ├── agents/
+    │   ├── domains/        # Legal, Finance, Investor, Competitor
+    │   ├── orchestrator/
+    │   └── queue/          # BullMQ processing
+    ├── analytics/
+    ├── health/
+    ├── mcp/
+    ├── sessions/
+    └── users/
 ```
 
 ## Environment Variables
@@ -68,13 +87,15 @@ src/
 | Variable | Description | Required |
 |----------|-------------|----------|
 | `DATABASE_URL` | PostgreSQL connection string | Yes |
-| `UPSTASH_REDIS_URL` | Upstash Redis REST URL | Yes |
+| `SUPABASE_URL` | Supabase project URL | Yes |
+| `SUPABASE_ANON_KEY` | Supabase anon key | Yes |
+| `SUPABASE_SERVICE_KEY` | Supabase service key | No |
+| `UPSTASH_REDIS_URL` | Upstash Redis URL | Yes |
 | `UPSTASH_REDIS_TOKEN` | Upstash Redis token | Yes |
-| `JWT_SECRET` | JWT signing secret (min 32 chars) | Yes |
-| `REDIS_HOST` | Redis host for BullMQ | No (default: localhost) |
-| `REDIS_PORT` | Redis port for BullMQ | No (default: 6379) |
+| `GROQ_API_KEY` | Groq API key | At least one LLM |
+| `GOOGLE_AI_API_KEY` | Google AI API key | At least one LLM |
+| `HUGGINGFACE_API_KEY` | HuggingFace API key | At least one LLM |
 | `PORT` | Server port | No (default: 3000) |
-| `CORS_ORIGINS` | Allowed origins (comma-separated) | No |
 
 ## Scripts
 
@@ -92,11 +113,6 @@ npm run test         # Run tests
 
 ## API Endpoints
 
-### Auth
-- `POST /api/v1/auth/register` - Register new user
-- `POST /api/v1/auth/login` - Login with email/password
-- `POST /api/v1/auth/refresh` - Refresh access token
-
 ### Health
 - `GET /api/v1/health` - Health check
 
@@ -104,9 +120,6 @@ npm run test         # Run tests
 - `GET /api/v1/users/me` - Get current user profile
 - `PATCH /api/v1/users/me` - Update current user
 - `GET /api/v1/users/:id` - Get user by ID
-- `POST /api/v1/users` - Create user (admin)
-- `PATCH /api/v1/users/:id` - Update user (admin)
-- `DELETE /api/v1/users/:id` - Delete user (admin)
 
 ### Sessions
 - `POST /api/v1/sessions` - Create session
@@ -115,7 +128,7 @@ npm run test         # Run tests
 - `POST /api/v1/sessions/:id/end` - End session
 
 ### Agents
-- `POST /api/v1/agents/run` - Run agent synchronously
+- `POST /api/v1/agents/run` - Run agent with LLM Council
 - `POST /api/v1/agents/queue` - Queue agent task (async)
 - `GET /api/v1/agents/tasks/:taskId` - Get task status
 - `DELETE /api/v1/agents/tasks/:taskId` - Cancel task
@@ -129,13 +142,11 @@ npm run test         # Run tests
 
 ## Authentication
 
-The API uses JWT Bearer tokens. Include the token in the Authorization header:
+Uses Supabase Auth. Include the Supabase access token in the Authorization header:
 
 ```
-Authorization: Bearer <access_token>
+Authorization: Bearer <supabase_access_token>
 ```
-
-Access tokens expire in 15 minutes. Use the refresh endpoint to get new tokens.
 
 ## Deployment
 
@@ -146,8 +157,7 @@ Access tokens expire in 15 minutes. Use the refresh endpoint to get new tokens.
    - Build: `npm install && npm run build`
    - Start: `npm run start:prod`
 3. Add environment variables
-4. Set up Redis for BullMQ (Render Redis or external)
-5. Deploy
+4. Deploy
 
 ### Docker
 
@@ -155,6 +165,12 @@ Access tokens expire in 15 minutes. Use the refresh endpoint to get new tokens.
 docker build -t co-op-backend .
 docker run -p 3000:3000 --env-file .env co-op-backend
 ```
+
+## Free Tier LLM Providers
+
+- **Groq**: https://console.groq.com
+- **Google AI Studio**: https://aistudio.google.com
+- **HuggingFace**: https://huggingface.co/settings/tokens
 
 ## API Documentation
 

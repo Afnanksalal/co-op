@@ -19,10 +19,10 @@
 
 ### LLM Council Architecture (A2A)
 - [x] Multi-provider support (Groq, Google AI, HuggingFace)
-- [x] Multiple models per provider:
-  - Groq: Llama 3.3 70B, Llama 3.1 8B, Mixtral 8x7B, Gemma 2 9B
-  - Google: Gemini 1.5 Flash, Gemini 1.5 Pro, Gemini 2.0 Flash
-  - HuggingFace: Mixtral 8x7B, Llama 3.2 3B, Phi-3 Mini
+- [x] Best-in-class models per family (no duplicates):
+  - Groq: Llama 3.3 70B, Mixtral 8x7B, Gemma 2 9B
+  - Google: Gemini 2.0 Flash
+  - HuggingFace: Mistral Small 24B, Qwen 2.5 72B, DeepSeek R1 32B
 - [x] Anonymous response generation (all models respond independently)
 - [x] Response shuffling for unbiased critique
 - [x] Cross-model critique (models critique other models' responses)
@@ -120,10 +120,22 @@ The system uses an "LLM Council" pattern for improved accuracy and reduced hallu
 4. **Scoring**: Critiques include scores (1-10), strengths, and weaknesses
 5. **Synthesis**: Best-rated response is enhanced based on critique feedback
 
+### Available Models (7 distinct families)
+
+| Provider | Model | Name |
+|----------|-------|------|
+| Groq | llama-3.3-70b-versatile | Llama 3.3 70B |
+| Groq | mixtral-8x7b-32768 | Mixtral 8x7B |
+| Groq | gemma2-9b-it | Gemma 2 9B |
+| Google | gemini-2.0-flash | Gemini 2.0 Flash |
+| HuggingFace | mistralai/Mistral-Small-24B-Instruct-2501 | Mistral Small 24B |
+| HuggingFace | Qwen/Qwen2.5-72B-Instruct | Qwen 2.5 72B |
+| HuggingFace | deepseek-ai/DeepSeek-R1-Distill-Qwen-32B | DeepSeek R1 32B |
+
 ### Free Tier LLM Providers
-- **Groq**: https://console.groq.com (fast inference, multiple models)
-- **Google AI Studio**: https://aistudio.google.com (Gemini models)
-- **HuggingFace**: https://huggingface.co/settings/tokens (open source models)
+- **Groq**: https://console.groq.com
+- **Google AI Studio**: https://aistudio.google.com
+- **HuggingFace**: https://huggingface.co/settings/tokens
 
 ---
 
