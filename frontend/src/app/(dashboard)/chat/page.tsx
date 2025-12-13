@@ -17,7 +17,8 @@ import {
   CaretDown,
   CaretUp,
   NotionLogo,
-} from '@phosphor-icons/react';
+  Lightning,
+} from '@phosphor-icons/react/dist/ssr';
 import { api } from '@/lib/api/client';
 import { useUser } from '@/lib/hooks';
 import { useChatStore, useSessionStore } from '@/lib/store';
@@ -37,10 +38,10 @@ const agentConfig: Record<AgentType, { name: string; icon: typeof Scales; color:
 };
 
 const suggestions = [
-  'What legal structure should I use for my startup?',
-  'How do I calculate my runway and burn rate?',
-  'Find seed-stage VCs that invest in my sector',
-  'Analyze my main competitors and market position',
+  'What legal structure should I use and how does it affect my finances?',
+  'Analyze my market position and find investors for my stage',
+  'How do I calculate runway and what legal docs do I need for fundraising?',
+  'Compare my competitors and suggest investor pitch strategies',
 ];
 
 export default function ChatPage() {
@@ -83,7 +84,7 @@ export default function ChatPage() {
     initSession();
   }, [user?.startup, currentSession, setCurrentSession]);
 
-  // Scroll to bottom on new messages - use scrollTop instead of scrollIntoView
+  // Scroll to bottom on new messages
   useEffect(() => {
     if (messagesContainerRef.current) {
       messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
@@ -97,12 +98,13 @@ export default function ChatPage() {
     toast.success('Copied to clipboard');
   }, []);
 
-  const handleExportToNotion = useCallback(async (messageId: string, content: string, agent: AgentType) => {
+  const handleExportToNotion = useCallback(async (messageId: string, content: string, agent: AgentType | 'multi') => {
     setIsExporting(messageId);
     try {
+      const agentName = agent === 'multi' ? 'Multi-Agent' : agentConfig[agent].name;
       const result = await api.exportToNotion({
-        title: `${agentConfig[agent].name} Analysis - ${new Date().toLocaleDateString()}`,
-        agentType: agent,
+        title: `${agentName} Analysis - ${new Date().toLocaleDateString()}`,
+        agentType: agent === 'multi' ? 'legal' : agent,
         content,
         sources: [],
         metadata: { sessionId: currentSession?.id },
@@ -127,6 +129,7 @@ export default function ChatPage() {
     const userMessageId = generateId();
     const assistantMessageId = generateId();
     const prompt = input.trim();
+    const isMultiAgent = selectedAgent === null;
 
     addMessage({
       id: userMessageId,
@@ -139,7 +142,7 @@ export default function ChatPage() {
       id: assistantMessageId,
       role: 'assistant',
       content: '',
-      agent: selectedAgent,
+      agent: isMultiAgent ? 'multi' : selectedAgent,
       timestamp: new Date(),
       isStreaming: true,
     });
@@ -148,13 +151,24 @@ export default function ChatPage() {
     setLoading(true);
 
     try {
-      const { taskId } = await api.queueAgent({
-        agentType: selectedAgent,
-        prompt,
-        sessionId: currentSession.id,
-        startupId: user.startup.id,
-        documents: [],
-      });
+      // Build request based on mode
+      const request = isMultiAgent
+        ? {
+            agents: ['legal', 'finance', 'investor', 'competitor'],
+            prompt,
+            sessionId: currentSession.id,
+            startupId: user.startup.id,
+            documents: [],
+          }
+        : {
+            agentType: selectedAgent,
+            prompt,
+            sessionId: currentSession.id,
+            startupId: user.startup.id,
+            documents: [],
+          };
+
+      const { taskId } = await api.queueAgent(request);
 
       // Save user message to database
       await api.addSessionMessage(currentSession.id, {
@@ -183,8 +197,11 @@ export default function ChatPage() {
         } else if (status.status === 'failed') {
           throw new Error(status.error || 'Task failed');
         } else if (status.progress > 0) {
+          const progressText = isMultiAgent
+            ? `Consulting all agents... ${status.progress}%`
+            : `Thinking... ${status.progress}%`;
           updateMessage(assistantMessageId, {
-            content: `Thinking... ${status.progress}%`,
+            content: progressText,
           });
         }
       }
@@ -194,7 +211,7 @@ export default function ChatPage() {
         await api.addSessionMessage(currentSession.id, {
           role: 'assistant',
           content: finalContent,
-          agent: selectedAgent,
+          agent: isMultiAgent ? undefined : selectedAgent,
         });
       }
     } catch (error) {
@@ -216,11 +233,36 @@ export default function ChatPage() {
     }
   };
 
+  const getPlaceholder = () => {
+    if (selectedAgent === null) {
+      return 'Ask all agents anything... (A2A multi-agent mode)';
+    }
+    return `Ask ${agentConfig[selectedAgent].name} anything...`;
+  };
+
   return (
     <div className="h-[calc(100vh-4rem)] md:h-[calc(100vh-4rem)] flex flex-col max-w-4xl mx-auto">
       {/* Agent Selector */}
       <div className="flex items-center gap-1 sm:gap-2 pb-3 sm:pb-4 border-b border-border/40 shrink-0 overflow-x-auto">
-        <span className="text-xs sm:text-sm text-muted-foreground mr-1 sm:mr-2 shrink-0">Agent:</span>
+        <span className="text-xs sm:text-sm text-muted-foreground mr-1 sm:mr-2 shrink-0">Mode:</span>
+        
+        {/* Multi-Agent (A2A) Option */}
+        <button
+          onClick={() => setSelectedAgent(null)}
+          className={cn(
+            'flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm transition-all duration-200 shrink-0',
+            selectedAgent === null
+              ? 'bg-primary/10 text-foreground'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+          )}
+        >
+          <Lightning weight={selectedAgent === null ? 'fill' : 'regular'} className="w-4 h-4" />
+          <span className="hidden sm:inline">All Agents</span>
+        </button>
+
+        <div className="w-px h-4 bg-border/40 mx-1" />
+
+        {/* Individual Agents */}
         {(Object.keys(agentConfig) as AgentType[]).map((agent) => {
           const config = agentConfig[agent];
           const isSelected = selectedAgent === agent;
@@ -242,7 +284,7 @@ export default function ChatPage() {
         })}
       </div>
 
-      {/* Messages - flex-1 with overflow */}
+      {/* Messages */}
       <div 
         ref={messagesContainerRef}
         className="flex-1 overflow-y-auto py-6 space-y-4"
@@ -250,11 +292,23 @@ export default function ChatPage() {
         {messages.length === 0 ? (
           <div className="h-full flex items-center justify-center px-2">
             <div className="text-center max-w-md">
-              <Sparkle weight="light" className="w-10 sm:w-12 h-10 sm:h-12 text-muted-foreground mx-auto mb-4 sm:mb-6" />
-              <h2 className="font-serif text-xl sm:text-2xl font-medium mb-2 sm:mb-3">Start a conversation</h2>
-              <p className="text-muted-foreground text-xs sm:text-sm mb-6 sm:mb-8">
-                Ask any question about legal, finance, investors, or competitors.
-              </p>
+              {selectedAgent === null ? (
+                <>
+                  <Lightning weight="light" className="w-10 sm:w-12 h-10 sm:h-12 text-muted-foreground mx-auto mb-4 sm:mb-6" />
+                  <h2 className="font-serif text-xl sm:text-2xl font-medium mb-2 sm:mb-3">Multi-Agent Mode</h2>
+                  <p className="text-muted-foreground text-xs sm:text-sm mb-6 sm:mb-8">
+                    All 4 agents collaborate to answer your question. They critique each other and synthesize the best response.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <Sparkle weight="light" className="w-10 sm:w-12 h-10 sm:h-12 text-muted-foreground mx-auto mb-4 sm:mb-6" />
+                  <h2 className="font-serif text-xl sm:text-2xl font-medium mb-2 sm:mb-3">Start a conversation</h2>
+                  <p className="text-muted-foreground text-xs sm:text-sm mb-6 sm:mb-8">
+                    Ask {agentConfig[selectedAgent].name} agent any question.
+                  </p>
+                </>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                 {suggestions.map((suggestion) => (
                   <button
@@ -279,7 +333,11 @@ export default function ChatPage() {
               >
                 {message.role === 'assistant' && (
                   <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0 mt-1">
-                    <Robot weight="regular" className="w-4 h-4 text-muted-foreground" />
+                    {message.agent === 'multi' ? (
+                      <Lightning weight="regular" className="w-4 h-4 text-muted-foreground" />
+                    ) : (
+                      <Robot weight="regular" className="w-4 h-4 text-muted-foreground" />
+                    )}
                   </div>
                 )}
 
@@ -301,14 +359,18 @@ export default function ChatPage() {
                     </Card>
                   ) : (
                     <div className="space-y-2">
-                      {/* Main response */}
                       <Card className="border-border/40 bg-card">
                         <CardContent className="p-4">
+                          {message.agent === 'multi' && (
+                            <Badge variant="secondary" className="mb-2 text-xs">
+                              <Lightning weight="fill" className="w-3 h-3 mr-1" />
+                              Multi-Agent Response
+                            </Badge>
+                          )}
                           <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
                         </CardContent>
                       </Card>
 
-                      {/* Collapsible details + actions */}
                       {message.confidence && (
                         <div className="flex items-center gap-2">
                           <button
@@ -338,23 +400,24 @@ export default function ChatPage() {
                               <Copy weight="regular" className="w-3.5 h-3.5" />
                             )}
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleExportToNotion(message.id, message.content, message.agent!)}
-                            disabled={isExporting === message.id}
-                            className="h-7 px-2 text-muted-foreground hover:text-foreground"
-                          >
-                            {isExporting === message.id ? (
-                              <CircleNotch weight="bold" className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <NotionLogo weight="regular" className="w-3.5 h-3.5" />
-                            )}
-                          </Button>
+                          {message.agent && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleExportToNotion(message.id, message.content, message.agent!)}
+                              disabled={isExporting === message.id}
+                              className="h-7 px-2 text-muted-foreground hover:text-foreground"
+                            >
+                              {isExporting === message.id ? (
+                                <CircleNotch weight="bold" className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <NotionLogo weight="regular" className="w-3.5 h-3.5" />
+                              )}
+                            </Button>
+                          )}
                         </div>
                       )}
 
-                      {/* Expanded details */}
                       <AnimatePresence>
                         {expandedDetails === message.id && message.sources && message.sources.length > 0 && (
                           <motion.div
@@ -392,7 +455,7 @@ export default function ChatPage() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input - fixed at bottom */}
+      {/* Input */}
       <div className="pt-3 sm:pt-4 border-t border-border/40 shrink-0">
         <form onSubmit={handleSubmit}>
           <div className="relative">
@@ -400,7 +463,7 @@ export default function ChatPage() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={`Ask ${agentConfig[selectedAgent].name} anything...`}
+              placeholder={getPlaceholder()}
               className="min-h-[48px] sm:min-h-[56px] max-h-[120px] sm:max-h-[150px] pr-12 sm:pr-14 resize-none text-sm"
               disabled={isLoading}
             />
@@ -418,7 +481,7 @@ export default function ChatPage() {
             </Button>
           </div>
           <p className="text-[10px] sm:text-xs text-muted-foreground mt-2 text-center hidden sm:block">
-            Press Enter to send · Shift+Enter for new line
+            {selectedAgent === null ? 'Multi-agent A2A mode · ' : ''}Press Enter to send · Shift+Enter for new line
           </p>
         </form>
       </div>

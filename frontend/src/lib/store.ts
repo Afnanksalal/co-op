@@ -58,7 +58,7 @@ interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  agent?: AgentType;
+  agent?: AgentType | 'multi';
   confidence?: number;
   sources?: string[];
   timestamp: Date;
@@ -67,18 +67,18 @@ interface ChatMessage {
 
 interface ChatState {
   messages: ChatMessage[];
-  selectedAgent: AgentType;
+  selectedAgent: AgentType | null; // null = multi-agent A2A mode
   isLoading: boolean;
   addMessage: (message: ChatMessage) => void;
   updateMessage: (id: string, updates: Partial<ChatMessage>) => void;
-  setSelectedAgent: (agent: AgentType) => void;
+  setSelectedAgent: (agent: AgentType | null) => void;
   setLoading: (loading: boolean) => void;
   clearMessages: () => void;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
   messages: [],
-  selectedAgent: 'legal',
+  selectedAgent: null, // Default to multi-agent A2A mode
   isLoading: false,
   addMessage: (message) => set((state) => ({ messages: [...state.messages, message] })),
   updateMessage: (id, updates) =>

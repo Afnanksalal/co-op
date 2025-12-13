@@ -1,11 +1,18 @@
-import { IsEnum, IsString, IsUUID, IsArray, MinLength, MaxLength } from 'class-validator';
+import { IsEnum, IsString, IsUUID, IsArray, MinLength, MaxLength, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { AgentType } from '../types/agent.types';
 
 export class RunAgentDto {
-  @ApiProperty({ enum: ['legal', 'finance', 'investor', 'competitor'] })
+  @ApiProperty({ enum: ['legal', 'finance', 'investor', 'competitor'], required: false })
   @IsEnum(['legal', 'finance', 'investor', 'competitor'])
-  agentType: AgentType;
+  @IsOptional()
+  agentType?: AgentType;
+
+  @ApiProperty({ type: [String], description: 'Agents to query (for multi-agent mode)', required: false })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  agents?: string[];
 
   @ApiProperty({ description: 'The prompt/question for the agent' })
   @IsString()

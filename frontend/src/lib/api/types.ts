@@ -160,7 +160,8 @@ export interface AgentPhaseResult {
 }
 
 export interface RunAgentRequest {
-  agentType: AgentType;
+  agentType?: AgentType;
+  agents?: string[];
   prompt: string;
   sessionId: string;
   startupId: string;

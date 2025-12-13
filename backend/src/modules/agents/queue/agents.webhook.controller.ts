@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Receiver } from '@upstash/qstash';
 import { OrchestratorService } from '../orchestrator/orchestrator.service';
 import { AgentsQueueService } from './agents.queue.service';
+import { AgentsService } from '../agents.service';
 import { WebhooksService } from '@/modules/webhooks/webhooks.service';
 import { AgentType, AgentInput } from '../types/agent.types';
 
@@ -10,8 +11,10 @@ interface QStashWebhookBody {
   taskId: string;
   type: string;
   payload: {
-    agentType: AgentType;
+    agentType?: AgentType;
+    agents?: string[];
     input: AgentInput;
+    isMultiAgent?: boolean;
   };
   userId: string;
   createdAt: string;
@@ -26,6 +29,7 @@ export class AgentsWebhookController {
     private readonly configService: ConfigService,
     private readonly orchestrator: OrchestratorService,
     private readonly queueService: AgentsQueueService,
+    private readonly agentsService: AgentsService,
     private readonly webhooksService: WebhooksService,
   ) {
     const currentSigningKey = this.configService.get<string>('QSTASH_CURRENT_SIGNING_KEY');
@@ -73,7 +77,7 @@ export class AgentsWebhookController {
     }
 
     const { taskId, payload } = body;
-    const { agentType, input } = payload;
+    const { agentType, agents, input, isMultiAgent } = payload;
 
     // Check if task was cancelled
     const isCancelled = await this.queueService.isTaskCancelled(taskId);
@@ -86,9 +90,25 @@ export class AgentsWebhookController {
       // Update status to active
       await this.queueService.updateTaskStatus(taskId, 'active', 10);
 
-      // Run the agent
-      this.logger.log(`Processing agent job: ${taskId} - ${agentType}`);
-      const results = await this.orchestrator.runAgent(agentType, input);
+      let results;
+      
+      if (isMultiAgent && agents) {
+        // Multi-agent A2A mode
+        this.logger.log(`Processing multi-agent job: ${taskId} - ${agents.join(', ')}`);
+        results = await this.agentsService.run(body.userId, {
+          agents,
+          prompt: input.prompt,
+          sessionId: input.context.sessionId,
+          startupId: input.context.startupId,
+          documents: input.documents,
+        });
+      } else if (agentType) {
+        // Single agent mode
+        this.logger.log(`Processing agent job: ${taskId} - ${agentType}`);
+        results = await this.orchestrator.runAgent(agentType, input);
+      } else {
+        throw new Error('No agent type or agents array provided');
+      }
 
       // Update status to completed with results
       await this.queueService.updateTaskStatus(taskId, 'completed', 100, {
@@ -101,7 +121,8 @@ export class AgentsWebhookController {
       // Trigger user webhooks for agent completion
       await this.webhooksService.trigger('agent.completed', {
         taskId,
-        agentType,
+        agentType: isMultiAgent ? 'multi' : agentType,
+        agents: isMultiAgent ? agents : undefined,
         userId: body.userId,
         results: results.map(r => ({
           phase: r.phase,
@@ -123,7 +144,8 @@ export class AgentsWebhookController {
       // Trigger user webhooks for agent failure
       await this.webhooksService.trigger('agent.failed', {
         taskId,
-        agentType,
+        agentType: isMultiAgent ? 'multi' : agentType,
+        agents: isMultiAgent ? agents : undefined,
         userId: body.userId,
         error: errorMessage,
         failedAt: new Date().toISOString(),

@@ -26,9 +26,19 @@ export class AgentsQueueService {
 
   /**
    * Add a job to QStash queue
+   * @param agentType - Primary agent type (or 'legal' for multi-agent)
+   * @param input - Agent input
+   * @param userId - User ID
+   * @param agents - Optional array of agents for multi-agent mode
    */
-  async addJob(agentType: AgentType, input: AgentInput, userId: string): Promise<AddJobResult> {
+  async addJob(
+    agentType: AgentType,
+    input: AgentInput,
+    userId: string,
+    agents?: string[],
+  ): Promise<AddJobResult> {
     const taskId = uuid();
+    const isMultiAgent = agents && agents.length > 0;
 
     if (!this.qstash.isAvailable()) {
       throw new Error('QStash not configured - cannot queue jobs');
@@ -36,10 +46,12 @@ export class AgentsQueueService {
 
     const result = await this.qstash.publish({
       taskId,
-      type: agentType,
+      type: isMultiAgent ? 'multi' : agentType,
       payload: {
-        agentType,
+        agentType: isMultiAgent ? undefined : agentType,
+        agents: isMultiAgent ? agents : undefined,
         input,
+        isMultiAgent,
       },
       userId,
       createdAt: new Date().toISOString(),
@@ -48,11 +60,11 @@ export class AgentsQueueService {
     // Store initial status in Redis
     await this.redis.set(
       `${TASK_STATUS_PREFIX}${taskId}`,
-      { status: 'waiting', progress: 0, createdAt: new Date().toISOString() },
+      { status: 'waiting', progress: 0, createdAt: new Date().toISOString(), isMultiAgent },
       TASK_TTL,
     );
 
-    this.logger.log(`QStash job published: ${result.messageId} for ${agentType}`);
+    this.logger.log(`QStash job published: ${result.messageId} for ${isMultiAgent ? `multi-agent (${agents.join(', ')})` : agentType}`);
     return { taskId, messageId: result.messageId };
   }
 

@@ -155,9 +155,6 @@ export default function OnboardingPage() {
       ...(formData.competitiveAdvantage && { competitiveAdvantage: formData.competitiveAdvantage }),
     };
 
-    // Debug: log the data being sent
-    console.log('Submitting onboarding data:', JSON.stringify(cleanData, null, 2));
-
     setIsLoading(true);
     try {
       await api.completeOnboarding(cleanData);
