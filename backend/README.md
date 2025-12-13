@@ -1,44 +1,45 @@
 # Co-Op Backend
 
-Enterprise-grade NestJS backend powering AI-driven startup advisory services with multi-model LLM Council architecture, real-time web research, and MCP server integration.
+<p>
+  <img src="https://img.shields.io/badge/NestJS-11-red?logo=nestjs" alt="NestJS">
+  <img src="https://img.shields.io/badge/TypeScript-5.6-blue?logo=typescript" alt="TypeScript">
+  <img src="https://img.shields.io/badge/Drizzle_ORM-Latest-green" alt="Drizzle">
+  <img src="https://img.shields.io/badge/Docker-Ready-blue?logo=docker" alt="Docker">
+</p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![NestJS](https://img.shields.io/badge/NestJS-11-red.svg)](https://nestjs.com/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.6-blue.svg)](https://www.typescriptlang.org/)
-[![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://www.docker.com/)
+Enterprise-grade NestJS backend powering AI-driven startup advisory services with multi-model LLM Council architecture, real-time web research, and MCP server integration.
 
 ## Table of Contents
 
 - [Overview](#overview)
 - [Architecture](#architecture)
-- [Tech Stack](#tech-stack)
-- [Features](#features)
 - [Quick Start](#quick-start)
 - [Environment Configuration](#environment-configuration)
-- [Database Schema](#database-schema)
-- [API Reference](#api-reference)
-- [Authentication](#authentication)
 - [LLM Council](#llm-council)
+- [AI Agents](#ai-agents)
 - [RAG Integration](#rag-integration)
-- [MCP Server Integration](#mcp-server-integration)
+- [Web Research](#web-research)
+- [MCP Server](#mcp-server)
+- [API Reference](#api-reference)
+- [Database Schema](#database-schema)
 - [Deployment](#deployment)
 - [Development](#development)
-- [Contributing](#contributing)
-- [License](#license)
 
 ---
 
 ## Overview
 
-Co-Op Backend is an open-source AI platform that provides startup founders with intelligent advisory services across legal, finance, investor relations, and competitive analysis domains. The platform uses a unique "LLM Council" architecture where multiple AI models cross-critique each other to ensure accuracy and reduce hallucinations.
+Co-Op Backend is an open-source AI platform providing startup founders with intelligent advisory services. The platform uses a unique **LLM Council** architecture where multiple AI models **mandatorily cross-critique** each other to ensure accuracy and reduce hallucinations.
 
 ### Key Differentiators
 
-- **LLM Council**: Mandatory cross-critique between 2-5 models for every response
-- **Real-time Research**: Google Gemini with Search Grounding for live web data
-- **RAG Integration**: Semantic document search for legal and finance domains
-- **MCP Protocol**: Expose AI agents as tools for Claude Desktop, Cursor, and other MCP clients
-- **Production-Ready**: Circuit breakers, rate limiting, audit logging, and Prometheus metrics
+| Feature | Description |
+|---------|-------------|
+| **LLM Council** | 2-5 models cross-critique every response (mandatory) |
+| **Web Research** | Google Gemini Search Grounding + ScrapingBee fallback |
+| **RAG Integration** | Semantic document search for legal/finance domains |
+| **MCP Protocol** | Expose agents as tools for Claude, Cursor, Kiro |
+| **Production-Ready** | Circuit breakers, rate limiting, audit logging, metrics |
 
 ---
 
@@ -46,15 +47,7 @@ Co-Op Backend is an open-source AI platform that provides startup founders with 
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              CLIENT LAYER                                   │
-├─────────────────────────────────────────────────────────────────────────────┤
-│  Web App (React)  │  Mobile App  │  MCP Clients (Claude/Cursor)  │  API     │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
 │                              API GATEWAY                                    │
-├─────────────────────────────────────────────────────────────────────────────┤
 │  NestJS 11  │  Helmet  │  CORS  │  Rate Limiting  │  Validation             │
 └─────────────────────────────────────────────────────────────────────────────┘
                                       │
@@ -65,11 +58,9 @@ Co-Op Backend is an open-source AI platform that provides startup founders with 
 ├─────────────────┤       ├─────────────────────┤       ├─────────────────┤
 │ Supabase Auth   │       │ Users Module        │       │ Tool Discovery  │
 │ JWT Validation  │       │ Sessions Module     │       │ Tool Execution  │
-│ API Key Auth    │       │ Agents Module       │       │ A2A Protocol    │
-│ Admin Guard     │       │ Startups Module     │       └─────────────────┘
+│ API Key Auth    │       │ Agents Module       │       │ Multi-Agent     │
+│ Admin Guard     │       │ Webhooks Module     │       └─────────────────┘
 └─────────────────┘       │ Analytics Module    │
-                          │ Webhooks Module     │
-                          │ Notion Module       │
                           └─────────────────────┘
                                       │
           ┌───────────────────────────┼───────────────────────────┐
@@ -78,10 +69,9 @@ Co-Op Backend is an open-source AI platform that provides startup founders with 
 │   LLM COUNCIL   │       │   INFRASTRUCTURE    │       │   EXTERNAL      │
 ├─────────────────┤       ├─────────────────────┤       ├─────────────────┤
 │ Groq Provider   │       │ PostgreSQL (Drizzle)│       │ RAG Service     │
-│ Google Provider │       │ Redis (Upstash)     │       │ (Context Only)  │
-│ HuggingFace     │       │ QStash (Upstash)    │       │ Notion API      │
-│ Cross-Critique  │       │ Circuit Breaker     │       │ Web Research    │
-│ Consensus       │       │ Prometheus Metrics  │       │ (Gemini Search) │
+│ Google Provider │       │ Redis (Upstash)     │       │ Notion API      │
+│ HuggingFace     │       │ QStash Queue        │       │ Web Research    │
+│ Cross-Critique  │       │ Circuit Breaker     │       │ (Gemini Search) │
 └─────────────────┘       └─────────────────────┘       └─────────────────┘
 ```
 
@@ -89,114 +79,44 @@ Co-Op Backend is an open-source AI platform that provides startup founders with 
 
 ```
 src/
-├── common/                    # Shared utilities and services
-│   ├── audit/                 # Audit logging service
-│   ├── cache/                 # Redis-backed caching
+├── common/                    # Shared utilities
+│   ├── audit/                 # Audit logging
+│   ├── cache/                 # Redis caching
 │   ├── circuit-breaker/       # Fault tolerance
-│   ├── decorators/            # Custom decorators (@CurrentUser, etc.)
-│   ├── dto/                   # Shared DTOs (pagination)
+│   ├── decorators/            # @CurrentUser, etc.
+│   ├── dto/                   # Shared DTOs
 │   ├── filters/               # Exception filters
-│   ├── guards/                # Auth, API key, admin, throttle guards
-│   ├── llm/                   # LLM Council implementation
+│   ├── guards/                # Auth, API key, admin, throttle
+│   ├── llm/                   # LLM Council
 │   │   ├── providers/         # Groq, Google, HuggingFace
 │   │   ├── llm-council.service.ts
 │   │   └── llm-router.service.ts
 │   ├── metrics/               # Prometheus metrics
-│   ├── qstash/                # Upstash QStash serverless queue
-│   ├── rag/                   # RAG service client (context retrieval)
-│   ├── redis/                 # Upstash Redis client
-│   ├── research/              # Web research (Gemini Search)
-│   └── supabase/              # Supabase auth & storage
-├── config/                    # Environment configuration
+│   ├── qstash/                # Serverless queue
+│   ├── rag/                   # RAG client
+│   ├── redis/                 # Upstash Redis
+│   ├── research/              # Web research (Gemini)
+│   └── supabase/              # Auth & storage
+├── config/                    # Environment config
 ├── database/                  # Drizzle ORM
-│   ├── schema/                # Table definitions
-│   └── database.module.ts
-├── modules/                   # Feature modules
-│   ├── admin/                 # Admin operations
-│   ├── agents/                # AI agents (legal, finance, etc.)
-│   │   ├── domains/           # Domain-specific agents
-│   │   ├── orchestrator/      # Multi-agent orchestration
-│   │   ├── queue/             # QStash job processing
-│   │   └── a2a/               # Agent-to-Agent protocol
-│   ├── analytics/             # Event tracking & dashboards
-│   ├── api-keys/              # API key management
-│   ├── health/                # Health checks
-│   ├── mcp/                   # MCP client (external servers)
-│   ├── mcp-server/            # MCP server (expose agents)
-│   ├── notion/                # Notion integration
-│   ├── sessions/              # Chat sessions
-│   ├── startups/              # Startup profiles
-│   ├── users/                 # User management
-│   └── webhooks/              # Webhook subscriptions
-└── main.ts                    # Application bootstrap
+│   └── schema/                # Table definitions
+└── modules/                   # Feature modules
+    ├── admin/                 # Admin operations
+    ├── agents/                # AI agents
+    │   ├── domains/           # Legal, finance, investor, competitor
+    │   ├── orchestrator/      # Multi-agent orchestration
+    │   └── queue/             # QStash job processing
+    ├── analytics/             # Event tracking
+    ├── api-keys/              # API key management
+    ├── health/                # Health checks
+    ├── mcp/                   # MCP client
+    ├── mcp-server/            # MCP server (expose agents)
+    ├── notion/                # Notion integration
+    ├── sessions/              # Chat sessions
+    ├── startups/              # Startup profiles
+    ├── users/                 # User management
+    └── webhooks/              # Webhook subscriptions
 ```
-
----
-
-## Tech Stack
-
-| Category | Technology | Purpose |
-|----------|------------|---------|
-| **Framework** | NestJS 11 | Modular Node.js framework |
-| **Language** | TypeScript 5.6 | Type safety |
-| **Database** | PostgreSQL (Neon) | Primary data store |
-| **ORM** | Drizzle ORM | Type-safe SQL |
-| **Cache** | Upstash Redis | Caching & rate limiting |
-| **Queue** | Upstash QStash | Serverless message queue |
-| **Auth** | Supabase Auth | JWT authentication |
-| **Storage** | Supabase Storage | File uploads |
-| **LLM** | Groq, Google AI, HuggingFace | Multi-provider AI |
-| **Research** | Google Gemini | Web search grounding |
-| **RAG** | External Python service | Semantic document search |
-| **Validation** | class-validator, Zod | Input validation |
-| **Docs** | Swagger/OpenAPI | API documentation |
-| **Metrics** | Prometheus | Observability |
-| **Container** | Docker | Deployment |
-
----
-
-## Features
-
-### AI Agents
-
-| Agent | Purpose | Data Source |
-|-------|---------|-------------|
-| **Legal** | Legal advisory | RAG (document search) |
-| **Finance** | Financial modeling | RAG (document search) |
-| **Investor** | Investor relations | Web Research (Gemini + ScrapingBee fallback) |
-| **Competitor** | Competitive intel | Web Research (Gemini + ScrapingBee fallback) |
-
-### Sectors
-
-All agents support filtering by startup sector:
-- `fintech` - Financial technology
-- `greentech` - Clean/green technology
-- `healthtech` - Healthcare technology
-- `saas` - Software as a Service
-- `ecommerce` - E-commerce
-
-### Core Capabilities
-
-- **LLM Council**: Cross-critique consensus for accuracy
-- **Multi-Agent Queries**: Query multiple agents in parallel
-- **SSE Streaming**: Real-time response streaming
-- **Task Queue**: Async processing with QStash
-- **Web Research**: Real-time grounded search with fallback (investor/competitor)
-- **RAG Integration**: Semantic document search (legal/finance)
-- **A2A Protocol**: Agent-to-Agent communication for multi-agent queries
-- **MCP Server**: Expose agents as MCP tools
-- **Webhooks**: Event-driven integrations
-- **Notion Export**: Export outputs to Notion
-
-### Security & Reliability
-
-- **Authentication**: Supabase JWT + API keys
-- **Authorization**: Role-based access control
-- **Rate Limiting**: Per-user throttling
-- **Circuit Breaker**: Fault tolerance
-- **Audit Logging**: Full audit trail
-- **SSRF Protection**: Webhook URL validation
-- **Timing-Safe Auth**: Prevent timing attacks
 
 ---
 
@@ -205,27 +125,24 @@ All agents support filtering by startup sector:
 ### Prerequisites
 
 - Node.js 22+
-- npm 10+
-- PostgreSQL database (Neon recommended)
+- PostgreSQL (Neon recommended)
 - Upstash Redis account
 - Supabase project
-- At least one LLM API key (Groq, Google AI, or HuggingFace)
+- At least 2 LLM API keys (for council cross-critique)
 
 ### Installation
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-org/co-op.git
-cd co-op/backend
+# Clone repository
+git clone https://github.com/Afnanksalal/co-op.git
+cd co-op/Backend
 
 # Install dependencies
 npm install
 
 # Copy environment template
 cp .env.example .env
-
 # Edit .env with your credentials
-# See Environment Configuration section below
 
 # Push database schema
 npm run db:push
@@ -234,9 +151,8 @@ npm run db:push
 npm run dev
 ```
 
-The API will be available at `http://localhost:3000/api/v1`
-
-Swagger documentation: `http://localhost:3000/docs`
+API available at `http://localhost:3000/api/v1`
+Swagger docs at `http://localhost:3000/docs` (dev only)
 
 ---
 
@@ -246,27 +162,26 @@ Swagger documentation: `http://localhost:3000/docs`
 
 ```bash
 # Database
-DATABASE_URL="postgresql://user:pass@host:5432/db"
+DATABASE_URL="postgresql://user:pass@host:5432/db?sslmode=require"
 
 # Supabase
 SUPABASE_URL="https://project.supabase.co"
 SUPABASE_ANON_KEY="eyJ..."
 SUPABASE_SERVICE_KEY="eyJ..."
 
-# Upstash Redis (REST API for caching)
+# Upstash Redis (REST API)
 UPSTASH_REDIS_URL="https://instance.upstash.io"
 UPSTASH_REDIS_TOKEN="AX..."
 
 # Upstash QStash (Serverless Queue)
-QSTASH_URL="https://qstash.upstash.io"
 QSTASH_TOKEN="eyJ..."
 QSTASH_CURRENT_SIGNING_KEY="sig_..."
 QSTASH_NEXT_SIGNING_KEY="sig_..."
 
-# At least ONE LLM provider
-GROQ_API_KEY="gsk_..."           # Recommended
-GOOGLE_AI_API_KEY="AI..."        # Also enables web research
-HUGGINGFACE_API_KEY="hf_..."
+# LLM Providers (minimum 2 for council)
+GROQ_API_KEY="gsk_..."           # Llama 3.3, GPT OSS
+GOOGLE_AI_API_KEY="AI..."        # Gemini 3 + Web Research
+HUGGINGFACE_API_KEY="hf_..."     # DeepSeek R1, Llama 3
 ```
 
 ### Optional Variables
@@ -280,459 +195,214 @@ LOG_LEVEL="debug"
 
 # Security
 MASTER_API_KEY=""                # For MCP server & metrics
-CORS_ORIGINS="http://localhost:3000"
+CORS_ORIGINS="http://localhost:3000,https://co-op-dev.vercel.app"
 
 # Rate Limiting
 THROTTLE_TTL="60"
 THROTTLE_LIMIT="100"
 
 # LLM Council
-LLM_COUNCIL_MIN_MODELS="2"
+LLM_COUNCIL_MIN_MODELS="2"       # Minimum for cross-critique
 LLM_COUNCIL_MAX_MODELS="5"
 
-# RAG Service (for legal/finance agents)
-RAG_SERVICE_URL="https://your-rag-service.koyeb.app"
+# RAG Service
+RAG_SERVICE_URL="https://your-rag.koyeb.app"
 RAG_API_KEY=""
 
-# Web Research Fallback (optional)
-SCRAPINGBEE_API_KEY=""           # Fallback when Gemini Search fails
+# Web Research Fallback
+SCRAPINGBEE_API_KEY=""           # When Gemini fails
 
-# Notion (optional)
+# Notion
 NOTION_API_TOKEN=""
 NOTION_DEFAULT_PAGE_ID=""
-
-# Storage
-SUPABASE_STORAGE_BUCKET="documents"
 ```
 
-See `.env.example` for full documentation of all variables.
-
----
-
-## Database Schema
-
-### Tables
-
-| Table | Purpose |
-|-------|---------|
-| `users` | User accounts with OAuth tracking |
-| `startups` | Startup profiles with business context |
-| `sessions` | Chat sessions |
-| `session_messages` | Messages within sessions |
-| `admin_users` | Admin role assignments |
-| `log_events` | Analytics events |
-| `webhooks` | Webhook subscriptions |
-| `audit_logs` | Audit trail with IP tracking |
-| `mcp_integrations` | MCP server configurations |
-| `rag_files` | RAG document metadata |
-
-### Schema Management
-
-```bash
-# Push schema changes to database
-npm run db:push
-
-# Generate migration files
-npm run db:generate
-
-# Run migrations
-npm run db:migrate
-
-# Open Drizzle Studio (GUI)
-npm run db:studio
-```
-
----
-
-## API Reference
-
-### Base URL
-
-```
-Production: https://your-app.onrender.com/api/v1
-Development: http://localhost:3000/api/v1
-```
-
-### Endpoints Overview
-
-#### Health & Metrics
-
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| GET | `/health` | Health check (includes RAG status) | None |
-| GET | `/metrics` | Prometheus metrics | API Key |
-
-#### Users & Onboarding
-
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| GET | `/users/me` | Get current user | Bearer |
-| GET | `/users/me/onboarding-status` | Check onboarding | Bearer |
-| POST | `/users/me/onboarding` | Complete onboarding | Bearer |
-| PATCH | `/users/me/startup` | Update startup | Bearer |
-| PATCH | `/users/me` | Update profile | Bearer |
-
-#### Sessions
-
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| POST | `/sessions` | Create session | Bearer |
-| GET | `/sessions` | List sessions | Bearer |
-| GET | `/sessions/:id` | Get session | Bearer |
-| POST | `/sessions/:id/end` | End session | Bearer |
-| GET | `/sessions/:id/messages` | Get messages | Bearer |
-| POST | `/sessions/:id/messages` | Add message | Bearer |
-
-#### Agents
-
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| POST | `/agents/run` | Run agent (sync) | Bearer |
-| POST | `/agents/queue` | Queue agent (async) | Bearer |
-| GET | `/agents/tasks/:taskId` | Get task status | Bearer |
-| DELETE | `/agents/tasks/:taskId` | Cancel task | Bearer |
-| GET | `/agents/stream/:taskId` | SSE stream | Bearer |
-
-#### MCP Server
-
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| GET | `/mcp-server/discover` | List available tools | API Key |
-| POST | `/mcp-server/execute` | Execute a tool | API Key |
-
-#### Admin
-
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| POST | `/admin/embeddings/upload` | Upload PDF | Admin |
-| GET | `/admin/embeddings` | List embeddings | Admin |
-| DELETE | `/admin/embeddings/:id` | Delete embedding | Admin |
-
-#### Webhooks
-
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| POST | `/webhooks` | Create webhook | Bearer |
-| GET | `/webhooks` | List webhooks | Bearer |
-| PATCH | `/webhooks/:id` | Update webhook | Bearer |
-| DELETE | `/webhooks/:id` | Delete webhook | Bearer |
-
-#### Notion
-
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| GET | `/notion/status` | Integration status | Bearer |
-| GET | `/notion/pages` | Search pages | Bearer |
-| POST | `/notion/export` | Export to Notion | Bearer |
-
-#### API Keys
-
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| POST | `/api-keys` | Create API key | Bearer |
-| GET | `/api-keys` | List API keys | Bearer |
-| DELETE | `/api-keys/:id` | Revoke API key | Bearer |
-
-Full interactive documentation available at `/docs` (Swagger UI) in development mode.
-
----
-
-## Authentication
-
-### User Authentication (Supabase JWT)
-
-For end-user requests, use Supabase access tokens:
-
-```bash
-curl -X GET https://api.example.com/api/v1/users/me \
-  -H "Authorization: Bearer <supabase_access_token>"
-```
-
-### Service Authentication (API Key)
-
-For service-to-service calls, use API keys:
-
-```bash
-curl -X GET https://api.example.com/api/v1/mcp-server/discover \
-  -H "X-API-Key: coop_xxxxxxxxxxxxx"
-```
-
-### Master API Key
-
-For MCP server and metrics access, use the `MASTER_API_KEY`:
-
-```bash
-curl -X GET https://api.example.com/api/v1/metrics \
-  -H "X-API-Key: <MASTER_API_KEY>"
-```
+See `.env.example` for complete documentation.
 
 ---
 
 ## LLM Council
 
-The LLM Council is a unique architecture that ensures response accuracy through mandatory cross-critique between multiple AI models.
+The LLM Council ensures response accuracy through **mandatory cross-critique** between multiple AI models.
 
 ### How It Works
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        LLM COUNCIL FLOW                         │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  1. GENERATE                                                    │
-│     ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐          │
-│     │ Llama   │  │ Gemini  │  │ GPT OSS │  │DeepSeek │          │
-│     │  3.3    │  │  3 Pro  │  │  120B   │  │ R1 32B  │          │
-│     └────┬────┘  └────┬────┘  └────┬────┘  └────┬────┘          │
-│          │            │            │            │               │
-│          ▼            ▼            ▼            ▼               │
-│     ┌─────────────────────────────────────────────────┐         │
-│     │              Anonymous Responses                │         │
-│     └─────────────────────────────────────────────────┘         │
-│                            │                                    │
-│  2. SHUFFLE & CRITIQUE     ▼                                    │
-│     ┌─────────────────────────────────────────────────┐         │
-│     │  Each model critiques others (MANDATORY)        │         │
-│     │  - Identifies errors and inconsistencies        │         │
-│     │  - Scores 1-10 with reasoning                   │         │
-│     └─────────────────────────────────────────────────┘         │
-│                            │                                    │
-│  3. SYNTHESIZE             ▼                                    │
-│     ┌─────────────────────────────────────────────────┐         │
-│     │  Best response improved with critique feedback  │         │
-│     │  - Concise bullet points                        │         │
-│     │  - Token-efficient output                       │         │
-│     └─────────────────────────────────────────────────┘         │
-│                                                                 │
+│                    PHASE 1: GENERATE                            │
+│  All models generate responses to the same prompt               │
+│  [Llama 3.3] [Gemini 3] [GPT OSS] [DeepSeek] [Llama 3]         │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│              PHASE 2: SHUFFLE & CRITIQUE (MANDATORY)            │
+│  Responses anonymized and shuffled                              │
+│  Each model critiques OTHER models' responses                   │
+│  Scores 1-10 with strengths/weaknesses                          │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    PHASE 3: SYNTHESIZE                          │
+│  Best response selected by consensus score                      │
+│  Improved with critique feedback                                │
+│  Final answer with confidence score                             │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ### Available Models
 
-| Provider | Model | Family | Speed |
-|----------|-------|--------|-------|
-| Groq | Llama 3.3 70B | Meta Llama | Fast |
-| Groq | GPT OSS 120B | OpenAI OSS | Fast |
-| Google | Gemini 3 Pro | Google Gemini | Fast |
-| HuggingFace | DeepSeek R1 32B | DeepSeek | Medium |
-| HuggingFace | Llama 3 8B | Meta Llama | Medium |
+| Provider | Model | Speed | Notes |
+|----------|-------|-------|-------|
+| Groq | Llama 3.3 70B | Fast | Excellent reasoning |
+| Groq | GPT OSS 120B | Fast | Large context |
+| Google | Gemini 3 Pro | Fast | Also enables web research |
+| HuggingFace | DeepSeek R1 32B | Medium | Strong reasoning |
+| HuggingFace | Llama 3 8B | Medium | Lightweight |
 
-### Configuration
+### Health Checks
 
-```bash
-# Minimum models for council (default: 2)
-LLM_COUNCIL_MIN_MODELS="2"
+Models are health-checked on startup and every 5 minutes:
+- Deprecated models automatically excluded
+- Transient failures recovered automatically
+- Minimum 2 healthy models required
 
-# Maximum models to use (default: 5)
-LLM_COUNCIL_MAX_MODELS="5"
+---
+
+## AI Agents
+
+### Agent Types
+
+| Agent | Purpose | Data Source |
+|-------|---------|-------------|
+| **Legal** | Corporate structure, IP, compliance, contracts | RAG (documents) |
+| **Finance** | Financial modeling, metrics, runway, valuation | RAG (documents) |
+| **Investor** | VC matching, pitch optimization, fundraising | Web Research |
+| **Competitor** | Market landscape, positioning, intelligence | Web Research |
+
+### Sectors
+
+All agents support filtering by startup sector:
+- `fintech` - Financial technology
+- `greentech` - Clean/green technology
+- `healthtech` - Healthcare technology
+- `saas` - Software as a Service
+- `ecommerce` - E-commerce
+
+### Agent Flow
+
+```
+User Question
+     │
+     ▼
+┌─────────────────┐
+│  Orchestrator   │
+│  Select Agent   │
+└─────────────────┘
+     │
+     ├─── Legal/Finance ───▶ RAG Service ───▶ Document Context
+     │
+     └─── Investor/Competitor ───▶ Research Service ───▶ Web Context
+                                        │
+                                        ▼
+                              ┌─────────────────┐
+                              │   LLM Council   │
+                              │  Cross-Critique │
+                              └─────────────────┘
+                                        │
+                                        ▼
+                              ┌─────────────────┐
+                              │  Final Answer   │
+                              │  + Confidence   │
+                              └─────────────────┘
 ```
 
 ---
 
 ## RAG Integration
 
-The backend integrates with an external RAG (Retrieval-Augmented Generation) service for semantic document search. The RAG service returns context only - all LLM answer generation is handled by the backend's LLM Council.
+The backend integrates with an external RAG service for semantic document search. **RAG returns context only** - all answer generation is handled by the LLM Council.
 
-### Architecture
+### Flow
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        RAG FLOW                                 │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  UPLOAD (Admin):                                                │
-│  PDF → Backend → Supabase Storage → Register with RAG (pending) │
-│                                                                 │
-│  QUERY (Legal/Finance Agent):                                   │
-│  User Question → Backend → RAG Service → Vector Search          │
-│                                    ↓                            │
-│                    Return context chunks (NO LLM)               │
-│                                    ↓                            │
-│                    Backend LLM Council generates answer         │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+Admin uploads PDF → Supabase Storage → Register with RAG (pending)
+                                              │
+User queries Legal/Finance agent             │
+                                              ▼
+                                    RAG Service (Koyeb)
+                                    - Lazy vectorization
+                                    - Vector search
+                                    - Return context chunks
+                                              │
+                                              ▼
+                                    Backend LLM Council
+                                    - Inject context into prompt
+                                    - Cross-critique answer
 ```
-
-### Key Points
-
-- **Context Only**: RAG returns relevant document chunks, not answers
-- **LLM Council**: Backend handles all answer generation with cross-critique
-- **Lazy Vectorization**: Documents vectorized on-demand, not at upload
-- **Domain Filtering**: Only legal and finance agents use RAG
-- **Sector Filtering**: Results filtered by user's startup sector
-
-### Domains & Sectors
-
-| Domain | Agents | Description |
-|--------|--------|-------------|
-| `legal` | Legal Agent | Contracts, compliance, IP |
-| `finance` | Finance Agent | Financial models, reports |
-
-| Sector | Description |
-|--------|-------------|
-| `fintech` | Financial technology |
-| `greentech` | Clean/green technology |
-| `healthtech` | Healthcare technology |
-| `saas` | Software as a Service |
-| `ecommerce` | E-commerce |
 
 ### Configuration
 
 ```bash
-# RAG Service URL (hosted on Koyeb)
-RAG_SERVICE_URL="https://your-rag-service.koyeb.app"
-
-# API key for RAG service authentication
-RAG_API_KEY="your-secure-api-key"
+RAG_SERVICE_URL="https://your-rag.koyeb.app"
+RAG_API_KEY="your-secure-key"
 ```
 
 ---
 
 ## Web Research
 
-The investor and competitor agents use real-time web research powered by Google Gemini with Search Grounding, with ScrapingBee as a fallback.
+Investor and competitor agents use real-time web research powered by **Google Gemini with Search Grounding**.
 
-### Architecture
+### Primary: Gemini Search Grounding
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    WEB RESEARCH FLOW                            │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  QUERY (Investor/Competitor Agent):                             │
-│  User Question → Research Service → Gemini Search Grounding     │
-│                                    ↓                            │
-│                    (If Gemini fails) → ScrapingBee Fallback     │
-│                                    ↓                            │
-│                    Return grounded context with sources         │
-│                                    ↓                            │
-│                    Backend LLM Council generates answer         │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+```typescript
+// Uses Gemini 2.0 Flash with google_search tool
+const model = client.getGenerativeModel({
+  model: 'gemini-2.0-flash',
+  tools: [{ googleSearch: {} }],
+});
 ```
 
-### Key Points
+### Fallback: ScrapingBee
 
-- **Primary**: Google Gemini 2.0 Flash with Search Grounding
-- **Fallback**: ScrapingBee Google Search API (when Gemini fails/rate limited)
-- **Grounded**: All responses include source URLs
-- **Real-time**: Live web data for investor/competitor research
+When Gemini fails or is rate-limited:
+
+```bash
+SCRAPINGBEE_API_KEY="your-key"  # Optional but recommended
+```
 
 ### Research Types
 
-| Type | Description |
-|------|-------------|
+| Type | Use Case |
+|------|----------|
 | `competitor` | Competitor analysis, market landscape |
 | `investor` | VC/angel search, funding activity |
 | `company` | Company profiles, funding history |
 | `market` | Market size, trends, growth rates |
 
-### Configuration
-
-```bash
-# Primary: Google AI (enables Gemini Search Grounding)
-GOOGLE_AI_API_KEY="AI..."
-
-# Fallback: ScrapingBee (optional but recommended)
-SCRAPINGBEE_API_KEY="..."
-```
-
 ---
 
-## A2A Protocol
+## MCP Server
 
-Agent-to-Agent (A2A) communication enables agents to delegate tasks and cross-critique each other in multi-agent queries.
-
-### Capabilities
-
-| Agent | Actions |
-|-------|---------|
-| `legal` | analyze_contract, check_compliance, review_terms |
-| `finance` | calculate_runway, analyze_metrics, valuation_estimate |
-| `investor` | find_investors, match_profile, research_vc |
-| `competitor` | analyze_market, compare_features, research_competitor |
-
-### Multi-Agent Flow
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    A2A COUNCIL FLOW                             │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  1. PARALLEL GENERATION                                         │
-│     All selected agents generate responses simultaneously       │
-│                                                                 │
-│  2. SHUFFLE & ANONYMIZE                                         │
-│     Responses shuffled for fair critique                        │
-│                                                                 │
-│  3. CROSS-CRITIQUE                                              │
-│     Each agent critiques other agents' responses                │
-│     Scores 1-10 with feedback                                   │
-│                                                                 │
-│  4. SYNTHESIZE                                                  │
-│     Best response improved with critique feedback               │
-│     Combined insights from all agents                           │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## MCP Server Integration
-
-The backend exposes AI agents as MCP (Model Context Protocol) tools for use with:
-
-- Claude Desktop
-- Cursor IDE
-- Kiro IDE
-- Any MCP-compatible client
+Expose AI agents as MCP tools for Claude Desktop, Cursor, Kiro, and other MCP clients.
 
 ### Available Tools
 
 | Tool | Description | Data Source |
 |------|-------------|-------------|
-| `legal_analysis` | Legal advice and compliance | RAG (document search) |
-| `finance_analysis` | Financial modeling and projections | RAG (document search) |
-| `investor_search` | Find relevant investors | Web Research (Gemini + ScrapingBee) |
-| `competitor_analysis` | Competitive intelligence | Web Research (Gemini + ScrapingBee) |
-| `multi_agent_query` | Query multiple agents at once (A2A) | Mixed |
+| `legal_analysis` | Legal advice for startups | RAG |
+| `finance_analysis` | Financial modeling | RAG |
+| `investor_search` | Find relevant investors | Web Research |
+| `competitor_analysis` | Competitive intelligence | Web Research |
+| `multi_agent_query` | Query multiple agents | Mixed |
 
-### Discovery Endpoint
+### Discovery
 
 ```bash
 curl -X GET https://api.example.com/api/v1/mcp-server/discover \
   -H "X-API-Key: <MASTER_API_KEY>"
-```
-
-Response:
-```json
-{
-  "tools": [
-    {
-      "name": "legal_analysis",
-      "description": "Get legal advice for startups",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "prompt": { "type": "string" },
-          "companyName": { "type": "string" },
-          "industry": { "type": "string" },
-          "stage": { "type": "string" },
-          "country": { "type": "string" },
-          "sector": { 
-            "type": "string",
-            "enum": ["fintech", "greentech", "healthtech", "saas", "ecommerce"]
-          }
-        },
-        "required": ["prompt"]
-      }
-    }
-  ],
-  "a2a": {
-    "supported": true,
-    "capabilities": ["task_delegation", "status_polling"]
-  }
-}
 ```
 
 ### Execute Tool
@@ -754,24 +424,122 @@ curl -X POST https://api.example.com/api/v1/mcp-server/execute \
   }'
 ```
 
-### Multi-Agent Query
+---
+
+## API Reference
+
+### Authentication
 
 ```bash
-curl -X POST https://api.example.com/api/v1/mcp-server/execute \
-  -H "X-API-Key: <MASTER_API_KEY>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "tool": "multi_agent_query",
-    "arguments": {
-      "prompt": "Prepare for Series A fundraising",
-      "agents": ["legal", "finance", "investor"],
-      "companyName": "MyStartup",
-      "industry": "saas",
-      "stage": "seed",
-      "country": "US",
-      "sector": "fintech"
-    }
-  }'
+# User auth (Supabase JWT)
+curl -H "Authorization: Bearer <jwt>" \
+  https://api.example.com/api/v1/users/me
+
+# Service auth (API Key)
+curl -H "X-API-Key: coop_xxxxx" \
+  https://api.example.com/api/v1/mcp-server/discover
+
+# Master API Key (metrics, MCP server)
+curl -H "X-API-Key: <MASTER_API_KEY>" \
+  https://api.example.com/api/v1/metrics
+```
+
+### Endpoints
+
+#### Users & Onboarding
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/users/me` | Get current user |
+| GET | `/users/me/onboarding-status` | Check onboarding |
+| POST | `/users/me/onboarding` | Complete onboarding |
+| PATCH | `/users/me/startup` | Update startup |
+
+#### Sessions
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/sessions` | Create session |
+| GET | `/sessions` | List sessions |
+| GET | `/sessions/:id` | Get session |
+| POST | `/sessions/:id/end` | End session |
+| GET | `/sessions/:id/messages` | Get messages |
+| POST | `/sessions/:id/messages` | Add message |
+
+#### Agents
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/agents/run` | Run agent (sync) |
+| POST | `/agents/queue` | Queue agent (async) |
+| GET | `/agents/tasks/:taskId` | Get task status |
+| DELETE | `/agents/tasks/:taskId` | Cancel task |
+| GET | `/agents/stream/:taskId` | SSE stream |
+
+#### MCP Server
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/mcp-server/discover` | List tools |
+| POST | `/mcp-server/execute` | Execute tool |
+
+#### Webhooks
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/webhooks` | Create webhook |
+| GET | `/webhooks` | List webhooks |
+| PATCH | `/webhooks/:id` | Update webhook |
+| DELETE | `/webhooks/:id` | Delete webhook |
+
+#### API Keys
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api-keys` | Create API key |
+| GET | `/api-keys` | List API keys |
+| DELETE | `/api-keys/:id` | Revoke API key |
+
+#### Admin
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/admin/embeddings/upload` | Upload PDF |
+| GET | `/admin/embeddings` | List embeddings |
+| DELETE | `/admin/embeddings/:id` | Delete embedding |
+
+#### Health & Metrics
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health` | Health check |
+| GET | `/metrics` | Prometheus metrics |
+
+---
+
+## Database Schema
+
+### Tables
+
+| Table | Purpose |
+|-------|---------|
+| `users` | User accounts |
+| `startups` | Startup profiles |
+| `sessions` | Chat sessions |
+| `session_messages` | Messages |
+| `admin_users` | Admin roles |
+| `log_events` | Analytics |
+| `webhooks` | Webhook subscriptions |
+| `audit_logs` | Audit trail |
+| `rag_files` | RAG document metadata |
+
+### Commands
+
+```bash
+npm run db:push      # Push schema to database
+npm run db:generate  # Generate migrations
+npm run db:migrate   # Run migrations
+npm run db:studio    # Open Drizzle Studio
 ```
 
 ---
@@ -780,50 +548,38 @@ curl -X POST https://api.example.com/api/v1/mcp-server/execute \
 
 ### Render (Recommended)
 
-#### Option 1: Blueprint (Automatic)
-
-1. Push code to GitHub/GitLab
-2. Go to Render Dashboard → Blueprints → New Blueprint Instance
-3. Connect repo and select `render.yaml`
-4. Configure environment variables (marked `sync: false`)
-5. Deploy
-
-#### Option 2: Manual
-
-1. Create new Web Service on Render
-2. Connect your repository
+1. Create Web Service on Render
+2. Connect repository
 3. Settings:
    - Runtime: Docker
-   - Dockerfile Path: `./Dockerfile`
+   - Dockerfile: `./Dockerfile`
    - Health Check: `/api/v1/health`
-4. Add all environment variables from `.env.example`
+4. Add environment variables
 5. Deploy
 
 ### Docker
 
 ```bash
-# Build image
+# Build
 docker build -t co-op-backend .
 
-# Run container
+# Run
 docker run -p 3000:3000 \
   -e DATABASE_URL="..." \
   -e SUPABASE_URL="..." \
-  -e UPSTASH_REDIS_URL="..." \
   co-op-backend
 ```
 
-### Required External Services
+### Required Services
 
-| Service | Purpose | Free Tier | Link |
-|---------|---------|-----------|------|
-| Neon | PostgreSQL | Yes | [neon.tech](https://neon.tech) |
-| Supabase | Auth & Storage | Yes | [supabase.com](https://supabase.com) |
-| Upstash | Redis | Yes | [upstash.com](https://upstash.com) |
-| Groq | LLM inference | Yes | [console.groq.com](https://console.groq.com) |
-| Google AI | Gemini + Research | Yes | [aistudio.google.com](https://aistudio.google.com) |
-| HuggingFace | LLM inference | Yes | [huggingface.co](https://huggingface.co) |
-| Koyeb | RAG Service | Yes | [koyeb.com](https://koyeb.com) |
+| Service | Purpose | Free Tier |
+|---------|---------|-----------|
+| [Neon](https://neon.tech) | PostgreSQL | Yes |
+| [Supabase](https://supabase.com) | Auth & Storage | Yes |
+| [Upstash](https://upstash.com) | Redis + QStash | Yes |
+| [Groq](https://console.groq.com) | LLM | Yes |
+| [Google AI](https://aistudio.google.com) | LLM + Research | Yes |
+| [HuggingFace](https://huggingface.co) | LLM | Yes |
 
 ---
 
@@ -832,36 +588,27 @@ docker run -p 3000:3000 \
 ### Scripts
 
 ```bash
-npm run dev          # Start dev server (watch mode)
-npm run build        # Build for production
-npm run start:prod   # Start production server
+npm run dev          # Start dev server (watch)
+npm run build        # Production build
+npm run start:prod   # Start production
 npm run lint         # Run ESLint
 npm run format       # Format with Prettier
 npm run test         # Run tests
-npm run test:cov     # Run tests with coverage
-npm run db:push      # Push schema to database
-npm run db:generate  # Generate migrations
-npm run db:migrate   # Run migrations
-npm run db:studio    # Open Drizzle Studio
+npm run test:cov     # Coverage report
 ```
 
 ### Code Style
 
-- ESLint 9 with strict TypeScript rules
-- Prettier for formatting
+- ESLint 9 with strict TypeScript
+- Prettier formatting
 - Conventional commits
 
 ### Testing
 
 ```bash
-# Unit tests
-npm run test
-
-# E2E tests
-npm run test:e2e
-
-# Coverage report
-npm run test:cov
+npm run test         # Unit tests
+npm run test:e2e     # E2E tests
+npm run test:cov     # Coverage
 ```
 
 ---
@@ -870,18 +617,6 @@ npm run test:cov
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-## Security
-
-See [SECURITY.md](SECURITY.md) for security policies and reporting vulnerabilities.
-
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for version history.
-
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
-
----
-
-Built with ❤️ by the Co-Op Team
+MIT License - see [LICENSE](../LICENSE) for details.

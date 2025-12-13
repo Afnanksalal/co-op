@@ -1,12 +1,13 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Next.js-14-black?logo=next.js" alt="Next.js">
   <img src="https://img.shields.io/badge/NestJS-11-red?logo=nestjs" alt="NestJS">
+  <img src="https://img.shields.io/badge/Python-3.11-blue?logo=python" alt="Python">
   <img src="https://img.shields.io/badge/TypeScript-5-blue?logo=typescript" alt="TypeScript">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/PRs-Welcome-brightgreen" alt="PRs Welcome">
 </p>
 
-<h1 align="center">Co-Op</h1>
+<h1 align="center">🚀 Co-Op</h1>
 
 <p align="center">
   <strong>AI-Powered Advisory Platform for Startups</strong>
@@ -14,137 +15,248 @@
 
 <p align="center">
   Expert guidance across legal, finance, investor relations, and competitive analysis.<br/>
-  Powered by a multi-model LLM Council architecture.
+  Powered by a multi-model LLM Council architecture with mandatory cross-critique.
 </p>
 
 <p align="center">
+  <a href="https://co-op-dev.vercel.app">Live Demo</a> •
   <a href="#features">Features</a> •
   <a href="#quick-start">Quick Start</a> •
   <a href="#architecture">Architecture</a> •
   <a href="#deployment">Deployment</a> •
-  <a href="#api">API</a> •
-  <a href="#contributing">Contributing</a>
+  <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
 ---
 
-## The Problem
+## 🎯 The Problem
 
-Early-stage founders need expert advice across multiple domains but lack resources to hire specialists:
+Early-stage founders need expert advice across multiple domains but lack resources:
 
-- **Expensive consultants** — $300-500/hour for quality advice
-- **Generic AI chatbots** — Lack domain expertise and context
-- **Fragmented tools** — Different platforms for different needs
+| Challenge | Impact |
+|-----------|--------|
+| **Expensive consultants** | $300-500/hour for quality advice |
+| **Generic AI chatbots** | Lack domain expertise and startup context |
+| **Fragmented tools** | Different platforms for legal, finance, investors |
+| **Hallucinations** | Single-model AI often provides inaccurate information |
 
-## The Solution
+## 💡 The Solution
 
-Co-Op provides an AI advisory board that understands your startup's context:
+Co-Op provides an AI advisory board that understands your startup's context and validates every response through multi-model consensus:
 
-| Agent | Expertise |
-|-------|-----------|
-| **Legal** | Corporate structure, IP, compliance, contracts |
-| **Finance** | Financial modeling, metrics, runway, valuation |
-| **Investor** | VC matching, pitch optimization, fundraising |
-| **Competitor** | Market landscape, positioning, intelligence |
+| Agent | Expertise | Data Source |
+|-------|-----------|-------------|
+| **⚖️ Legal** | Corporate structure, IP, compliance, contracts | RAG (document search) |
+| **💰 Finance** | Financial modeling, metrics, runway, valuation | RAG (document search) |
+| **🤝 Investor** | VC matching, pitch optimization, fundraising | Web Research (live) |
+| **🎯 Competitor** | Market landscape, positioning, intelligence | Web Research (live) |
 
 ---
 
-## Features
+## ✨ Features
 
-### 🤖 LLM Council Architecture
+### 🧠 LLM Council Architecture
 
-Multiple AI models collaborate and critique each other's responses:
-
-```
-Question → [Llama 3.3] ──┐
-          [GPT OSS]   ───┼──→ Cross-Critique → Synthesize → Final Response
-          [Gemini 3]  ───┤
-          [DeepSeek]  ───┘
-```
-
-- Reduces hallucinations through cross-validation
-- Combines strengths of different model architectures
-- Provides confidence scores based on consensus
-
-### 🔗 A2A Protocol (Agent-to-Agent)
-
-Complex questions trigger multi-agent collaboration:
+Multiple AI models collaborate and **mandatorily critique** each other's responses:
 
 ```
-"I'm building a fintech app. What do I need to know?"
-
-[Legal]     → Regulatory requirements
-[Finance]   → Unit economics, compliance costs
-[Investor]  → Fintech-focused VCs
-[Competitor]→ Market landscape
-         ↓
-    Cross-validation & synthesis
+User Question
+     │
+     ▼
+┌─────────────────────────────────────────────────────┐
+│              PHASE 1: GENERATE                      │
+│  [Llama 3.3 70B] [Gemini 3 Pro] [GPT OSS 120B]     │
+│  [DeepSeek R1 32B] [Llama 3 8B]                    │
+│         Each model generates a response            │
+└─────────────────────────────────────────────────────┘
+     │
+     ▼
+┌─────────────────────────────────────────────────────┐
+│         PHASE 2: CROSS-CRITIQUE (MANDATORY)        │
+│  Responses shuffled and anonymized                 │
+│  Each model scores & critiques other responses     │
+│  Identifies errors, inconsistencies, weaknesses    │
+└─────────────────────────────────────────────────────┘
+     │
+     ▼
+┌─────────────────────────────────────────────────────┐
+│              PHASE 3: SYNTHESIZE                   │
+│  Best response selected by consensus score         │
+│  Improved with critique feedback                   │
+│  Final answer with confidence score                │
+└─────────────────────────────────────────────────────┘
 ```
 
-### 🔌 MCP Server
+**Why this matters:**
+- ✅ Reduces hallucinations through cross-validation
+- ✅ Combines strengths of different model architectures
+- ✅ Provides confidence scores based on consensus
+- ✅ Catches errors that single models miss
 
-IDE integration via Model Context Protocol:
+### 🔬 Real-Time Web Research
 
-```json
-{
-  "tools": ["legal_analysis", "finance_analysis", "investor_search", "competitor_analysis"]
-}
+Investor and competitor agents use **Google Gemini with Search Grounding** for live web data:
+
 ```
-
-### 📡 Webhooks & API Keys
-
-- Real-time event notifications
-- Scoped API access control
-- HMAC signature verification
+Investor Query: "Find seed VCs for AI startups in SF"
+                          │
+                          ▼
+              ┌───────────────────────┐
+              │  Gemini Search        │
+              │  Grounding (Primary)  │
+              └───────────────────────┘
+                          │
+              ┌───────────┴───────────┐
+              │                       │
+              ▼                       ▼
+        Success                  Rate Limited
+              │                       │
+              ▼                       ▼
+        Return Results      ┌─────────────────┐
+                            │  ScrapingBee    │
+                            │  (Fallback)     │
+                            └─────────────────┘
+```
 
 ### 📚 RAG Knowledge Base
 
-- Lazy-loading document retrieval
-- Sector-specific legal and finance documents
-- Automatic vector cleanup
+Legal and finance agents search through **sector-specific document collections**:
 
-### 📝 Notion Integration
+- **Lazy vectorization** - Documents vectorized on-demand, not at upload
+- **TTL management** - Vectors expire after 30 days of no access
+- **Sector filtering** - Results filtered by startup's sector (fintech, healthtech, etc.)
+- **Persistent storage** - PDFs stored permanently in Supabase for re-vectorization
 
-Export agent insights directly to your workspace.
+### 🔌 MCP Server Integration
+
+Expose AI agents as tools for **Claude Desktop**, **Cursor**, **Kiro**, and other MCP clients:
+
+```json
+{
+  "tools": [
+    "legal_analysis",
+    "finance_analysis", 
+    "investor_search",
+    "competitor_analysis",
+    "multi_agent_query"
+  ]
+}
+```
+
+### 📡 Developer Platform
+
+- **API Keys** - Scoped access control with usage tracking
+- **Webhooks** - Real-time event notifications with HMAC verification
+- **Notion Export** - Export agent insights directly to your workspace
+- **Prometheus Metrics** - Full observability for production deployments
 
 ---
 
-## Quick Start
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                           FRONTEND                                  │
+│                    Next.js 14 (Vercel)                              │
+│         Dashboard • Chat • Onboarding • Settings                    │
+└─────────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                           BACKEND                                   │
+│                    NestJS 11 (Render)                               │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │                    Agent Orchestrator                         │  │
+│  │     [Legal] [Finance] [Investor] [Competitor]                 │  │
+│  │                         │                                     │  │
+│  │                         ▼                                     │  │
+│  │                    LLM Council                                │  │
+│  │     [Llama 3.3] [Gemini 3] [GPT OSS] [DeepSeek]              │  │
+│  │              Mandatory Cross-Critique                         │  │
+│  └───────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
+           │                    │                    │
+           ▼                    ▼                    ▼
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────┐
+│   RAG Service   │  │  Web Research   │  │      Data Layer         │
+│ FastAPI (Koyeb) │  │ Gemini Search   │  │  PostgreSQL (Neon)      │
+│ Upstash Vector  │  │ + ScrapingBee   │  │  Redis (Upstash)        │
+│ Gemini Embed    │  │   Fallback      │  │  Supabase (Auth+Storage)│
+└─────────────────┘  └─────────────────┘  └─────────────────────────┘
+```
+
+---
+
+## 📁 Project Structure
+
+```
+co-op/
+├── Backend/                 # NestJS API server
+│   ├── src/
+│   │   ├── modules/         # Feature modules (agents, users, sessions, etc.)
+│   │   ├── common/          # Shared services (LLM Council, RAG, cache)
+│   │   └── database/        # Drizzle ORM schemas
+│   ├── Dockerfile
+│   └── README.md            # Backend documentation
+│
+├── Frontend/                # Next.js web application
+│   ├── src/
+│   │   ├── app/             # App Router pages
+│   │   ├── components/      # UI components (Radix + Tailwind)
+│   │   └── lib/             # API client, hooks, stores
+│   ├── vercel.json
+│   └── README.md            # Frontend documentation
+│
+├── RAG/                     # Python vector search service
+│   ├── app/                 # FastAPI application
+│   ├── Dockerfile
+│   └── README.md            # RAG documentation
+│
+├── CONTRIBUTING.md          # Contribution guidelines
+└── README.md                # This file
+```
+
+---
+
+## 🚀 Quick Start
 
 ### Prerequisites
 
 - Node.js 20+
 - Python 3.11+ (for RAG service)
-- PostgreSQL (or Neon account)
-- Redis (or Upstash account)
+- PostgreSQL (Neon recommended)
+- Redis (Upstash recommended)
 - Supabase project
+- At least 2 LLM API keys (for council cross-critique)
 
-### 1. Clone & Setup
+### 1. Clone Repository
 
 ```bash
 git clone https://github.com/Afnanksalal/co-op.git
 cd co-op
 ```
 
-### 2. Backend
+### 2. Backend Setup
 
 ```bash
 cd Backend
 cp .env.example .env
-# Edit .env with your credentials
+# Edit .env with your credentials (see Backend/README.md)
+
 npm install
-npm run db:push
-npm run dev
+npm run db:push    # Push database schema
+npm run dev        # Start on http://localhost:3000
 ```
 
-### 3. Frontend
+### 3. Frontend Setup
 
 ```bash
 cd Frontend
 cp .env.example .env.local
 # Edit .env.local with your credentials
+
 npm install
-npm run dev
+npm run dev        # Start on http://localhost:3001
 ```
 
 ### 4. RAG Service (Optional)
@@ -152,91 +264,35 @@ npm run dev
 ```bash
 cd RAG
 cp .env.example .env
+# Edit .env with your credentials
+
 pip install -r requirements.txt
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --port 8000
 ```
 
 ---
 
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         FRONTEND                                │
-│                    Next.js 14 (Vercel)                          │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                         BACKEND                                 │
-│                    NestJS 11 (Render)                           │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │                  Agent Orchestrator                     │    │
-│  │  [Legal] [Finance] [Investor] [Competitor]              │    │
-│  │              ↓                                          │    │
-│  │         LLM Council                                     │    │
-│  │  [Llama] [GPT OSS] [Gemini] [DeepSeek]                  │    │
-│  └─────────────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────────┘
-         │                                    │
-         ▼                                    ▼
-┌─────────────────────┐          ┌─────────────────────────────────┐
-│    RAG Service      │          │         Data Layer              │
-│  FastAPI (Koyeb)    │          │  PostgreSQL (Neon)              │
-│  Upstash Vectors    │          │  Redis (Upstash)                │
-└─────────────────────┘          │  Supabase (Auth + Storage)      │
-                                 └─────────────────────────────────┘
-```
-
----
-
-## Project Structure
-
-```
-co-op/
-├── Backend/           # NestJS API server
-│   ├── src/
-│   │   ├── modules/   # Feature modules
-│   │   ├── common/    # Shared services (LLM, RAG, cache)
-│   │   └── database/  # Drizzle ORM schemas
-│   └── README.md
-│
-├── Frontend/          # Next.js web application
-│   ├── src/
-│   │   ├── app/       # App Router pages
-│   │   ├── components/# UI components
-│   │   └── lib/       # Utilities, hooks, API client
-│   └── README.md
-│
-├── RAG/               # Document retrieval service
-│   ├── app/           # FastAPI application
-│   └── README.md
-│
-└── README.md          # This file
-```
-
----
-
-## Deployment
+## ☁️ Deployment
 
 ### Production URLs
 
 | Service | Platform | URL |
 |---------|----------|-----|
-| Frontend | Vercel | Deploy from GitHub |
+| Frontend | Vercel | [co-op-dev.vercel.app](https://co-op-dev.vercel.app) |
 | Backend | Render | `https://co-op-80fi.onrender.com` |
 | RAG | Koyeb | `https://apparent-nanice-afnan-3cac971c.koyeb.app` |
 
-### Infrastructure
+### Infrastructure (All Free Tiers Available)
 
-| Component | Provider |
-|-----------|----------|
-| Database | Neon (PostgreSQL) |
-| Cache | Upstash (Redis) |
-| Queue | Upstash (QStash) |
-| Vectors | Upstash |
-| Auth | Supabase |
-| Storage | Supabase |
+| Component | Provider | Purpose |
+|-----------|----------|---------|
+| Database | [Neon](https://neon.tech) | PostgreSQL |
+| Cache/Queue | [Upstash](https://upstash.com) | Redis + QStash |
+| Vectors | [Upstash](https://upstash.com) | Vector search |
+| Auth/Storage | [Supabase](https://supabase.com) | Authentication + file storage |
+| LLM | [Groq](https://console.groq.com) | Llama 3.3, GPT OSS |
+| LLM | [Google AI](https://aistudio.google.com) | Gemini 3 Pro + Search |
+| LLM | [HuggingFace](https://huggingface.co) | DeepSeek R1, Llama 3 |
 
 ### Deploy to Vercel
 
@@ -244,66 +300,68 @@ co-op/
 
 ---
 
-## API
+## 🔑 API Overview
 
 ### Authentication
 
 ```bash
-# Bearer token (Supabase JWT)
-curl -H "Authorization: Bearer <jwt>" \
+# User authentication (Supabase JWT)
+curl -H "Authorization: Bearer <jwt_token>" \
   https://co-op-80fi.onrender.com/api/v1/users/me
 
-# API key
-curl -H "X-API-Key: <key>" \
-  https://co-op-80fi.onrender.com/api/v1/agents/run
+# Service authentication (API Key)
+curl -H "X-API-Key: coop_xxxxx" \
+  https://co-op-80fi.onrender.com/api/v1/mcp-server/discover
 ```
 
 ### Key Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/users/onboarding` | POST | Complete startup profile |
+| `/users/me/onboarding` | POST | Complete startup profile |
 | `/sessions` | POST | Create advisory session |
-| `/agents/run` | POST | Run agent query |
-| `/agents/queue` | POST | Queue async agent job |
+| `/agents/run` | POST | Run agent (sync) |
+| `/agents/queue` | POST | Queue agent (async) |
+| `/mcp-server/discover` | GET | List MCP tools |
+| `/mcp-server/execute` | POST | Execute MCP tool |
 | `/webhooks` | CRUD | Manage webhooks |
 | `/api-keys` | CRUD | Manage API keys |
 
-See [Backend README](./Backend/README.md) for full API documentation.
+See [Backend README](./Backend/README.md) for complete API documentation.
 
 ---
 
-## Tech Stack
+## 🛠️ Tech Stack
 
 ### Frontend
-- Next.js 14 (App Router)
-- TypeScript 5
-- Tailwind CSS 3.4
-- Radix UI
-- Zustand
-- Framer Motion
+- **Next.js 14** - App Router, Server Components
+- **TypeScript 5** - Type safety
+- **Tailwind CSS 3.4** - Styling
+- **Radix UI** - Accessible components
+- **Zustand** - State management
+- **Framer Motion** - Animations
 
 ### Backend
-- NestJS 11
-- TypeScript 5
-- Drizzle ORM
-- QStash
+- **NestJS 11** - Modular Node.js framework
+- **TypeScript 5** - Type safety
+- **Drizzle ORM** - Type-safe SQL
+- **Upstash QStash** - Serverless queue
 
 ### RAG Service
-- FastAPI
-- Upstash Vector
-- Gemini Embeddings
+- **FastAPI** - Python web framework
+- **Upstash Vector** - Vector database
+- **Gemini Embeddings** - text-embedding-004
 
 ### LLM Providers
-- Groq (Llama 3.3 70B, GPT OSS 120B)
-- Google AI (Gemini 3 Pro)
-- HuggingFace (DeepSeek R1 32B)
+- **Groq** - Llama 3.3 70B, GPT OSS 120B (fast inference)
+- **Google AI** - Gemini 3 Pro + Search Grounding
+- **HuggingFace** - DeepSeek R1 32B, Llama 3 8B
 
 ---
 
-## Contributing
+## 🤝 Contributing
 
-We welcome contributions! See [CONTRIBUTING.md](./Backend/CONTRIBUTING.md) for guidelines.
+We welcome contributions! See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
 
 ```bash
 # Fork and clone
@@ -313,7 +371,7 @@ git clone https://github.com/YOUR_USERNAME/co-op.git
 git checkout -b feature/amazing-feature
 
 # Make changes and commit
-git commit -m 'Add amazing feature'
+git commit -m 'feat: add amazing feature'
 
 # Push and create PR
 git push origin feature/amazing-feature
@@ -321,7 +379,7 @@ git push origin feature/amazing-feature
 
 ---
 
-## License
+## 📄 License
 
 MIT License - see [LICENSE](./LICENSE) for details.
 

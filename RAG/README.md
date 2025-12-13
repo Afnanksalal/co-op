@@ -1,8 +1,27 @@
 # Co-Op RAG Service
 
-Python vector search service with **lazy vectorization**, **domain** (legal/finance) and **sector** filtering using Supabase Storage, Upstash Vector, and Neon PostgreSQL.
+<p>
+  <img src="https://img.shields.io/badge/FastAPI-Latest-009688?logo=fastapi" alt="FastAPI">
+  <img src="https://img.shields.io/badge/Python-3.11+-blue?logo=python" alt="Python">
+  <img src="https://img.shields.io/badge/Upstash_Vector-Latest-00e9a3" alt="Upstash">
+  <img src="https://img.shields.io/badge/Docker-Ready-blue?logo=docker" alt="Docker">
+</p>
 
-**Important**: This service returns context only - NO LLM answer generation. The backend's LLM Council handles all answer generation.
+Python vector search service with **lazy vectorization**, **domain/sector filtering**, and **TTL management** using Supabase Storage, Upstash Vector, and Neon PostgreSQL.
+
+> **Important**: This service returns **context only** - NO LLM answer generation. The backend's LLM Council handles all answer generation with mandatory cross-critique.
+
+## Table of Contents
+
+- [Architecture](#architecture)
+- [Key Features](#key-features)
+- [Quick Start](#quick-start)
+- [API Endpoints](#api-endpoints)
+- [Deployment](#deployment)
+- [Integration](#integration)
+- [Troubleshooting](#troubleshooting)
+
+---
 
 ## Architecture
 
@@ -32,22 +51,26 @@ Python vector search service with **lazy vectorization**, **domain** (legal/fina
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
+---
+
 ## Key Features
 
-- **Vector Search Only**: Returns context chunks, NOT answers (backend handles LLM)
-- **Lazy Vectorization**: Vectors created on-demand when user queries, not at upload time
-- **TTL Management**: Vectors expire after 30 days of no access, freeing space
-- **Persistent Storage**: PDFs stored permanently in Supabase Storage
-- **Re-vectorization**: Expired files automatically re-vectorized on next query
-- **Domain/Sector Filtering**: Precise document retrieval based on user's sector
-- **Gemini Embeddings**: Uses text-embedding-004 (768 dimensions)
+| Feature | Description |
+|---------|-------------|
+| **Vector Search Only** | Returns context chunks, NOT answers (backend handles LLM) |
+| **Lazy Vectorization** | Vectors created on-demand when user queries, not at upload |
+| **TTL Management** | Vectors expire after 30 days of no access, freeing space |
+| **Persistent Storage** | PDFs stored permanently in Supabase Storage |
+| **Re-vectorization** | Expired files automatically re-vectorized on next query |
+| **Domain/Sector Filtering** | Precise document retrieval based on user's sector |
+| **Gemini Embeddings** | Uses text-embedding-004 (768 dimensions) |
 
-## Domains & Sectors
+### Domains & Sectors
 
-| Domain | Description |
-|--------|-------------|
-| `legal` | Legal documents, contracts, compliance |
-| `finance` | Financial models, reports, projections |
+| Domain | Description | Used By |
+|--------|-------------|---------|
+| `legal` | Contracts, compliance, IP | Legal Agent |
+| `finance` | Financial models, reports | Finance Agent |
 
 | Sector | Description |
 |--------|-------------|
@@ -57,7 +80,11 @@ Python vector search service with **lazy vectorization**, **domain** (legal/fina
 | `saas` | Software as a Service |
 | `ecommerce` | E-commerce |
 
-## Prerequisites
+---
+
+## Quick Start
+
+### Prerequisites
 
 1. **Supabase Project**
    - Storage bucket: `documents`
@@ -69,30 +96,91 @@ Python vector search service with **lazy vectorization**, **domain** (legal/fina
    - **Distance Metric**: `Cosine`
 
 3. **Neon Database**
-   - PostgreSQL connection string from [neon.tech](https://neon.tech)
+   - PostgreSQL connection string
    - Schema managed by backend (Drizzle ORM)
 
 4. **Google AI API Key**
    - For Gemini embeddings from [aistudio.google.com](https://aistudio.google.com)
 
-## Local Development
+### Installation
 
 ```bash
 cd RAG
+
+# Create virtual environment (recommended)
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# or: venv\Scripts\activate  # Windows
+
+# Install dependencies
 pip install -r requirements.txt
+
+# Copy environment variables
 cp .env.example .env
 # Edit .env with your credentials
+
+# Start development server
 uvicorn app.main:app --reload --port 8000
 ```
 
+API available at `http://localhost:8000`
+Docs at `http://localhost:8000/docs`
+
+---
+
+## Environment Variables
+
+```bash
+# Database (Neon PostgreSQL)
+DATABASE_URL="postgresql://user:pass@host/db?sslmode=require"
+
+# Upstash Vector
+UPSTASH_VECTOR_REST_URL="https://xxx.upstash.io"
+UPSTASH_VECTOR_REST_TOKEN="xxx"
+
+# Google AI (for embeddings)
+GOOGLE_AI_API_KEY="AI..."
+
+# Supabase Storage
+SUPABASE_URL="https://project.supabase.co"
+SUPABASE_SERVICE_KEY="eyJ..."
+SUPABASE_STORAGE_BUCKET="documents"
+
+# API Authentication
+RAG_API_KEY="your-secure-api-key"
+
+# CORS (optional)
+CORS_ORIGINS="https://co-op-80fi.onrender.com"
+```
+
+---
+
 ## API Endpoints
 
+All endpoints require `X-API-Key` header (except `/health`).
+
 ### Health Check
+
 ```bash
 GET /health
 ```
 
-### Register File (called by backend after Supabase upload)
+Response:
+```json
+{
+  "status": "ok",
+  "db": "Neon",
+  "vector": "Upstash",
+  "storage": "Supabase",
+  "domains": ["legal", "finance"],
+  "sectors": ["fintech", "greentech", "healthtech", "saas", "ecommerce"]
+}
+```
+
+### Register File
+
+Called by backend after uploading PDF to Supabase Storage.
+
 ```bash
 POST /rag/register
 Content-Type: application/json
@@ -108,13 +196,38 @@ X-API-Key: your-api-key
 }
 ```
 
-### Force Vectorize (admin pre-warming)
+Response:
+```json
+{
+  "success": true,
+  "file_id": "uuid",
+  "message": "File registered for legal/fintech. Vectors will be created on first query."
+}
+```
+
+### Force Vectorize
+
+Pre-warm vectors for a specific file (admin operation).
+
 ```bash
 POST /rag/vectorize/{file_id}
 X-API-Key: your-api-key
 ```
 
-### Query RAG (returns context only)
+Response:
+```json
+{
+  "success": true,
+  "file_id": "uuid",
+  "chunks_created": 42,
+  "message": "Vectorized 42 chunks"
+}
+```
+
+### Query RAG
+
+Main endpoint - returns context chunks for LLM.
+
 ```bash
 POST /rag/query
 Content-Type: application/json
@@ -150,6 +263,7 @@ Response:
 ```
 
 ### List Files
+
 ```bash
 GET /rag/files
 GET /rag/files?domain=legal
@@ -158,19 +272,34 @@ GET /rag/files?domain=legal&sector=fintech
 ```
 
 ### Get File
+
 ```bash
 GET /rag/files/{file_id}
 ```
 
 ### Delete File
+
 ```bash
 DELETE /rag/files/{file_id}
 ```
 
-### Cleanup Expired Vectors (cron job)
+### Cleanup Expired Vectors
+
+Remove vectors for files not accessed in X days (cron job).
+
 ```bash
 POST /rag/cleanup?days=30
 X-API-Key: your-api-key
+```
+
+Response:
+```json
+{
+  "success": true,
+  "files_cleaned": 5,
+  "vectors_removed": 210,
+  "message": "Cleaned up 5 files with 210 vectors"
+}
 ```
 
 ---
@@ -184,12 +313,12 @@ X-API-Key: your-api-key
 2. **Connect Repository**:
    - Go to Koyeb Dashboard → Create App
    - Select "GitHub" and connect your repo
-   - Set the **Dockerfile path**: `RAG/Dockerfile`
-   - Set the **Working directory**: `RAG`
+   - **Dockerfile path**: `RAG/Dockerfile`
+   - **Working directory**: `RAG`
 
 3. **Configure Environment Variables**:
    ```
-   DATABASE_URL=postgres://...
+   DATABASE_URL=postgresql://...
    UPSTASH_VECTOR_REST_URL=https://...
    UPSTASH_VECTOR_REST_TOKEN=...
    GOOGLE_AI_API_KEY=...
@@ -203,13 +332,10 @@ X-API-Key: your-api-key
    - **Port**: 8000
    - **Health check path**: `/health`
    - **Instance type**: nano (free tier) or small
-   - **Region**: Choose closest to your backend
 
-5. **Deploy**: Click "Deploy"
+5. **Deploy**
 
-6. **Get URL**: Copy the service URL (e.g., `https://your-app-xxx.koyeb.app`)
-
-7. **Update Backend**: Set `RAG_SERVICE_URL` and `RAG_API_KEY` in your Render backend
+6. **Update Backend**: Set `RAG_SERVICE_URL` and `RAG_API_KEY` in Render
 
 ### Docker (Self-hosted)
 
@@ -221,7 +347,7 @@ docker build -t co-op-rag .
 
 # Run
 docker run -p 8000:8000 \
-  -e DATABASE_URL="postgres://..." \
+  -e DATABASE_URL="postgresql://..." \
   -e UPSTASH_VECTOR_REST_URL="https://..." \
   -e UPSTASH_VECTOR_REST_TOKEN="..." \
   -e GOOGLE_AI_API_KEY="..." \
@@ -234,58 +360,83 @@ docker run -p 8000:8000 \
 
 ---
 
-## Environment Variables
-
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `DATABASE_URL` | Neon PostgreSQL URL | Yes |
-| `UPSTASH_VECTOR_REST_URL` | Upstash Vector REST URL | Yes |
-| `UPSTASH_VECTOR_REST_TOKEN` | Upstash Vector token | Yes |
-| `GOOGLE_AI_API_KEY` | Google AI API key (embeddings only) | Yes |
-| `SUPABASE_URL` | Supabase project URL | Yes |
-| `SUPABASE_SERVICE_KEY` | Supabase service role key | Yes |
-| `SUPABASE_STORAGE_BUCKET` | Storage bucket name (default: documents) | No |
-| `RAG_API_KEY` | API key for authentication | Yes |
-| `CORS_ORIGINS` | Allowed CORS origins | No |
-
----
-
-## Integration with Backend
-
-The NestJS backend (on Render) orchestrates the flow:
-
-### Upload Flow
-1. **Admin uploads PDF** → Backend uploads to Supabase Storage (`domain/sector/fileId/filename`)
-2. **Backend registers file** → Calls `/rag/register` with storage path
-3. **File status**: `pending` (no vectors yet)
-
-### Query Flow
-1. **User asks question** → Backend calls `/rag/query` with user's sector
-2. **RAG checks pending files** → Downloads from Supabase, vectorizes on-demand
-3. **RAG searches vectors** → Filtered by domain + sector
-4. **RAG updates timestamps** → Tracks last access for TTL
-5. **RAG returns context** → Backend injects into LLM Council prompt
-6. **LLM Council generates answer** → Cross-critique between multiple models
-
-### Cleanup Flow (Daily Cron)
-1. **Cron calls** `/rag/cleanup?days=30`
-2. **RAG finds expired files** → Not accessed in 30 days
-3. **RAG removes vectors** → Frees Upstash space
-4. **File status**: `expired` (will re-vectorize on next query)
+## Integration
 
 ### Backend Configuration
 
-In your Render backend, set:
+In your Render backend `.env`:
+
 ```bash
 RAG_SERVICE_URL=https://your-rag-service.koyeb.app
 RAG_API_KEY=your-secure-api-key
 ```
 
+### Upload Flow
+
+```
+1. Admin uploads PDF via Frontend
+2. Backend uploads to Supabase Storage (domain/sector/fileId/filename)
+3. Backend calls POST /rag/register with storage path
+4. File status: pending (no vectors yet)
+```
+
+### Query Flow
+
+```
+1. User asks question via Frontend
+2. Backend calls POST /rag/query with user's sector
+3. RAG checks pending files → Downloads from Supabase → Vectorizes on-demand
+4. RAG searches vectors (filtered by domain + sector)
+5. RAG updates timestamps (for TTL tracking)
+6. RAG returns context chunks
+7. Backend injects context into LLM Council prompt
+8. LLM Council generates cross-critiqued answer
+```
+
+### Cleanup Flow (Daily Cron)
+
+```
+1. Cron calls POST /rag/cleanup?days=30
+2. RAG finds files not accessed in 30 days
+3. RAG removes vectors from Upstash (frees space)
+4. File status: expired (will re-vectorize on next query)
+5. PDFs remain in Supabase Storage
+```
+
+---
+
+## Why No LLM in RAG?
+
+The RAG service intentionally does NOT include LLM answer generation:
+
+| Reason | Benefit |
+|--------|---------|
+| **Single Source of Truth** | Backend's LLM Council handles ALL answer generation |
+| **Cross-Critique** | Multiple models validate each other's responses |
+| **No Duplicate Dependencies** | No need for Groq/OpenAI keys in RAG |
+| **Simpler Architecture** | RAG focuses on retrieval, backend on generation |
+| **Cost Efficiency** | One LLM layer instead of two |
+
+The backend receives context from RAG and uses it to augment the LLM Council prompt, ensuring accurate, cross-validated answers.
+
+---
+
+## RAG vs Web Research
+
+| Agent | Data Source | Service |
+|-------|-------------|---------|
+| Legal | RAG | This service (document search) |
+| Finance | RAG | This service (document search) |
+| Investor | Web Research | Backend (Gemini + ScrapingBee) |
+| Competitor | Web Research | Backend (Gemini + ScrapingBee) |
+
+RAG is used for legal and finance because these domains require searching through uploaded documents. Investor and competitor agents need real-time web data.
+
 ---
 
 ## Database Schema
 
-The `rag_files` table is managed by the backend's Drizzle ORM. The RAG service only reads/writes to it.
+The `rag_files` table is managed by the backend's Drizzle ORM:
 
 ```sql
 CREATE TABLE rag_files (
@@ -293,9 +444,9 @@ CREATE TABLE rag_files (
     filename TEXT NOT NULL,
     storage_path TEXT NOT NULL,
     content_type TEXT DEFAULT 'application/pdf',
-    domain TEXT NOT NULL,
-    sector TEXT NOT NULL,
-    vector_status TEXT DEFAULT 'pending',  -- pending | indexed | expired
+    domain TEXT NOT NULL,           -- 'legal' | 'finance'
+    sector TEXT NOT NULL,           -- 'fintech' | 'greentech' | etc.
+    vector_status TEXT DEFAULT 'pending',  -- 'pending' | 'indexed' | 'expired'
     chunk_count INT DEFAULT 0,
     last_accessed TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -305,56 +456,55 @@ CREATE TABLE rag_files (
 
 ---
 
-## Why No LLM in RAG?
-
-The RAG service intentionally does NOT include LLM answer generation:
-
-1. **Single Source of Truth**: Backend's LLM Council handles ALL answer generation
-2. **Cross-Critique**: Multiple models validate each other's responses
-3. **No Duplicate Dependencies**: No need for Groq/OpenAI keys in RAG
-4. **Simpler Architecture**: RAG focuses on retrieval, backend focuses on generation
-5. **Cost Efficiency**: One LLM layer instead of two
-
-The backend receives context from RAG and uses it to augment the LLM Council prompt, ensuring accurate, cross-validated answers.
-
----
-
-## RAG vs Web Research
-
-The Co-Op platform uses two different data sources depending on the agent:
-
-| Agent | Data Source | Service |
-|-------|-------------|---------|
-| Legal | RAG | This service (document search) |
-| Finance | RAG | This service (document search) |
-| Investor | Web Research | Backend (Gemini + ScrapingBee) |
-| Competitor | Web Research | Backend (Gemini + ScrapingBee) |
-
-RAG is used for legal and finance because these domains require searching through uploaded documents (contracts, financial reports, compliance docs). Investor and competitor agents need real-time web data, so they use Gemini Search Grounding with ScrapingBee fallback.
-
----
-
 ## Troubleshooting
 
 ### "No relevant documents found"
-- Check that documents were registered with the correct domain/sector
-- Verify the query domain/sector matches registered documents
-- Use `/rag/files` to list registered documents and their `vector_status`
+
+- Check documents registered with correct domain/sector
+- Verify query domain/sector matches registered documents
+- Use `GET /rag/files` to list documents and their `vector_status`
 
 ### Vectors not loading
+
 - Check Supabase Storage bucket permissions
-- Verify `SUPABASE_SERVICE_KEY` has access to the bucket
-- Check file exists at the `storage_path`
+- Verify `SUPABASE_SERVICE_KEY` has access to bucket
+- Check file exists at `storage_path`
 
 ### Embedding errors
+
 - Verify `GOOGLE_AI_API_KEY` is valid
 - Check Upstash Vector index has 768 dimensions
 
 ### Database errors
+
 - Verify `DATABASE_URL` includes `?sslmode=require` for Neon
 - Check Neon dashboard for connection limits
-- Schema is managed by backend - ensure backend has run migrations
+- Schema managed by backend - ensure backend has run migrations
 
 ### Authentication errors
+
 - Verify `RAG_API_KEY` matches between RAG service and backend
 - Check `X-API-Key` header is being sent
+
+---
+
+## Project Structure
+
+```
+RAG/
+├── app/
+│   ├── main.py           # FastAPI application
+│   ├── database.py       # Neon PostgreSQL client
+│   ├── services.py       # RAG logic (vectorize, query, cleanup)
+│   └── schemas.py        # Pydantic models
+├── Dockerfile
+├── requirements.txt
+├── .env.example
+└── README.md
+```
+
+---
+
+## License
+
+MIT License - see [LICENSE](../LICENSE) for details.

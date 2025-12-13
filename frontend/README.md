@@ -1,18 +1,27 @@
 # Co-Op Frontend
 
-Modern, responsive web application for the Co-Op AI advisory platform. Built with Next.js 14, React 18, and Tailwind CSS.
+<p>
+  <img src="https://img.shields.io/badge/Next.js-14-black?logo=next.js" alt="Next.js">
+  <img src="https://img.shields.io/badge/TypeScript-5-blue?logo=typescript" alt="TypeScript">
+  <img src="https://img.shields.io/badge/Tailwind-3.4-38bdf8?logo=tailwindcss" alt="Tailwind">
+  <img src="https://img.shields.io/badge/Radix_UI-Latest-purple" alt="Radix UI">
+</p>
+
+Modern, responsive web application for the Co-Op AI advisory platform. Built with Next.js 14 App Router, React 18, TypeScript, and Tailwind CSS.
 
 ## Tech Stack
 
-- **Framework**: Next.js 14 (App Router)
-- **Language**: TypeScript 5
-- **Styling**: Tailwind CSS 3.4
-- **UI Components**: Radix UI primitives
-- **State Management**: Zustand
-- **Forms**: React Hook Form + Zod
-- **Auth**: Supabase Auth
-- **Animations**: Framer Motion
-- **Icons**: Phosphor Icons
+| Category | Technology |
+|----------|------------|
+| **Framework** | Next.js 14 (App Router) |
+| **Language** | TypeScript 5 |
+| **Styling** | Tailwind CSS 3.4 |
+| **Components** | Radix UI primitives |
+| **State** | Zustand |
+| **Forms** | React Hook Form + Zod |
+| **Auth** | Supabase Auth |
+| **Animations** | Framer Motion |
+| **Icons** | Phosphor Icons |
 
 ## Getting Started
 
@@ -20,7 +29,8 @@ Modern, responsive web application for the Co-Op AI advisory platform. Built wit
 
 - Node.js 20+
 - npm or yarn
-- Supabase project
+- Supabase project (for auth)
+- Backend API running
 
 ### Installation
 
@@ -31,6 +41,9 @@ npm install
 # Copy environment variables
 cp .env.example .env.local
 
+# Edit .env.local with your credentials
+# See Environment Variables section below
+
 # Start development server
 npm run dev
 ```
@@ -39,47 +52,117 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ### Environment Variables
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL | Yes |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key | Yes |
-| `NEXT_PUBLIC_API_URL` | Backend API URL | Yes |
-| `NEXT_PUBLIC_APP_URL` | Frontend app URL | No |
+Create `.env.local` with:
+
+```bash
+# Supabase (Required)
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+
+# Backend API (Required)
+NEXT_PUBLIC_API_URL=https://co-op-80fi.onrender.com/api/v1
+
+# App URL (Optional - for OAuth callbacks)
+NEXT_PUBLIC_APP_URL=https://co-op-dev.vercel.app
+```
 
 ## Project Structure
 
 ```
 src/
-├── app/                    # Next.js App Router pages
-│   ├── (dashboard)/        # Authenticated dashboard routes
-│   │   ├── admin/          # Admin panel (RAG management)
-│   │   ├── agents/         # Individual agent pages
-│   │   ├── analytics/      # Analytics dashboard
-│   │   ├── chat/           # Multi-agent chat
-│   │   ├── dashboard/      # Main dashboard
-│   │   ├── developers/     # API documentation
-│   │   ├── sessions/       # Session history
-│   │   └── settings/       # User settings, API keys, webhooks
-│   ├── auth/               # Auth callback handler
-│   ├── login/              # Login page
-│   ├── onboarding/         # Startup onboarding flow
-│   └── page.tsx            # Landing page
+├── app/                        # Next.js App Router
+│   ├── (dashboard)/            # Authenticated routes (with sidebar)
+│   │   ├── admin/              # Admin panel (RAG management)
+│   │   ├── agents/[agent]/     # Individual agent pages
+│   │   ├── analytics/          # Analytics dashboard
+│   │   ├── chat/               # Multi-agent chat interface
+│   │   ├── dashboard/          # Main dashboard
+│   │   ├── developers/         # API documentation
+│   │   ├── sessions/           # Session history
+│   │   │   └── [id]/           # Session detail view
+│   │   └── settings/           # User settings
+│   │       ├── api-keys/       # API key management
+│   │       └── webhooks/       # Webhook configuration
+│   ├── auth/callback/          # OAuth callback handler
+│   ├── login/                  # Login page
+│   ├── onboarding/             # Multi-step onboarding flow
+│   ├── globals.css             # Global styles
+│   ├── layout.tsx              # Root layout
+│   └── page.tsx                # Landing page
+│
 ├── components/
-│   └── ui/                 # Reusable UI components
+│   └── ui/                     # Reusable UI components
+│       ├── button.tsx          # Button variants
+│       ├── card.tsx            # Card components
+│       ├── dialog.tsx          # Modal dialogs
+│       ├── dropdown-menu.tsx   # Dropdown menus
+│       ├── input.tsx           # Form inputs
+│       ├── select.tsx          # Select dropdowns
+│       ├── tabs.tsx            # Tab navigation
+│       └── ...                 # More components
+│
 ├── lib/
-│   ├── api/                # API client and types
-│   ├── hooks/              # Custom React hooks
-│   ├── supabase/           # Supabase client setup
-│   ├── store.ts            # Zustand stores
-│   └── utils.ts            # Utility functions
-└── middleware.ts           # Auth middleware
+│   ├── api/
+│   │   ├── client.ts           # API client with auth
+│   │   └── types.ts            # TypeScript types
+│   ├── hooks/
+│   │   ├── use-user.ts         # User state hook
+│   │   └── use-sessions.ts     # Sessions hook
+│   ├── supabase/
+│   │   ├── client.ts           # Browser client
+│   │   └── server.ts           # Server client
+│   ├── store.ts                # Zustand stores
+│   └── utils.ts                # Utility functions (cn, etc.)
+│
+└── middleware.ts               # Auth middleware
 ```
+
+## Features
+
+### 🏠 Dashboard
+- Overview of startup profile
+- Quick access to all AI agents
+- Recent session history
+- Key metrics and stats
+
+### 🤖 AI Agents
+Four specialized agents with real-time streaming:
+
+| Agent | Purpose | Data Source |
+|-------|---------|-------------|
+| **Legal** | Corporate structure, compliance, contracts | RAG documents |
+| **Finance** | Financial modeling, metrics, runway | RAG documents |
+| **Investor** | VC matching, pitch optimization | Web research |
+| **Competitor** | Market analysis, positioning | Web research |
+
+### 💬 Chat Interface
+- Multi-agent conversations
+- Real-time streaming responses
+- Session persistence
+- Notion export integration
+- Message history
+
+### ⚙️ Settings
+- **Profile** - Edit startup information
+- **API Keys** - Generate and manage API keys
+- **Webhooks** - Configure event notifications
+
+### 👑 Admin Panel (Admin users only)
+- RAG document management
+- PDF upload and vectorization
+- Domain/sector filtering
+- Analytics dashboard
+
+### 📱 Responsive Design
+- Mobile-first approach
+- Adaptive sidebar navigation
+- Touch-friendly interactions
 
 ## Available Scripts
 
 ```bash
 # Development
-npm run dev           # Start dev server on port 3001
+npm run dev           # Start dev server (port 3000)
 
 # Build
 npm run build         # Production build
@@ -87,7 +170,13 @@ npm run start         # Start production server
 
 # Code Quality
 npm run lint          # Run ESLint
+npm run lint:fix      # Fix ESLint issues
 npm run format        # Format with Prettier
+npm run format:check  # Check formatting
+npm run typecheck     # TypeScript type checking
+
+# Maintenance
+npm run clean         # Remove .next and node_modules
 ```
 
 ## Deployment
@@ -95,13 +184,14 @@ npm run format        # Format with Prettier
 ### Vercel (Recommended)
 
 1. Push to GitHub
-2. Import project in Vercel
-3. Add environment variables
-4. Deploy
+2. Import project in [Vercel](https://vercel.com)
+3. Set root directory to `Frontend`
+4. Add environment variables
+5. Deploy
 
 The `vercel.json` configuration handles:
 - API rewrites to backend
-- Security headers
+- Security headers (CSP, HSTS, etc.)
 - CORS configuration
 
 ### Manual Deployment
@@ -111,50 +201,155 @@ npm run build
 npm run start
 ```
 
-## Features
+### Docker
 
-### Dashboard
-- Overview of startup profile
-- Quick access to all agents
-- Recent session history
+```dockerfile
+FROM node:20-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+EXPOSE 3000
+CMD ["npm", "start"]
+```
 
-### AI Agents
-- **Legal**: Corporate structure, compliance, contracts
-- **Finance**: Financial modeling, metrics, runway
-- **Investor**: VC matching, pitch optimization
-- **Competitor**: Market analysis, positioning
+## API Client
 
-### Chat
-- Multi-agent conversations
-- Real-time streaming responses
-- Notion export integration
-- Session persistence
+The frontend includes a typed API client (`src/lib/api/client.ts`):
 
-### Settings
-- Profile management
-- API key generation
-- Webhook configuration
-- Startup profile editing
+```typescript
+import { api } from '@/lib/api/client';
 
-### Admin (Admin users only)
-- RAG document management
-- PDF upload and vectorization
-- Analytics dashboard
+// User endpoints
+const user = await api.getMe();
+const status = await api.getOnboardingStatus();
+await api.completeOnboarding(data);
 
-## Code Style
+// Session endpoints
+const session = await api.createSession({ startupId });
+const sessions = await api.getSessions();
+const messages = await api.getSessionMessages(sessionId);
 
+// Agent endpoints
+const results = await api.runAgent({
+  agentType: 'legal',
+  prompt: 'What legal structure should I use?',
+  sessionId,
+  startupId,
+  documents: [],
+});
+
+// Async agent with polling
+const { taskId } = await api.queueAgent(data);
+const status = await api.getTaskStatus(taskId);
+
+// API keys & webhooks
+const keys = await api.getApiKeys();
+const webhooks = await api.getWebhooks();
+```
+
+## Authentication Flow
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   Login     │────▶│  Supabase   │────▶│  Callback   │
+│   Page      │     │   OAuth     │     │   Route     │
+└─────────────┘     └─────────────┘     └─────────────┘
+                                               │
+                    ┌──────────────────────────┘
+                    ▼
+            ┌───────────────┐
+            │  Onboarding   │ (if not completed)
+            │    Flow       │
+            └───────────────┘
+                    │
+                    ▼
+            ┌───────────────┐
+            │   Dashboard   │
+            └───────────────┘
+```
+
+The middleware (`src/middleware.ts`) handles:
+- Redirecting unauthenticated users to login
+- Redirecting authenticated users without onboarding
+- Protecting dashboard routes
+
+## Styling
+
+### Tailwind Configuration
+
+Custom theme extensions in `tailwind.config.ts`:
+- Custom colors (primary, muted, etc.)
+- Custom fonts (serif for headings)
+- Animation utilities
+
+### Component Patterns
+
+Using `class-variance-authority` for variant-based styling:
+
+```typescript
+const buttonVariants = cva(
+  "inline-flex items-center justify-center rounded-md text-sm font-medium",
+  {
+    variants: {
+      variant: {
+        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        outline: "border border-input bg-background hover:bg-accent",
+        ghost: "hover:bg-accent hover:text-accent-foreground",
+      },
+      size: {
+        default: "h-10 px-4 py-2",
+        sm: "h-9 rounded-md px-3",
+        lg: "h-11 rounded-md px-8",
+      },
+    },
+  }
+);
+```
+
+### Dark Mode
+
+The app uses a dark theme by default with CSS variables:
+
+```css
+:root {
+  --background: 0 0% 7%;
+  --foreground: 0 0% 95%;
+  --primary: 0 0% 98%;
+  --muted: 0 0% 15%;
+  /* ... */
+}
+```
+
+## Code Quality
+
+### ESLint Configuration
+
+- Next.js recommended rules
 - TypeScript strict mode
-- ESLint + Prettier
-- Tailwind CSS class sorting
-- Component-based architecture
+- Import sorting
+
+### Prettier Configuration
+
+```json
+{
+  "semi": true,
+  "singleQuote": true,
+  "tabWidth": 2,
+  "trailingComma": "es5",
+  "plugins": ["prettier-plugin-tailwindcss"]
+}
+```
 
 ## Contributing
 
 1. Fork the repository
-2. Create a feature branch
+2. Create a feature branch (`git checkout -b feature/amazing`)
 3. Make your changes
 4. Run `npm run lint` and `npm run format`
-5. Submit a pull request
+5. Commit with conventional commits (`feat:`, `fix:`, etc.)
+6. Submit a pull request
 
 ## License
 
