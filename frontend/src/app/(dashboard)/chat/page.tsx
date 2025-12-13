@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   PaperPlaneTilt,
@@ -16,167 +16,160 @@ import {
   Check,
 } from '@phosphor-icons/react';
 import { api } from '@/lib/api/client';
-import type { User, Session, AgentType, TaskStatus } from '@/lib/api/types';
-import { cn } from '@/lib/utils';
+import { useUser } from '@/lib/hooks';
+import { useChatStore, useSessionStore } from '@/lib/store';
+import type { AgentType, TaskStatus } from '@/lib/api/types';
+import { cn, generateId, copyToClipboard } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 
-const agentConfig: Record<AgentType, { name: string; icon: typeof Scales }> = {
-  legal: { name: 'Legal', icon: Scales },
-  finance: { name: 'Finance', icon: ChartLineUp },
-  investor: { name: 'Investor', icon: UsersThree },
-  competitor: { name: 'Competitor', icon: Globe },
+const agentConfig: Record<AgentType, { name: string; icon: typeof Scales; color: string }> = {
+  legal: { name: 'Legal', icon: Scales, color: 'text-blue-500' },
+  finance: { name: 'Finance', icon: ChartLineUp, color: 'text-green-500' },
+  investor: { name: 'Investor', icon: UsersThree, color: 'text-purple-500' },
+  competitor: { name: 'Competitor', icon: Globe, color: 'text-orange-500' },
 };
 
-interface ChatMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  agent?: AgentType;
-  confidence?: number;
-  sources?: string[];
-  timestamp: Date;
-  isStreaming?: boolean;
-}
+const suggestions = [
+  'What legal structure should I use for my startup?',
+  'How do I calculate my runway and burn rate?',
+  'Find seed-stage VCs that invest in my sector',
+  'Analyze my main competitors and market position',
+];
 
 export default function ChatPage() {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const { user } = useUser();
+  const { currentSession, setCurrentSession } = useSessionStore();
+  const {
+    messages,
+    selectedAgent,
+    isLoading,
+    addMessage,
+    updateMessage,
+    setSelectedAgent,
+    setLoading,
+    clearMessages,
+  } = useChatStore();
+
   const [input, setInput] = useState('');
-  const [selectedAgent, setSelectedAgent] = useState<AgentType>('legal');
-  const [isLoading, setIsLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Initialize session
   useEffect(() => {
-    const init = async () => {
-      try {
-        const userData = await api.get<User>('/users/me');
-        setUser(userData);
+    const initSession = async () => {
+      if (!user?.startup || currentSession) return;
 
-        if (userData.startup) {
-          const sessionData = await api.post<Session>('/sessions', {
-            startupId: userData.startup.id,
-            metadata: { source: 'web-chat' },
-          });
-          setSession(sessionData);
-        }
+      try {
+        const session = await api.createSession({
+          startupId: user.startup.id,
+          metadata: { source: 'web-chat' },
+        });
+        setCurrentSession(session);
       } catch (error) {
-        console.error('Failed to initialize:', error);
-        toast.error('Failed to initialize chat');
+        console.error('Failed to create session:', error);
+        toast.error('Failed to initialize chat session');
       }
     };
 
-    init();
-  }, []);
+    initSession();
+  }, [user?.startup, currentSession, setCurrentSession]);
 
+  // Scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  const handleCopy = useCallback(async (text: string, id: string) => {
+    await copyToClipboard(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || !session || !user?.startup || isLoading) return;
+    if (!input.trim() || !currentSession || !user?.startup || isLoading) return;
 
-    const userMessage: ChatMessage = {
-      id: crypto.randomUUID(),
+    const userMessageId = generateId();
+    const assistantMessageId = generateId();
+    const prompt = input.trim();
+
+    // Add user message
+    addMessage({
+      id: userMessageId,
       role: 'user',
-      content: input.trim(),
+      content: prompt,
       timestamp: new Date(),
-    };
+    });
 
-    setMessages((prev) => [...prev, userMessage]);
+    // Add placeholder assistant message
+    addMessage({
+      id: assistantMessageId,
+      role: 'assistant',
+      content: '',
+      agent: selectedAgent,
+      timestamp: new Date(),
+      isStreaming: true,
+    });
+
     setInput('');
-    setIsLoading(true);
-
-    const assistantId = crypto.randomUUID();
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: assistantId,
-        role: 'assistant',
-        content: '',
-        agent: selectedAgent,
-        timestamp: new Date(),
-        isStreaming: true,
-      },
-    ]);
+    setLoading(true);
 
     try {
-      const { taskId } = await api.post<{ taskId: string; messageId: string }>('/agents/queue', {
+      // Queue the agent task
+      const { taskId } = await api.queueAgent({
         agentType: selectedAgent,
-        prompt: userMessage.content,
-        sessionId: session.id,
+        prompt,
+        sessionId: currentSession.id,
         startupId: user.startup.id,
         documents: [],
       });
 
+      // Poll for completion
       let completed = false;
       while (!completed) {
         await new Promise((resolve) => setTimeout(resolve, 1000));
 
-        const status = await api.get<TaskStatus>(`/agents/tasks/${taskId}`);
+        const status = await api.getTaskStatus(taskId);
 
         if (status.status === 'completed' && status.result) {
           const finalResult = status.result.results.find((r) => r.phase === 'final');
           if (finalResult) {
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantId
-                  ? {
-                      ...m,
-                      content: finalResult.output.content,
-                      confidence: finalResult.output.confidence,
-                      sources: finalResult.output.sources,
-                      isStreaming: false,
-                    }
-                  : m
-              )
-            );
+            updateMessage(assistantMessageId, {
+              content: finalResult.output.content,
+              confidence: finalResult.output.confidence,
+              sources: finalResult.output.sources,
+              isStreaming: false,
+            });
           }
           completed = true;
         } else if (status.status === 'failed') {
           throw new Error(status.error || 'Task failed');
-        }
-
-        if (status.progress > 0) {
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantId && m.isStreaming
-                ? { ...m, content: `Processing... ${status.progress}%` }
-                : m
-            )
-          );
+        } else if (status.progress > 0) {
+          updateMessage(assistantMessageId, {
+            content: `Processing... ${status.progress}%`,
+          });
         }
       }
 
-      await api.post(`/sessions/${session.id}/messages`, {
+      // Save user message to session
+      await api.addSessionMessage(currentSession.id, {
         role: 'user',
-        content: userMessage.content,
+        content: prompt,
       });
     } catch (error) {
       console.error('Failed to get response:', error);
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === assistantId
-            ? { ...m, content: 'Sorry, I encountered an error. Please try again.', isStreaming: false }
-            : m
-        )
-      );
+      updateMessage(assistantMessageId, {
+        content: 'Sorry, I encountered an error. Please try again.',
+        isStreaming: false,
+      });
       toast.error('Failed to get response');
     }
 
-    setIsLoading(false);
-  };
-
-  const copyToClipboard = async (text: string, id: string) => {
-    await navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
+    setLoading(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -223,12 +216,7 @@ export default function ChatPage() {
                 Ask any question about legal, finance, investors, or competitors.
               </p>
               <div className="grid grid-cols-2 gap-3">
-                {[
-                  'What legal structure should I use?',
-                  'How do I calculate runway?',
-                  'Find seed VCs for my startup',
-                  'Analyze my competitors',
-                ].map((suggestion) => (
+                {suggestions.map((suggestion) => (
                   <button
                     key={suggestion}
                     onClick={() => setInput(suggestion)}
@@ -256,12 +244,7 @@ export default function ChatPage() {
                 )}
 
                 <div className={cn('max-w-[70%]', message.role === 'user' ? 'order-first' : '')}>
-                  <Card
-                    className={cn(
-                      'border-border/40',
-                      message.role === 'user' ? 'bg-primary/10' : 'bg-card'
-                    )}
-                  >
+                  <Card className={cn('border-border/40', message.role === 'user' ? 'bg-primary/10' : 'bg-card')}>
                     <CardContent className="p-4">
                       {message.isStreaming ? (
                         <div className="flex items-center gap-2">
@@ -287,7 +270,7 @@ export default function ChatPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => copyToClipboard(message.content, message.id)}
+                                onClick={() => handleCopy(message.content, message.id)}
                                 className="h-7 px-2"
                               >
                                 {copiedId === message.id ? (

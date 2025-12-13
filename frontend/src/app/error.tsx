@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect } from 'react';
-import { Warning, ArrowClockwise, House } from '@phosphor-icons/react';
 import Link from 'next/link';
+import { Warning, ArrowLeft } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 
 export default function Error({
@@ -13,32 +13,30 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error('Application error:', error);
+    console.error(error);
   }, [error]);
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-6">
+    <div className="min-h-screen bg-background flex items-center justify-center p-8">
       <div className="text-center max-w-md">
-        <Warning weight="light" className="w-16 h-16 text-destructive mx-auto mb-8" />
-        <h1 className="font-serif text-2xl font-medium mb-3">Something went wrong</h1>
-        <p className="text-muted-foreground text-sm mb-8">
+        <Warning weight="light" className="w-16 h-16 text-muted-foreground mx-auto mb-6" />
+        <h1 className="font-serif text-3xl font-medium tracking-tight mb-4">
+          Something went wrong
+        </h1>
+        <p className="text-muted-foreground mb-8">
           An unexpected error occurred. Please try again.
         </p>
-        <div className="flex items-center justify-center gap-3">
-          <Button onClick={reset} variant="outline">
-            <ArrowClockwise weight="bold" className="w-4 h-4" />
+        <div className="flex items-center justify-center gap-4">
+          <Button variant="outline" onClick={reset}>
             Try Again
           </Button>
-          <Link href="/">
+          <Link href="/dashboard">
             <Button>
-              <House weight="bold" className="w-4 h-4" />
+              <ArrowLeft weight="bold" className="w-4 h-4" />
               Go Home
             </Button>
           </Link>
         </div>
-        {error.digest && (
-          <p className="text-xs text-muted-foreground mt-8">Error ID: {error.digest}</p>
-        )}
       </div>
     </div>
   );

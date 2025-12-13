@@ -1,34 +1,67 @@
+// ============================================
+// Co-Op Frontend Types
+// Aligned with Backend API contracts
+// ============================================
+
 // === ENUMS ===
-export type FounderRole = 'ceo' | 'cto' | 'coo' | 'cfo' | 'cpo' | 'founder' | 'cofounder';
+export const FOUNDER_ROLES = ['ceo', 'cto', 'coo', 'cfo', 'cpo', 'founder', 'cofounder'] as const;
+export type FounderRole = (typeof FOUNDER_ROLES)[number];
 
-export type Industry =
-  | 'saas' | 'fintech' | 'healthtech' | 'edtech' | 'ecommerce' | 'marketplace'
-  | 'ai_ml' | 'artificial_intelligence' | 'cybersecurity' | 'cleantech' | 'biotech'
-  | 'proptech' | 'insurtech' | 'legaltech' | 'hrtech' | 'agritech' | 'logistics'
-  | 'media_entertainment' | 'gaming' | 'food_beverage' | 'travel_hospitality'
-  | 'social' | 'developer_tools' | 'hardware' | 'other';
+export const INDUSTRIES = [
+  'saas', 'fintech', 'healthtech', 'edtech', 'ecommerce', 'marketplace',
+  'ai_ml', 'artificial_intelligence', 'cybersecurity', 'cleantech', 'biotech',
+  'proptech', 'insurtech', 'legaltech', 'hrtech', 'agritech', 'logistics',
+  'media_entertainment', 'gaming', 'food_beverage', 'travel_hospitality',
+  'social', 'developer_tools', 'hardware', 'other',
+] as const;
+export type Industry = (typeof INDUSTRIES)[number];
 
-export type Sector = 'fintech' | 'greentech' | 'healthtech' | 'saas' | 'ecommerce';
+export const SECTORS = ['fintech', 'greentech', 'healthtech', 'saas', 'ecommerce'] as const;
+export type Sector = (typeof SECTORS)[number];
 
-export type BusinessModel = 'b2b' | 'b2c' | 'b2b2c' | 'marketplace' | 'd2c' | 'enterprise' | 'smb' | 'consumer' | 'platform' | 'api' | 'other';
+export const BUSINESS_MODELS = ['b2b', 'b2c', 'b2b2c', 'marketplace', 'd2c', 'enterprise', 'smb', 'consumer', 'platform', 'api', 'other'] as const;
+export type BusinessModel = (typeof BUSINESS_MODELS)[number];
 
-export type RevenueModel = 'subscription' | 'transaction_fee' | 'freemium' | 'usage_based' | 'licensing' | 'advertising' | 'commission' | 'one_time' | 'hybrid' | 'not_yet';
+export const REVENUE_MODELS = ['subscription', 'transaction_fee', 'freemium', 'usage_based', 'licensing', 'advertising', 'commission', 'one_time', 'hybrid', 'not_yet'] as const;
+export type RevenueModel = (typeof REVENUE_MODELS)[number];
 
-export type Stage = 'idea' | 'prototype' | 'mvp' | 'beta' | 'launched' | 'growth' | 'scale';
+export const STAGES = ['idea', 'prototype', 'mvp', 'beta', 'launched', 'growth', 'scale'] as const;
+export type Stage = (typeof STAGES)[number];
 
-export type TeamSize = '1-5' | '6-20' | '21-50' | '51-200' | '200+';
+export const TEAM_SIZES = ['1-5', '6-20', '21-50', '51-200', '200+'] as const;
+export type TeamSize = (typeof TEAM_SIZES)[number];
 
-export type FundingStage = 'bootstrapped' | 'pre_seed' | 'seed' | 'series_a' | 'series_b' | 'series_c_plus' | 'profitable';
+export const FUNDING_STAGES = ['bootstrapped', 'pre_seed', 'seed', 'series_a', 'series_b', 'series_c_plus', 'profitable'] as const;
+export type FundingStage = (typeof FUNDING_STAGES)[number];
 
-export type RevenueStatus = 'yes' | 'no' | 'pre_revenue';
+export const REVENUE_STATUS = ['yes', 'no', 'pre_revenue'] as const;
+export type RevenueStatus = (typeof REVENUE_STATUS)[number];
 
-export type AgentType = 'legal' | 'finance' | 'investor' | 'competitor';
+export const AGENT_TYPES = ['legal', 'finance', 'investor', 'competitor'] as const;
+export type AgentType = (typeof AGENT_TYPES)[number];
 
-export type SessionStatus = 'active' | 'ended' | 'expired';
+export const SESSION_STATUSES = ['active', 'ended', 'expired'] as const;
+export type SessionStatus = (typeof SESSION_STATUSES)[number];
 
-export type MessageRole = 'user' | 'assistant' | 'system';
+export const MESSAGE_ROLES = ['user', 'assistant', 'system'] as const;
+export type MessageRole = (typeof MESSAGE_ROLES)[number];
+
+export const RAG_DOMAINS = ['legal', 'finance'] as const;
+export type RagDomain = (typeof RAG_DOMAINS)[number];
+
+export const VECTOR_STATUSES = ['pending', 'indexed', 'expired'] as const;
+export type VectorStatus = (typeof VECTOR_STATUSES)[number];
 
 // === USER ===
+export interface StartupSummary {
+  id: string;
+  companyName: string;
+  industry: string;
+  sector: Sector;
+  stage: string;
+  fundingStage: string | null;
+}
+
 export interface User {
   id: string;
   email: string;
@@ -41,13 +74,9 @@ export interface User {
   updatedAt: string;
 }
 
-export interface StartupSummary {
-  id: string;
-  companyName: string;
-  industry: string;
-  sector: Sector;
-  stage: string;
-  fundingStage: string | null;
+export interface OnboardingStatus {
+  completed: boolean;
+  hasStartup: boolean;
 }
 
 // === STARTUP ===
@@ -93,6 +122,11 @@ export interface Session {
   updatedAt: string;
 }
 
+export interface CreateSessionRequest {
+  startupId: string;
+  metadata?: Record<string, unknown>;
+}
+
 // === MESSAGE ===
 export interface Message {
   id: string;
@@ -102,6 +136,13 @@ export interface Message {
   agent: AgentType | null;
   metadata: Record<string, unknown>;
   createdAt: string;
+}
+
+export interface CreateMessageRequest {
+  role: MessageRole;
+  content: string;
+  agent?: AgentType;
+  metadata?: Record<string, unknown>;
 }
 
 // === AGENT ===
@@ -114,9 +155,21 @@ export interface AgentOutput {
 
 export interface AgentPhaseResult {
   phase: 'draft' | 'critique' | 'final';
-  model: string;
   output: AgentOutput;
   timestamp: string;
+}
+
+export interface RunAgentRequest {
+  agentType: AgentType;
+  prompt: string;
+  sessionId: string;
+  startupId: string;
+  documents: string[];
+}
+
+export interface QueueTaskResponse {
+  taskId: string;
+  messageId: string;
 }
 
 export interface TaskStatus {
@@ -125,7 +178,7 @@ export interface TaskStatus {
   result?: {
     success: boolean;
     results: AgentPhaseResult[];
-    error: string;
+    error?: string;
     completedAt: string;
   };
   error?: string;
@@ -167,17 +220,78 @@ export interface ApiKey {
   keyPrefix: string;
   scopes: string[];
   createdAt: string;
-  lastUsedAt: string | null;
+  lastUsedAt: string;
+}
+
+export interface ApiKeyCreated extends ApiKey {
+  key: string; // Only returned on creation
+}
+
+export interface CreateApiKeyRequest {
+  name: string;
+  scopes: string[];
 }
 
 // === WEBHOOKS ===
 export interface Webhook {
   id: string;
+  userId: string;
   name: string;
   url: string;
   events: string[];
   isActive: boolean;
+  lastTriggeredAt: string | null;
   createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateWebhookRequest {
+  name: string;
+  url: string;
+  events: string[];
+}
+
+export interface UpdateWebhookRequest {
+  name?: string;
+  url?: string;
+  events?: string[];
+  isActive?: boolean;
+}
+
+// === ADMIN / RAG ===
+export interface Embedding {
+  id: string;
+  filename: string;
+  storagePath: string;
+  domain: RagDomain;
+  sector: Sector;
+  status: VectorStatus;
+  chunksCreated: number;
+  lastAccessed?: string;
+  createdAt: string;
+}
+
+export interface UploadPdfRequest {
+  domain: RagDomain;
+  sector: Sector;
+  filename: string;
+}
+
+export interface UploadResult {
+  id: string;
+  status: string;
+  storagePath: string;
+  domain: string;
+  sector: string;
+}
+
+export interface VectorizeResult {
+  chunksCreated: number;
+}
+
+export interface CleanupResult {
+  filesCleaned: number;
+  vectorsRemoved: number;
 }
 
 // === ANALYTICS ===
@@ -188,4 +302,31 @@ export interface DashboardStats {
   activeSessions: number;
   eventsToday: number;
   eventsByType: { type: string; count: number }[];
+}
+
+export interface EventAggregation {
+  date: string;
+  count: number;
+  type: string;
+}
+
+// === PAGINATION ===
+export interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface PaginatedResult<T> {
+  data: T[];
+  meta: PaginationMeta;
+}
+
+// === API RESPONSE ===
+export interface ApiResponse<T> {
+  success: boolean;
+  data: T;
+  message?: string;
+  meta?: PaginationMeta;
 }

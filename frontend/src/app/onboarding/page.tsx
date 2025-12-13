@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -13,6 +13,7 @@ import {
   Target,
   Check,
 } from '@phosphor-icons/react';
+import { createClient } from '@/lib/supabase/client';
 import { api } from '@/lib/api/client';
 import type { OnboardingData, Sector } from '@/lib/api/types';
 import { Button } from '@/components/ui/button';
@@ -45,6 +46,7 @@ export default function OnboardingPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
   const [formData, setFormData] = useState<Partial<OnboardingData>>({
     founderRole: 'founder',
     industry: 'saas',
@@ -56,6 +58,33 @@ export default function OnboardingPage() {
     foundedYear: new Date().getFullYear(),
     isRevenue: 'pre_revenue',
   });
+
+  // Check if user needs onboarding
+  useEffect(() => {
+    const checkOnboarding = async () => {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        router.push('/login');
+        return;
+      }
+
+      try {
+        const status = await api.getOnboardingStatus();
+        if (status.completed) {
+          router.push('/dashboard');
+          return;
+        }
+      } catch (error) {
+        console.error('Failed to check onboarding status:', error);
+      }
+
+      setIsChecking(false);
+    };
+
+    checkOnboarding();
+  }, [router]);
 
   const updateField = <K extends keyof OnboardingData>(field: K, value: OnboardingData[K]) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -76,15 +105,23 @@ export default function OnboardingPage() {
   const handleSubmit = async () => {
     setIsLoading(true);
     try {
-      await api.post('/users/me/onboarding', formData);
+      await api.completeOnboarding(formData as OnboardingData);
       toast.success('Welcome to Co-Op!');
       router.push('/dashboard');
     } catch (error) {
       console.error('Onboarding failed:', error);
-      toast.error('Failed to complete onboarding');
+      toast.error('Failed to complete onboarding. Please check all required fields.');
     }
     setIsLoading(false);
   };
+
+  if (isChecking) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   const renderStep = () => {
     switch (currentStep) {
@@ -92,7 +129,7 @@ export default function OnboardingPage() {
         return (
           <div className="space-y-6">
             <div className="space-y-2">
-              <Label required>Your Name</Label>
+              <Label>Your Name *</Label>
               <Input
                 placeholder="John Doe"
                 value={formData.founderName || ''}
@@ -100,10 +137,10 @@ export default function OnboardingPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label required>Your Role</Label>
+              <Label>Your Role *</Label>
               <Select
                 value={formData.founderRole}
-                onValueChange={(v) => updateField('founderRole', v as any)}
+                onValueChange={(v) => updateField('founderRole', v as OnboardingData['founderRole'])}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -126,7 +163,7 @@ export default function OnboardingPage() {
         return (
           <div className="space-y-6">
             <div className="space-y-2">
-              <Label required>Company Name</Label>
+              <Label>Company Name *</Label>
               <Input
                 placeholder="Acme Inc"
                 value={formData.companyName || ''}
@@ -142,15 +179,16 @@ export default function OnboardingPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label required>Description</Label>
+              <Label>Description *</Label>
               <Textarea
-                placeholder="Tell us about your company..."
+                placeholder="Tell us about your company (min 20 characters)..."
                 value={formData.description || ''}
                 onChange={(e) => updateField('description', e.target.value)}
+                className="min-h-[100px]"
               />
             </div>
             <div className="space-y-2">
-              <Label required>Sector</Label>
+              <Label>Sector *</Label>
               <p className="text-xs text-muted-foreground mb-3">
                 This determines which documents our AI agents will search
               </p>
@@ -189,8 +227,8 @@ export default function OnboardingPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label required>Stage</Label>
-                <Select value={formData.stage} onValueChange={(v) => updateField('stage', v as any)}>
+                <Label>Stage *</Label>
+                <Select value={formData.stage} onValueChange={(v) => updateField('stage', v as OnboardingData['stage'])}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -206,7 +244,7 @@ export default function OnboardingPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label required>Founded Year</Label>
+                <Label>Founded Year *</Label>
                 <Input
                   type="number"
                   min={1990}
@@ -223,7 +261,7 @@ export default function OnboardingPage() {
         return (
           <div className="space-y-6">
             <div className="space-y-2">
-              <Label required>Country</Label>
+              <Label>Country *</Label>
               <Input
                 placeholder="United States"
                 value={formData.country || ''}
@@ -240,10 +278,10 @@ export default function OnboardingPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label required>Team Size</Label>
+                <Label>Team Size *</Label>
                 <Select
                   value={formData.teamSize}
-                  onValueChange={(v) => updateField('teamSize', v as any)}
+                  onValueChange={(v) => updateField('teamSize', v as OnboardingData['teamSize'])}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -258,7 +296,7 @@ export default function OnboardingPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label required>Co-founders</Label>
+                <Label>Co-founders *</Label>
                 <Input
                   type="number"
                   min={1}
@@ -278,7 +316,7 @@ export default function OnboardingPage() {
               <Label>Funding Stage</Label>
               <Select
                 value={formData.fundingStage || ''}
-                onValueChange={(v) => updateField('fundingStage', v as any)}
+                onValueChange={(v) => updateField('fundingStage', v as OnboardingData['fundingStage'])}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select funding stage" />
@@ -315,10 +353,10 @@ export default function OnboardingPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label required>Revenue Status</Label>
+              <Label>Revenue Status *</Label>
               <Select
                 value={formData.isRevenue}
-                onValueChange={(v) => updateField('isRevenue', v as any)}
+                onValueChange={(v) => updateField('isRevenue', v as OnboardingData['isRevenue'])}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -371,7 +409,7 @@ export default function OnboardingPage() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-8 relative">
       <PremiumBackground />
-      
+
       <div className="w-full max-w-xl relative z-10">
         {/* Progress */}
         <div className="mb-10">
@@ -429,8 +467,8 @@ export default function OnboardingPage() {
                 Back
               </Button>
               {currentStep === steps.length - 1 ? (
-                <Button onClick={handleSubmit} loading={isLoading}>
-                  Complete Setup
+                <Button onClick={handleSubmit} disabled={isLoading}>
+                  {isLoading ? 'Completing...' : 'Complete Setup'}
                   <Check weight="bold" className="w-4 h-4" />
                 </Button>
               ) : (

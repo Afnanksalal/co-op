@@ -14,7 +14,8 @@ import {
   Pulse,
 } from '@phosphor-icons/react';
 import { api } from '@/lib/api/client';
-import type { User, Session, DashboardStats } from '@/lib/api/types';
+import { useUser } from '@/lib/hooks';
+import type { Session, DashboardStats } from '@/lib/api/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -52,7 +53,7 @@ const agents = [
 ];
 
 export default function DashboardPage() {
-  const [user, setUser] = useState<User | null>(null);
+  const { user, isAdmin } = useUser();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -60,18 +61,16 @@ export default function DashboardPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [userData, sessionsData] = await Promise.all([
-          api.get<User>('/users/me'),
-          api.get<Session[]>('/sessions'),
-        ]);
-        setUser(userData);
+        const sessionsData = await api.getSessions();
         setSessions(sessionsData.slice(0, 5));
 
-        try {
-          const statsData = await api.get<DashboardStats>('/analytics/dashboard');
-          setStats(statsData);
-        } catch {
-          // Not admin
+        if (isAdmin) {
+          try {
+            const statsData = await api.getDashboardStats();
+            setStats(statsData);
+          } catch {
+            // Admin endpoints may fail for non-admins
+          }
         }
       } catch (error) {
         console.error('Failed to fetch data:', error);
@@ -80,15 +79,15 @@ export default function DashboardPage() {
     };
 
     fetchData();
-  }, []);
+  }, [isAdmin]);
 
   if (isLoading) {
     return (
       <div className="space-y-8">
-        <div className="h-8 w-48 bg-muted rounded shimmer" />
+        <div className="h-8 w-48 bg-muted rounded animate-pulse" />
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-28 bg-muted rounded-lg shimmer" />
+            <div key={i} className="h-28 bg-muted rounded-lg animate-pulse" />
           ))}
         </div>
       </div>
@@ -97,7 +96,6 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-12">
-      {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -111,7 +109,6 @@ export default function DashboardPage() {
         </p>
       </motion.div>
 
-      {/* Quick Stats */}
       {stats && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -124,7 +121,7 @@ export default function DashboardPage() {
             { label: 'Active', value: stats.activeSessions, icon: Pulse },
             { label: 'Events Today', value: stats.eventsToday, icon: Sparkle },
             { label: 'Users', value: stats.totalUsers, icon: UsersThree },
-          ].map((stat, i) => (
+          ].map((stat) => (
             <Card key={stat.label} className="border-border/40">
               <CardContent className="p-5">
                 <div className="flex items-center justify-between">
@@ -140,7 +137,6 @@ export default function DashboardPage() {
         </motion.div>
       )}
 
-      {/* Agents */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -150,8 +146,7 @@ export default function DashboardPage() {
           <h2 className="font-serif text-2xl font-medium">Agents</h2>
           <Link href="/chat">
             <Button variant="ghost" size="sm">
-              Open Chat
-              <ArrowRight weight="bold" className="w-4 h-4" />
+              Open Chat <ArrowRight weight="bold" className="w-4 h-4" />
             </Button>
           </Link>
         </div>
@@ -164,7 +159,7 @@ export default function DashboardPage() {
               transition={{ delay: 0.1 * index, duration: 0.4 }}
             >
               <Link href={agent.href}>
-                <Card hover className="h-full border-border/40">
+                <Card className="h-full border-border/40 hover:border-border transition-colors">
                   <CardContent className="p-6">
                     <agent.icon weight="light" className="w-7 h-7 text-foreground/70 mb-4" />
                     <h3 className="font-serif text-lg font-medium mb-1">{agent.name}</h3>
@@ -177,7 +172,6 @@ export default function DashboardPage() {
         </div>
       </motion.div>
 
-      {/* Recent Sessions */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -187,8 +181,7 @@ export default function DashboardPage() {
           <h2 className="font-serif text-2xl font-medium">Recent Sessions</h2>
           <Link href="/sessions">
             <Button variant="ghost" size="sm">
-              View All
-              <ArrowRight weight="bold" className="w-4 h-4" />
+              View All <ArrowRight weight="bold" className="w-4 h-4" />
             </Button>
           </Link>
         </div>
@@ -210,7 +203,7 @@ export default function DashboardPage() {
           <div className="space-y-2">
             {sessions.map((session) => (
               <Link key={session.id} href={`/sessions/${session.id}`}>
-                <Card hover className="border-border/40">
+                <Card className="border-border/40 hover:border-border transition-colors">
                   <CardContent className="p-4 flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <ChatCircle weight="light" className="w-5 h-5 text-muted-foreground" />
@@ -221,7 +214,7 @@ export default function DashboardPage() {
                         </p>
                       </div>
                     </div>
-                    <Badge variant={session.status === 'active' ? 'success' : 'secondary'}>
+                    <Badge variant={session.status === 'active' ? 'default' : 'secondary'}>
                       {session.status}
                     </Badge>
                   </CardContent>
@@ -232,13 +225,12 @@ export default function DashboardPage() {
         )}
       </motion.div>
 
-      {/* CTA */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4, duration: 0.5 }}
       >
-        <Card className="border-border/40 glow-sm">
+        <Card className="border-border/40">
           <CardContent className="p-8 flex items-center justify-between">
             <div>
               <h3 className="font-serif text-xl font-medium mb-1">Need guidance?</h3>

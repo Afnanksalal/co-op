@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -20,9 +20,8 @@ import {
   ClockCounterClockwise,
   ChartBar,
 } from '@phosphor-icons/react';
-import { createClient } from '@/lib/supabase/client';
-import { api } from '@/lib/api/client';
-import type { User } from '@/lib/api/types';
+import { useUser, useRequireAuth } from '@/lib/hooks';
+import { useUIStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { PremiumBackground } from '@/components/ui/background';
@@ -31,7 +30,6 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: House },
   { name: 'Chat', href: '/chat', icon: ChatCircle },
   { name: 'Sessions', href: '/sessions', icon: ClockCounterClockwise },
-  { name: 'Analytics', href: '/analytics', icon: ChartBar },
 ];
 
 const agents = [
@@ -50,46 +48,9 @@ const settings = [
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
-  useEffect(() => {
-    const checkAuth = async () => {
-      const supabase = createClient();
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session) {
-        router.push('/login');
-        return;
-      }
-
-      try {
-        const userData = await api.get<User>('/users/me');
-        setUser(userData);
-
-        if (!userData.onboardingCompleted) {
-          router.push('/onboarding');
-          return;
-        }
-      } catch (error) {
-        console.error('Failed to fetch user:', error);
-        router.push('/login');
-      }
-
-      setIsLoading(false);
-    };
-
-    checkAuth();
-  }, [router]);
-
-  const handleSignOut = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push('/login');
-  };
+  const { user, isLoading } = useRequireAuth({ requireOnboarding: true });
+  const { signOut, isAdmin } = useUser();
+  const { sidebarCollapsed, toggleSidebar } = useUIStore();
 
   if (isLoading) {
     return (
@@ -98,6 +59,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </div>
     );
   }
+
+  if (!user) {
+    return null;
+  }
+
+  const adminNav = isAdmin ? [{ name: 'Analytics', href: '/analytics', icon: ChartBar }] : [];
 
   return (
     <div className="min-h-screen bg-background flex relative">
@@ -129,7 +96,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            onClick={toggleSidebar}
             className="shrink-0 w-8 h-8"
           >
             {sidebarCollapsed ? (
@@ -144,7 +111,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <nav className="flex-1 overflow-y-auto py-6 px-3 space-y-8">
           {/* Main nav */}
           <div className="space-y-1">
-            {navigation.map((item) => {
+            {[...navigation, ...adminNav].map((item) => {
               const isActive = pathname === item.href;
               return (
                 <Link key={item.name} href={item.href}>
@@ -269,7 +236,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="p-3 border-t border-border/40">
           <div className="flex items-center gap-3 px-3 py-2">
             <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0 text-sm font-medium">
-              {user?.name?.charAt(0) || 'U'}
+              {user.name?.charAt(0) || 'U'}
             </div>
             <AnimatePresence>
               {!sidebarCollapsed && (
@@ -279,14 +246,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   exit={{ opacity: 0 }}
                   className="flex-1 min-w-0"
                 >
-                  <p className="text-sm font-medium truncate">{user?.name || 'User'}</p>
+                  <p className="text-sm font-medium truncate">{user.name || 'User'}</p>
                   <p className="text-xs text-muted-foreground truncate">
-                    {user?.startup?.companyName}
+                    {user.startup?.companyName}
                   </p>
                 </motion.div>
               )}
             </AnimatePresence>
-            <Button variant="ghost" size="icon" onClick={handleSignOut} className="shrink-0 w-8 h-8">
+            <Button variant="ghost" size="icon" onClick={signOut} className="shrink-0 w-8 h-8">
               <SignOut weight="regular" className="w-4 h-4" />
             </Button>
           </div>

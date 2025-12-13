@@ -2,35 +2,21 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   ArrowLeft,
   Robot,
   User as UserIcon,
   Clock,
-  Copy,
-  Check,
-  Scales,
-  ChartLineUp,
-  UsersThree,
-  Globe,
-  CircleNotch,
-  XCircle,
+  StopCircle,
 } from '@phosphor-icons/react';
 import { api } from '@/lib/api/client';
-import type { Session, Message, AgentType } from '@/lib/api/types';
-import { cn, formatDate, formatRelativeTime } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
+import type { Session, Message } from '@/lib/api/types';
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { formatDateTime, formatRelativeTime, cn } from '@/lib/utils';
 import { toast } from 'sonner';
-
-const agentConfig: Record<AgentType, { name: string; icon: typeof Scales }> = {
-  legal: { name: 'Legal', icon: Scales },
-  finance: { name: 'Finance', icon: ChartLineUp },
-  investor: { name: 'Investor', icon: UsersThree },
-  competitor: { name: 'Competitor', icon: Globe },
-};
 
 export default function SessionDetailPage() {
   const params = useParams();
@@ -40,38 +26,29 @@ export default function SessionDetailPage() {
   const [session, setSession] = useState<Session | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchSession = async () => {
+    const fetchData = async () => {
       try {
-        const [sessionData, messagesData] = await Promise.all([
-          api.get<Session>(`/sessions/${sessionId}`),
-          api.get<Message[]>(`/sessions/${sessionId}/messages`),
-        ]);
-        setSession(sessionData);
-        setMessages(messagesData);
+        const data = await api.getSessionHistory(sessionId);
+        setSession(data.session);
+        setMessages(data.messages);
       } catch (error) {
         console.error('Failed to fetch session:', error);
         toast.error('Failed to load session');
+        router.push('/sessions');
       }
       setIsLoading(false);
     };
 
-    fetchSession();
-  }, [sessionId]);
+    fetchData();
+  }, [sessionId, router]);
 
-  const copyToClipboard = async (text: string, id: string) => {
-    await navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    toast.success('Copied to clipboard');
-    setTimeout(() => setCopiedId(null), 2000);
-  };
-
-  const endSession = async () => {
+  const handleEndSession = async () => {
     if (!session) return;
+
     try {
-      await api.post(`/sessions/${sessionId}/end`);
+      await api.endSession(session.id);
       setSession({ ...session, status: 'ended' });
       toast.success('Session ended');
     } catch (error) {
@@ -82,39 +59,38 @@ export default function SessionDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <CircleNotch weight="bold" className="w-8 h-8 animate-spin text-primary" />
+      <div className="space-y-6">
+        <div className="h-8 w-48 bg-muted rounded animate-pulse" />
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-24 bg-muted rounded-lg animate-pulse" />
+          ))}
+        </div>
       </div>
     );
   }
 
   if (!session) {
-    return (
-      <div className="flex flex-col items-center justify-center h-[60vh]">
-        <XCircle weight="light" className="w-12 h-12 text-destructive mb-6" />
-        <h2 className="font-serif text-2xl font-medium mb-2">Session not found</h2>
-        <p className="text-muted-foreground mb-6">This session may have been deleted.</p>
-        <Button onClick={() => router.push('/sessions')}>
-          <ArrowLeft weight="bold" className="w-4 h-4" />
-          Back to Sessions
-        </Button>
-      </div>
-    );
+    return null;
   }
 
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center justify-between"
+      >
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => router.push('/sessions')}>
             <ArrowLeft weight="bold" className="w-5 h-5" />
           </Button>
           <div>
-            <h1 className="font-serif text-2xl font-medium">Session Details</h1>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Clock weight="regular" className="w-3 h-3" />
-              <span>{formatDate(session.createdAt)}</span>
+            <h1 className="font-serif text-2xl font-medium tracking-tight">Session Details</h1>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+              <Clock weight="regular" className="w-4 h-4" />
+              <span>{formatDateTime(session.createdAt)}</span>
               <span>·</span>
               <span>{formatRelativeTime(session.createdAt)}</span>
             </div>
@@ -124,103 +100,82 @@ export default function SessionDetailPage() {
           <Badge
             variant={
               session.status === 'active'
-                ? 'success'
+                ? 'default'
                 : session.status === 'ended'
-                  ? 'secondary'
-                  : 'warning'
+                ? 'secondary'
+                : 'outline'
             }
           >
             {session.status}
           </Badge>
           {session.status === 'active' && (
-            <Button variant="outline" onClick={endSession}>
+            <Button variant="outline" onClick={handleEndSession}>
+              <StopCircle weight="bold" className="w-4 h-4" />
               End Session
             </Button>
           )}
         </div>
-      </div>
+      </motion.div>
 
       {/* Messages */}
-      <Card className="border-border/40">
-        <CardContent className="p-6">
-          {messages.length === 0 ? (
-            <div className="text-center py-16">
-              <Robot weight="light" className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="font-serif text-lg font-medium mb-2">No messages yet</h3>
-              <p className="text-sm text-muted-foreground">This session doesn't have any messages.</p>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              <AnimatePresence>
-                {messages.map((message, index) => {
-                  const agent = message.agent as AgentType | null;
-                  const config = agent ? agentConfig[agent] : null;
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.1 }}
+        className="space-y-4"
+      >
+        {messages.length === 0 ? (
+          <Card className="border-border/40">
+            <CardContent className="p-8 text-center">
+              <p className="text-muted-foreground">No messages in this session</p>
+            </CardContent>
+          </Card>
+        ) : (
+          messages.map((message, index) => (
+            <motion.div
+              key={message.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.03 }}
+              className={cn('flex gap-4', message.role === 'user' ? 'justify-end' : 'justify-start')}
+            >
+              {message.role !== 'user' && (
+                <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
+                  <Robot weight="regular" className="w-4 h-4 text-muted-foreground" />
+                </div>
+              )}
 
-                  return (
-                    <motion.div
-                      key={message.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.03 }}
-                      className={cn(
-                        'flex gap-4',
-                        message.role === 'user' ? 'justify-end' : 'justify-start'
-                      )}
-                    >
-                      {message.role === 'assistant' && (
-                        <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
-                          <Robot weight="regular" className="w-4 h-4 text-muted-foreground" />
-                        </div>
-                      )}
+              <Card
+                className={cn(
+                  'max-w-[70%] border-border/40',
+                  message.role === 'user' ? 'bg-primary/10' : 'bg-card'
+                )}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xs font-medium capitalize">{message.role}</span>
+                    {message.agent && (
+                      <Badge variant="outline" className="text-[10px]">
+                        {message.agent}
+                      </Badge>
+                    )}
+                    <span className="text-xs text-muted-foreground">
+                      {formatRelativeTime(message.createdAt)}
+                    </span>
+                  </div>
+                  <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                </CardContent>
+              </Card>
 
-                      <div className={cn('max-w-[70%]', message.role === 'user' ? 'order-first' : '')}>
-                        <div
-                          className={cn(
-                            'rounded-xl p-4',
-                            message.role === 'user' ? 'bg-primary/10' : 'bg-muted/50'
-                          )}
-                        >
-                          <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
-                        </div>
-                        <div className="flex items-center gap-2 mt-2 px-1">
-                          <span className="text-xs text-muted-foreground">
-                            {formatRelativeTime(message.createdAt)}
-                          </span>
-                          {message.role === 'assistant' && config && (
-                            <Badge variant="outline" className="text-xs">
-                              {config.name}
-                            </Badge>
-                          )}
-                          {message.role === 'assistant' && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 px-2"
-                              onClick={() => copyToClipboard(message.content, message.id)}
-                            >
-                              {copiedId === message.id ? (
-                                <Check weight="bold" className="w-3 h-3" />
-                              ) : (
-                                <Copy weight="regular" className="w-3 h-3" />
-                              )}
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-
-                      {message.role === 'user' && (
-                        <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
-                          <UserIcon weight="regular" className="w-4 h-4 text-muted-foreground" />
-                        </div>
-                      )}
-                    </motion.div>
-                  );
-                })}
-              </AnimatePresence>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              {message.role === 'user' && (
+                <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
+                  <UserIcon weight="regular" className="w-4 h-4 text-muted-foreground" />
+                </div>
+              )}
+            </motion.div>
+          ))
+        )}
+      </motion.div>
     </div>
   );
 }

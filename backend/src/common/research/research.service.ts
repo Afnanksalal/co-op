@@ -3,8 +3,6 @@ import { ConfigService } from '@nestjs/config';
 import {
   GoogleGenerativeAI,
   GenerativeModel,
-  DynamicRetrievalMode,
-  GoogleSearchRetrievalTool,
   GroundingChunk,
 } from '@google/generative-ai';
 import {
@@ -18,6 +16,11 @@ import {
 } from './research.types';
 
 const RESEARCH_MODEL = 'gemini-2.0-flash';
+
+// Google Search tool type for grounded search (new API format)
+interface GoogleSearchTool {
+  googleSearch: Record<string, never>;
+}
 
 interface ScrapingBeeSearchResult {
   title: string;
@@ -34,7 +37,7 @@ export class ResearchService {
   private readonly logger = new Logger(ResearchService.name);
   private readonly client: GoogleGenerativeAI | null;
   private readonly model: GenerativeModel | null;
-  private readonly googleSearchTool: GoogleSearchRetrievalTool;
+  private readonly googleSearchTool: GoogleSearchTool;
   private readonly scrapingBeeApiKey: string | null;
 
   constructor(private readonly configService: ConfigService) {
@@ -45,20 +48,15 @@ export class ResearchService {
       this.logger.warn('GOOGLE_AI_API_KEY not configured - Research service disabled');
       this.client = null;
       this.model = null;
-      this.googleSearchTool = { googleSearchRetrieval: {} };
+      this.googleSearchTool = { googleSearch: {} };
     } else {
       this.client = new GoogleGenerativeAI(apiKey);
-      this.googleSearchTool = {
-        googleSearchRetrieval: {
-          dynamicRetrievalConfig: {
-            mode: DynamicRetrievalMode.MODE_DYNAMIC,
-            dynamicThreshold: 0.3,
-          },
-        },
-      };
+      // Use the new google_search tool (googleSearchRetrieval is deprecated)
+      this.googleSearchTool = { googleSearch: {} };
       this.model = this.client.getGenerativeModel({
         model: RESEARCH_MODEL,
-        tools: [this.googleSearchTool],
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        tools: [this.googleSearchTool as any],
       });
       this.logger.log('Research service initialized with Google Search grounding');
     }

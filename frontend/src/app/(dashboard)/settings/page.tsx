@@ -1,202 +1,188 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { User as UserIcon, Buildings, FloppyDisk, CircleNotch } from '@phosphor-icons/react';
+import { User, Buildings, Pencil, Check, X } from '@phosphor-icons/react';
 import { api } from '@/lib/api/client';
-import type { User, Startup } from '@/lib/api/types';
+import { useUser } from '@/lib/hooks';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 
 export default function SettingsPage() {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { user, refreshUser } = useUser();
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [newName, setNewName] = useState(user?.name || '');
   const [isSaving, setIsSaving] = useState(false);
-  const [startupData, setStartupData] = useState<Partial<Startup>>({});
 
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const userData = await api.get<User>('/users/me');
-        setUser(userData);
-        if (userData.startup) {
-          setStartupData(userData.startup as unknown as Partial<Startup>);
-        }
-      } catch (error) {
-        console.error('Failed to fetch user:', error);
-      }
-      setIsLoading(false);
-    };
+  const handleSaveName = async () => {
+    if (!newName.trim()) {
+      toast.error('Name cannot be empty');
+      return;
+    }
 
-    fetchUser();
-  }, []);
-
-  const handleSave = async () => {
     setIsSaving(true);
     try {
-      await api.patch('/users/me/startup', startupData);
-      toast.success('Settings saved');
+      await api.updateProfile({ name: newName.trim() });
+      await refreshUser();
+      setIsEditingName(false);
+      toast.success('Name updated');
     } catch (error) {
-      console.error('Failed to save:', error);
-      toast.error('Failed to save settings');
+      console.error('Failed to update name:', error);
+      toast.error('Failed to update name');
     }
     setIsSaving(false);
   };
 
-  if (isLoading) {
-    return (
-      <div className="space-y-6 max-w-2xl">
-        <div className="h-8 w-48 bg-muted rounded shimmer" />
-        <div className="h-64 bg-muted rounded-lg shimmer" />
-      </div>
-    );
-  }
+  const handleCancelEdit = () => {
+    setNewName(user?.name || '');
+    setIsEditingName(false);
+  };
+
+  if (!user) return null;
 
   return (
-    <div className="space-y-8 max-w-2xl">
-      <div>
-        <h1 className="font-serif text-3xl font-medium tracking-tight">Settings</h1>
-        <p className="text-muted-foreground">Manage your account and startup profile</p>
-      </div>
-
-      {/* Account */}
+    <div className="space-y-8">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+        <h1 className="font-serif text-3xl font-medium tracking-tight mb-2">Settings</h1>
+        <p className="text-muted-foreground">Manage your account and preferences</p>
+      </motion.div>
+
+      {/* Profile */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+      >
         <Card className="border-border/40">
           <CardHeader>
-            <div className="flex items-center gap-3">
-              <UserIcon weight="light" className="w-6 h-6 text-foreground/70" />
-              <div>
-                <CardTitle className="font-serif">Account</CardTitle>
-                <CardDescription>Your personal information</CardDescription>
-              </div>
-            </div>
+            <CardTitle className="flex items-center gap-2 font-serif text-xl">
+              <User weight="regular" className="w-5 h-5" />
+              Profile
+            </CardTitle>
+            <CardDescription>Your personal information</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Name</Label>
-                <Input value={user?.name || ''} disabled />
+          <CardContent className="space-y-6">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center text-2xl font-medium">
+                {user.name?.charAt(0) || 'U'}
               </div>
-              <div className="space-y-2">
-                <Label>Email</Label>
-                <Input value={user?.email || ''} disabled />
+              <div className="flex-1">
+                {isEditingName ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={newName}
+                      onChange={(e) => setNewName(e.target.value)}
+                      className="max-w-xs"
+                      autoFocus
+                    />
+                    <Button size="icon" onClick={handleSaveName} disabled={isSaving}>
+                      <Check weight="bold" className="w-4 h-4" />
+                    </Button>
+                    <Button size="icon" variant="ghost" onClick={handleCancelEdit}>
+                      <X weight="bold" className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <p className="text-lg font-medium">{user.name}</p>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => setIsEditingName(true)}
+                      className="h-7 w-7"
+                    >
+                      <Pencil weight="regular" className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                )}
+                <p className="text-sm text-muted-foreground">{user.email}</p>
               </div>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Account details are managed through your authentication provider
-            </p>
+
+            <Separator />
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-muted-foreground">Role</Label>
+                <p className="font-medium capitalize">{user.role}</p>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Auth Provider</Label>
+                <p className="font-medium capitalize">{user.authProvider || 'Email'}</p>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Member Since</Label>
+                <p className="font-medium">
+                  {new Date(user.createdAt).toLocaleDateString('en-US', {
+                    month: 'long',
+                    year: 'numeric',
+                  })}
+                </p>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Onboarding</Label>
+                <Badge variant={user.onboardingCompleted ? 'default' : 'secondary'}>
+                  {user.onboardingCompleted ? 'Completed' : 'Pending'}
+                </Badge>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </motion.div>
 
       {/* Startup */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-        <Card className="border-border/40">
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <Buildings weight="light" className="w-6 h-6 text-foreground/70" />
-              <div>
-                <CardTitle className="font-serif">Startup Profile</CardTitle>
-                <CardDescription>Information about your company</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Company Name</Label>
-                <Input
-                  value={startupData.companyName || ''}
-                  onChange={(e) => setStartupData((prev) => ({ ...prev, companyName: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Website</Label>
-                <Input
-                  value={startupData.website || ''}
-                  onChange={(e) => setStartupData((prev) => ({ ...prev, website: e.target.value }))}
-                  placeholder="https://example.com"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Tagline</Label>
-              <Input
-                value={startupData.tagline || ''}
-                onChange={(e) => setStartupData((prev) => ({ ...prev, tagline: e.target.value }))}
-                placeholder="One-liner about your company"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Description</Label>
-              <Textarea
-                value={startupData.description || ''}
-                onChange={(e) => setStartupData((prev) => ({ ...prev, description: e.target.value }))}
-                placeholder="Tell us about your company..."
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Sector</Label>
-                <Select
-                  value={startupData.sector || ''}
-                  onValueChange={(v) => setStartupData((prev) => ({ ...prev, sector: v as any }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="fintech">Fintech</SelectItem>
-                    <SelectItem value="greentech">Greentech</SelectItem>
-                    <SelectItem value="healthtech">Healthtech</SelectItem>
-                    <SelectItem value="saas">SaaS</SelectItem>
-                    <SelectItem value="ecommerce">E-commerce</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Stage</Label>
-                <Select
-                  value={startupData.stage || ''}
-                  onValueChange={(v) => setStartupData((prev) => ({ ...prev, stage: v }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="idea">Idea</SelectItem>
-                    <SelectItem value="prototype">Prototype</SelectItem>
-                    <SelectItem value="mvp">MVP</SelectItem>
-                    <SelectItem value="beta">Beta</SelectItem>
-                    <SelectItem value="launched">Launched</SelectItem>
-                    <SelectItem value="growth">Growth</SelectItem>
-                    <SelectItem value="scale">Scale</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="pt-6 border-t border-border/40">
-              <Button onClick={handleSave} disabled={isSaving}>
-                {isSaving ? (
-                  <CircleNotch weight="bold" className="w-4 h-4 animate-spin" />
-                ) : (
-                  <FloppyDisk weight="bold" className="w-4 h-4" />
+      {user.startup && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <Card className="border-border/40">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 font-serif text-xl">
+                <Buildings weight="regular" className="w-5 h-5" />
+                Company
+              </CardTitle>
+              <CardDescription>Your startup information</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-muted-foreground">Company Name</Label>
+                  <p className="font-medium">{user.startup.companyName}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Industry</Label>
+                  <p className="font-medium capitalize">{user.startup.industry.replace('_', ' ')}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Sector</Label>
+                  <Badge variant="outline" className="capitalize">
+                    {user.startup.sector}
+                  </Badge>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Stage</Label>
+                  <p className="font-medium capitalize">{user.startup.stage}</p>
+                </div>
+                {user.startup.fundingStage && (
+                  <div>
+                    <Label className="text-muted-foreground">Funding Stage</Label>
+                    <p className="font-medium capitalize">
+                      {user.startup.fundingStage.replace('_', ' ')}
+                    </p>
+                  </div>
                 )}
-                Save Changes
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
     </div>
   );
 }

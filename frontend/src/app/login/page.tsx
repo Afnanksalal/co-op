@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Envelope, Lock, ArrowRight, GoogleLogo } from '@phosphor-icons/react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -14,10 +14,24 @@ import { LandingBackground } from '@/components/ui/background';
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+
+  // Check if already logged in
+  useEffect(() => {
+    const checkSession = async () => {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const next = searchParams.get('next') || '/dashboard';
+        router.push(next);
+      }
+    };
+    checkSession();
+  }, [router, searchParams]);
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
@@ -64,7 +78,8 @@ export default function LoginPage() {
       if (error) {
         toast.error(error.message);
       } else {
-        router.push('/dashboard');
+        const next = searchParams.get('next') || '/dashboard';
+        router.push(next);
       }
     }
 
@@ -74,10 +89,9 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-background flex relative">
       <LandingBackground />
-      
-      {/* Left side */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden border-r border-border/40">
 
+      {/* Left side - Branding */}
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden border-r border-border/40">
         <div className="relative z-10 flex flex-col justify-center px-16">
           <Link href="/" className="mb-16">
             <span className="font-serif text-3xl font-semibold tracking-tight">Co-Op</span>
@@ -118,7 +132,7 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Right side */}
+      {/* Right side - Auth Form */}
       <div className="flex-1 flex items-center justify-center p-8">
         <motion.div
           initial={{ opacity: 0, scale: 0.98 }}
@@ -142,7 +156,7 @@ export default function LoginPage() {
           </div>
 
           <div className="space-y-6">
-            {/* Google */}
+            {/* Google Sign In */}
             <Button
               variant="outline"
               className="w-full h-11"
@@ -162,37 +176,43 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Email */}
+            {/* Email Sign In */}
             <form onSubmit={handleEmailAuth} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="you@example.com"
-                  icon={<Envelope weight="regular" className="w-4 h-4" />}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
+                <div className="relative">
+                  <Envelope weight="regular" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="you@example.com"
+                    className="pl-10"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  icon={<Lock weight="regular" className="w-4 h-4" />}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={6}
-                />
+                <div className="relative">
+                  <Lock weight="regular" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="••••••••"
+                    className="pl-10"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    minLength={6}
+                  />
+                </div>
               </div>
 
-              <Button type="submit" className="w-full h-11" loading={isLoading}>
-                {isSignUp ? 'Create Account' : 'Sign In'}
+              <Button type="submit" className="w-full h-11" disabled={isLoading}>
+                {isLoading ? 'Loading...' : isSignUp ? 'Create Account' : 'Sign In'}
                 <ArrowRight weight="bold" className="w-4 h-4" />
               </Button>
             </form>
