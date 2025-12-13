@@ -7,3 +7,4 @@ export * from './mcp-integrations.schema';
 export * from './log-events.schema';
 export * from './webhooks.schema';
 export * from './audit-logs.schema';
+export * from './rag-files.schema';

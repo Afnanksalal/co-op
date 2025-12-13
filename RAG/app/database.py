@@ -13,37 +13,12 @@ class Database:
         self.pool = None
 
     async def connect(self):
+        """Connect to database. Schema is managed by backend via Drizzle."""
         self.pool = await asyncpg.create_pool(DATABASE_URL)
-        await self.init_db()
 
     async def disconnect(self):
         if self.pool:
             await self.pool.close()
-
-    async def init_db(self):
-        """Initialize metadata table with lazy vectorization support."""
-        async with self.pool.acquire() as conn:
-            await conn.execute("""
-                CREATE TABLE IF NOT EXISTS rag_files (
-                    id UUID PRIMARY KEY,
-                    filename TEXT NOT NULL,
-                    storage_path TEXT NOT NULL,
-                    content_type TEXT DEFAULT 'application/pdf',
-                    domain TEXT NOT NULL,
-                    sector TEXT NOT NULL,
-                    vector_status TEXT DEFAULT 'pending',
-                    chunk_count INT DEFAULT 0,
-                    last_accessed TIMESTAMP WITH TIME ZONE,
-                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-                );
-                
-                CREATE INDEX IF NOT EXISTS idx_rag_files_domain ON rag_files(domain);
-                CREATE INDEX IF NOT EXISTS idx_rag_files_sector ON rag_files(sector);
-                CREATE INDEX IF NOT EXISTS idx_rag_files_domain_sector ON rag_files(domain, sector);
-                CREATE INDEX IF NOT EXISTS idx_rag_files_vector_status ON rag_files(vector_status);
-                CREATE INDEX IF NOT EXISTS idx_rag_files_last_accessed ON rag_files(last_accessed);
-            """)
 
     # === File Operations ===
     

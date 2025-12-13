@@ -8,6 +8,20 @@
       "when": 1765573503370,
       "tag": "0000_parched_kang",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1765591983584,
+      "tag": "0001_clumsy_proteus",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1765592156277,
+      "tag": "0002_young_peter_parker",
+      "breakpoints": true
     }
   ]
 }
