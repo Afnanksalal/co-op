@@ -86,12 +86,22 @@ export class AdminService {
       throw new BadRequestException('RAG service not configured');
     }
 
+    // Get file info first to log the storage path
+    const fileInfo = await this.ragService.getFile(fileId);
+    if (fileInfo) {
+      this.logger.log(`Vectorizing file: ${fileId}`);
+      this.logger.log(`Storage path: ${fileInfo.storagePath}`);
+      this.logger.log(`Domain: ${fileInfo.domain}, Sector: ${fileInfo.sector}`);
+    }
+
     const result = await this.ragService.vectorizeFile(fileId);
     
     if (!result.success) {
+      this.logger.error(`Vectorization failed for ${fileId}: ${result.message}`);
       throw new BadRequestException(result.message);
     }
 
+    this.logger.log(`Vectorization successful: ${result.chunksCreated} chunks created`);
     return { chunksCreated: result.chunksCreated };
   }
 

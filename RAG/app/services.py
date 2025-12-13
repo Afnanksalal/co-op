@@ -199,8 +199,18 @@ async def vectorize_file(file_id: str, file_info: dict) -> int:
     if not vector_index:
         raise ValueError("Vector index not configured")
     
+    storage_path = file_info["storage_path"]
+    logger.info(f"Vectorizing file {file_id}")
+    logger.info(f"Storage path: {storage_path}")
+    logger.info(f"Domain: {file_info.get('domain')}, Sector: {file_info.get('sector')}")
+    
     # Download from Supabase Storage
-    file_content = await download_from_storage(file_info["storage_path"])
+    try:
+        file_content = await download_from_storage(storage_path)
+        logger.info(f"Downloaded {len(file_content)} bytes from storage")
+    except Exception as e:
+        logger.error(f"Failed to download from storage path: {storage_path}")
+        raise ValueError(f"Storage download failed for path '{storage_path}': {str(e)}")
     
     # Extract text
     text = await extract_text(file_content, file_info.get("content_type", "application/pdf"))
