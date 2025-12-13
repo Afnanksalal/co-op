@@ -71,13 +71,19 @@ class ApiClient {
     });
     
     if (!res.ok) {
-      const error = await res.json().catch(() => ({ message: 'Request failed' }));
-      // Handle NestJS validation errors which return message as array
-      let errorMessage = error.message;
-      if (Array.isArray(error.message)) {
+      const error = await res.json().catch(() => ({ error: 'Request failed' }));
+      // Handle backend error format: { success: false, error: string, details?: string[] }
+      // Also handle NestJS validation errors: { message: string | string[] }
+      let errorMessage = error.error || error.message || `HTTP ${res.status}`;
+      
+      // If there are validation details, include them
+      if (Array.isArray(error.details)) {
+        errorMessage = error.details.join(', ');
+      } else if (Array.isArray(error.message)) {
         errorMessage = error.message.join(', ');
       }
-      throw new ApiError(errorMessage || `HTTP ${res.status}`, res.status, error.code);
+      
+      throw new ApiError(errorMessage, res.status, error.code);
     }
     
     const json: ApiResponse<T> = await res.json();

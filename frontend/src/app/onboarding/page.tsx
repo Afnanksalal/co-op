@@ -155,6 +155,9 @@ export default function OnboardingPage() {
       ...(formData.competitiveAdvantage && { competitiveAdvantage: formData.competitiveAdvantage }),
     };
 
+    // Debug: log the data being sent
+    console.log('Submitting onboarding data:', JSON.stringify(cleanData, null, 2));
+
     setIsLoading(true);
     try {
       await api.completeOnboarding(cleanData);
@@ -162,6 +165,7 @@ export default function OnboardingPage() {
       router.push('/dashboard');
     } catch (error) {
       console.error('Onboarding failed:', error);
+      // Show detailed error in toast
       const message = error instanceof Error ? error.message : 'Unknown error';
       toast.error(`Failed: ${message}`);
     }
