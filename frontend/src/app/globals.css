@@ -1,0 +1,277 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Ultra premium dark theme */
+    --background: 0 0% 2%;
+    --foreground: 0 0% 92%;
+    
+    --card: 0 0% 4%;
+    --card-foreground: 0 0% 92%;
+    
+    --popover: 0 0% 4%;
+    --popover-foreground: 0 0% 92%;
+    
+    /* Refined purple accent */
+    --primary: 265 60% 55%;
+    --primary-foreground: 0 0% 100%;
+    
+    --secondary: 0 0% 8%;
+    --secondary-foreground: 0 0% 92%;
+    
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 50%;
+    
+    --accent: 265 40% 15%;
+    --accent-foreground: 265 60% 70%;
+    
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    
+    --border: 0 0% 10%;
+    --input: 0 0% 10%;
+    --ring: 265 60% 55%;
+    
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  /* Premium scrollbar - minimal */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border/50 rounded-full;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-border;
+  }
+  
+  /* Selection */
+  ::selection {
+    @apply bg-primary/20 text-foreground;
+  }
+  
+  /* Typography */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-serif tracking-tight;
+  }
+}
+
+@layer components {
+  /* Glass morphism - subtle */
+  .glass {
+    @apply bg-card/60 backdrop-blur-2xl border border-border/30;
+  }
+  
+  /* Gradient text */
+  .gradient-text {
+    @apply bg-gradient-to-r from-white via-primary/90 to-white/80 bg-clip-text text-transparent;
+  }
+  
+  /* Subtle glow */
+  .glow {
+    box-shadow: 
+      0 0 40px rgba(139, 92, 246, 0.08),
+      0 0 80px rgba(139, 92, 246, 0.04),
+      inset 0 0 60px rgba(139, 92, 246, 0.02);
+  }
+  
+  .glow-sm {
+    box-shadow: 
+      0 0 20px rgba(139, 92, 246, 0.06),
+      inset 0 0 30px rgba(139, 92, 246, 0.01);
+  }
+  
+  /* Card hover - elegant */
+  .card-hover {
+    @apply transition-all duration-500 ease-out;
+  }
+  
+  .card-hover:hover {
+    @apply border-border/60;
+    transform: translateY(-2px);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  }
+  
+  /* Input focus */
+  .input-focus {
+    @apply focus:ring-1 focus:ring-primary/30 focus:border-primary/40 transition-all duration-300;
+  }
+  
+  /* Shimmer loading */
+  .shimmer {
+    @apply relative overflow-hidden;
+    background: linear-gradient(
+      90deg,
+      hsl(var(--muted)) 0%,
+      hsl(var(--muted-foreground) / 0.08) 50%,
+      hsl(var(--muted)) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite ease-in-out;
+  }
+  
+  /* Dot pattern - refined */
+  .dot-pattern {
+    background-image: radial-gradient(circle, hsl(var(--muted-foreground) / 0.08) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+  
+  /* Line pattern */
+  .line-pattern {
+    background-image: linear-gradient(hsl(var(--border) / 0.3) 1px, transparent 1px);
+    background-size: 100% 80px;
+  }
+  
+  /* Animated border */
+  .animated-border {
+    position: relative;
+    background: linear-gradient(var(--background), var(--background)) padding-box,
+                linear-gradient(135deg, hsl(var(--primary) / 0.5), transparent, hsl(var(--primary) / 0.3)) border-box;
+    border: 1px solid transparent;
+  }
+  
+  /* Spotlight effect */
+  .spotlight {
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .spotlight::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(
+      circle at center,
+      rgba(139, 92, 246, 0.1) 0%,
+      transparent 50%
+    );
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    pointer-events: none;
+  }
+  
+  .spotlight:hover::before {
+    opacity: 1;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  
+  /* Gradient border - refined */
+  .gradient-border {
+    position: relative;
+  }
+  
+  .gradient-border::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: linear-gradient(135deg, hsl(var(--primary) / 0.5), transparent 60%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
+  
+  /* Fade edges */
+  .fade-edges {
+    mask-image: linear-gradient(to right, transparent, black 5%, black 95%, transparent);
+  }
+  
+  /* Glow text */
+  .glow-text {
+    text-shadow: 0 0 20px rgba(139, 92, 246, 0.5);
+  }
+}
+
+/* Animations */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes glow-pulse {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(139, 92, 246, 0.5);
+  }
+}
+
+@keyframes border-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* Custom scrollbar for specific elements */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 2px;
+}
+
+/* Focus visible styles */
+.focus-ring {
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+}

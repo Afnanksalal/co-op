@@ -62,7 +62,7 @@ export class QStashService implements OnModuleInit {
 
     // Add retry configuration
     headers['Upstash-Retries'] = '3';
-    headers['Upstash-Retry-Delay'] = '10s';
+    headers['Upstash-Retry'] = '10';
 
     const response = await this.client.publishJSON({
       url: this.callbackUrl,
