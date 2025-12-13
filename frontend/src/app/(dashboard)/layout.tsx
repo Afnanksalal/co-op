@@ -95,7 +95,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     : [];
 
   const NavItem = ({ item, collapsed = false, onClick }: { item: typeof navigation[0]; collapsed?: boolean; onClick?: () => void }) => {
-    const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+    // For /settings, only match exactly (not /settings/api-keys or /settings/webhooks)
+    const isActive = item.href === '/settings' 
+      ? pathname === '/settings'
+      : pathname === item.href || pathname.startsWith(item.href + '/');
     return (
       <Link href={item.href} onClick={onClick}>
         <div

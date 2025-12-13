@@ -14,7 +14,7 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 
 export default function SettingsPage() {
-  const { user, refreshUser } = useUser();
+  const { user, refreshUser, isLoading } = useUser();
   const [isEditingName, setIsEditingName] = useState(false);
   const [newName, setNewName] = useState(user?.name || '');
   const [isSaving, setIsSaving] = useState(false);
@@ -43,7 +43,15 @@ export default function SettingsPage() {
     setIsEditingName(false);
   };
 
-  if (!user) return null;
+  if (isLoading || !user) {
+    return (
+      <div className="max-w-3xl space-y-6 sm:space-y-8">
+        <div className="h-8 w-48 bg-muted rounded animate-pulse" />
+        <div className="h-64 bg-muted rounded-lg animate-pulse" />
+        <div className="h-48 bg-muted rounded-lg animate-pulse" />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-3xl space-y-6 sm:space-y-8">
