@@ -1,0 +1,13 @@
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9
+asyncpg>=0.29.0
+google-generativeai>=0.4.0
+groq>=0.4.0
+upstash-vector>=0.4.0
+pypdf>=4.0.1
+python-dotenv>=1.0.1
+langchain-text-splitters>=0.0.1
+pydantic>=2.7.0
+pydantic-settings>=2.2.0
+supabase>=2.3.0

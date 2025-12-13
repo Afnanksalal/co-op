@@ -59,6 +59,9 @@ export const BUSINESS_MODELS = [
   'other',
 ] as const;
 
+// RAG sectors - used for document filtering
+export const SECTORS = ['fintech', 'greentech', 'healthtech', 'saas', 'ecommerce'] as const;
+
 export const REVENUE_MODELS = [
   'subscription',
   'transaction_fee',
@@ -106,6 +109,7 @@ const isValidEnum = (value: string, allowed: readonly string[]): boolean => {
 export type FounderRole = (typeof FOUNDER_ROLES)[number];
 export type Industry = (typeof INDUSTRIES)[number];
 export type BusinessModel = (typeof BUSINESS_MODELS)[number];
+export type Sector = (typeof SECTORS)[number];
 export type RevenueModel = (typeof REVENUE_MODELS)[number];
 export type Stage = (typeof STAGES)[number];
 export type TeamSize = (typeof TEAM_SIZES)[number];
@@ -142,6 +146,16 @@ class IsValidBusinessModel implements ValidatorConstraintInterface {
   }
   defaultMessage(): string {
     return `businessModel must be one of: ${BUSINESS_MODELS.join(', ')} (case-insensitive)`;
+  }
+}
+
+@ValidatorConstraint({ name: 'isValidSector', async: false })
+class IsValidSector implements ValidatorConstraintInterface {
+  validate(value: string): boolean {
+    return isValidEnum(value, SECTORS);
+  }
+  defaultMessage(): string {
+    return `sector must be one of: ${SECTORS.join(', ')} (case-insensitive)`;
   }
 }
 
@@ -234,6 +248,16 @@ export class OnboardingDto {
   @Validate(IsValidIndustry)
   @Transform(({ value }: { value: string }) => value?.toLowerCase())
   industry: Industry;
+
+  @ApiProperty({ 
+    description: 'Sector for RAG document filtering (case-insensitive)', 
+    enum: SECTORS, 
+    example: 'fintech',
+  })
+  @IsString()
+  @Validate(IsValidSector)
+  @Transform(({ value }: { value: string }) => value?.toLowerCase())
+  sector: Sector;
 
   @ApiProperty({ description: 'Business model (case-insensitive)', enum: BUSINESS_MODELS, example: 'B2B' })
   @IsString()

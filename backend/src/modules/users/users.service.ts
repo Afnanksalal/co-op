@@ -155,6 +155,7 @@ export class UsersService {
         website: dto.website ?? null,
         // Business classification
         industry: dto.industry,
+        sector: dto.sector, // RAG sector for document filtering
         businessModel: dto.businessModel,
         revenueModel: dto.revenueModel ?? null,
         // Stage
@@ -225,6 +226,7 @@ export class UsersService {
     if (dto.website !== undefined) updateData.website = dto.website ?? null;
     // Business classification
     if (dto.industry) updateData.industry = dto.industry;
+    if (dto.sector) updateData.sector = dto.sector;
     if (dto.businessModel) updateData.businessModel = dto.businessModel;
     if (dto.revenueModel !== undefined) updateData.revenueModel = dto.revenueModel ?? null;
     // Stage
@@ -353,6 +355,7 @@ export class UsersService {
       id: startup.id,
       companyName: startup.companyName,
       industry: startup.industry,
+      sector: startup.sector,
       stage: startup.stage,
       fundingStage: startup.fundingStage,
     };

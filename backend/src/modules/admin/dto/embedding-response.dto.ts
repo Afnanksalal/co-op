@@ -1,21 +1,30 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class EmbeddingResponseDto {
-  @ApiProperty()
+  @ApiProperty({ description: 'Document ID' })
   id: string;
 
-  @ApiProperty({ enum: ['pending', 'processing', 'completed', 'failed'] })
+  @ApiProperty({ description: 'Original filename' })
+  filename: string;
+
+  @ApiProperty({ description: 'Storage path in Supabase' })
+  storagePath: string;
+
+  @ApiProperty({ description: 'Document domain', enum: ['legal', 'finance'] })
+  domain: string;
+
+  @ApiProperty({ description: 'Industry sector', enum: ['fintech', 'greentech', 'healthtech', 'saas', 'ecommerce'] })
+  sector: string;
+
+  @ApiProperty({ description: 'Vector status', enum: ['pending', 'indexed', 'expired'] })
   status: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Number of chunks created' })
   chunksCreated: number;
 
-  @ApiProperty()
+  @ApiPropertyOptional({ description: 'Last accessed timestamp (for TTL tracking)' })
+  lastAccessed?: Date;
+
+  @ApiProperty({ description: 'Creation timestamp' })
   createdAt: Date;
-
-  @ApiProperty({ required: false, nullable: true })
-  completedAt?: Date;
-
-  @ApiProperty({ required: false, nullable: true })
-  error?: string;
 }

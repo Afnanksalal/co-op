@@ -1,60 +1,89 @@
 // RAG Service Types - Communication with the RAG backend
 
-export interface RagDocument {
-  id: string;
-  content: string;
-  metadata: RagDocumentMetadata;
-  score: number;
-}
+// Domain types - legal or finance (RAG-enabled agents)
+export type RagDomain = 'legal' | 'finance';
 
-export interface RagDocumentMetadata {
+// Sector types - must match RAG service
+export const RAG_SECTORS = ['fintech', 'greentech', 'healthtech', 'saas', 'ecommerce'] as const;
+export type RagSector = (typeof RAG_SECTORS)[number];
+
+// Vector status
+export type VectorStatus = 'pending' | 'indexed' | 'expired';
+
+// === Request Types ===
+
+export interface RegisterFileRequest {
+  fileId: string;
   filename: string;
-  startupId: string;
-  pageNumber: number;
-  chunkIndex: number;
-  source: string;
+  storagePath: string;
+  domain: RagDomain;
+  sector: RagSector;
+  contentType: string;
 }
 
-export interface SemanticSearchRequest {
+export interface QueryRequest {
   query: string;
-  startupId: string;
-  limit: number;
-  threshold: number;
+  domain: RagDomain;
+  sector: RagSector;
+  limit?: number;
 }
 
-export interface SemanticSearchResponse {
-  documents: RagDocument[];
-  query: string;
-  totalFound: number;
-  processingTimeMs: number;
+// === Response Types ===
+
+export interface RegisterFileResponse {
+  success: boolean;
+  fileId: string;
+  message: string;
 }
 
-export interface EmbedDocumentRequest {
-  documentId: string;
-  filePath: string;
-  startupId: string;
-  filename: string;
-  metadata: Record<string, unknown>;
-}
-
-export interface EmbedDocumentResponse {
-  documentId: string;
-  status: 'queued' | 'processing' | 'completed' | 'failed';
+export interface VectorizeResponse {
+  success: boolean;
+  fileId: string;
   chunksCreated: number;
   message: string;
 }
 
-export interface DocumentStatusResponse {
-  documentId: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  chunksCreated: number;
-  error: string;
-  createdAt: string;
-  completedAt: string;
+export interface QuerySource {
+  fileId: string;
+  filename: string;
+  score: number;
+  domain: string;
+  sector: string;
 }
 
-export interface DeleteDocumentResponse {
-  documentId: string;
-  chunksDeleted: number;
+export interface QueryResponse {
+  answer: string;
+  sources: QuerySource[];
+  domain: string;
+  sector: string;
+  vectorsLoaded: number;
+}
+
+export interface RagFileInfo {
+  id: string;
+  filename: string;
+  storagePath: string;
+  domain: string;
+  sector: string;
+  vectorStatus: VectorStatus;
+  chunkCount: number;
+  lastAccessed: string | null;
+  createdAt: string;
+}
+
+export interface ListFilesResponse {
+  files: RagFileInfo[];
+  count: number;
+}
+
+export interface DeleteFileResponse {
   success: boolean;
+  message: string;
+  chunksDeleted: number;
+}
+
+export interface CleanupResponse {
+  filesCleaned: number;
+  vectorsRemoved: number;
+  message: string;
 }

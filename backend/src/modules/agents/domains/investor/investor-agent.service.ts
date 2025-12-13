@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { LlmCouncilService } from '@/common/llm/llm-council.service';
-import { RagService } from '@/common/rag/rag.service';
 import { ResearchService } from '@/common/research/research.service';
 import { BaseAgent, AgentInput, AgentOutput } from '../../types/agent.types';
 
@@ -23,7 +22,6 @@ export class InvestorAgentService implements BaseAgent {
   constructor(
     private readonly council: LlmCouncilService,
     private readonly config: ConfigService,
-    private readonly ragService: RagService,
     private readonly researchService: ResearchService,
   ) {
     this.minModels = this.config.get<number>('LLM_COUNCIL_MIN_MODELS', 3);
@@ -100,22 +98,10 @@ export class InvestorAgentService implements BaseAgent {
     });
   }
 
-  private async getRagContext(input: AgentInput): Promise<string> {
-    if (!this.ragService.isAvailable()) {
-      return '';
-    }
-
-    try {
-      return await this.ragService.getRelevantContext(
-        input.prompt,
-        input.context.startupId,
-        5,
-        0.7,
-      );
-    } catch (error) {
-      this.logger.warn('Failed to get RAG context', error);
-      return '';
-    }
+  private getRagContext(_input: AgentInput): Promise<string> {
+    // Investor agent is web-research based, not RAG-based
+    // RAG is only for legal and finance agents
+    return Promise.resolve('');
   }
 
   private async getWebResearchContext(input: AgentInput): Promise<string> {

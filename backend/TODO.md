@@ -28,6 +28,7 @@
 - `founderName`, `founderRole` (CEO, CTO, etc.)
 - `companyName`, `description`
 - `industry` (24 options), `businessModel` (B2B, B2C, etc.)
+- `sector` (RAG filtering: fintech, greentech, healthtech, saas, ecommerce)
 - `stage` (Idea → Scale), `foundedYear`
 - `teamSize`, `cofounderCount`, `country`
 - `isRevenue` (yes/no/pre_revenue)
@@ -71,18 +72,22 @@
 - [x] Automatic fallback
 
 ### Agents
-- [x] Legal agent with LLM Council
-- [x] Finance agent with LLM Council
-- [x] Investor agent with LLM Council + RAG + MCP
-- [x] Competitor agent with LLM Council + RAG + MCP
+- [x] Legal agent with LLM Council + RAG (sector-filtered)
+- [x] Finance agent with LLM Council + RAG (sector-filtered)
+- [x] Investor agent with LLM Council + Web Research (no RAG)
+- [x] Competitor agent with LLM Council + Web Research (no RAG)
 - [x] BullMQ job queue
 - [x] SSE streaming (5min timeout)
 - [x] Task status polling and cancellation
 
-### RAG Integration
+### RAG Integration (Legal & Finance only) - Lazy Vectorization
 - [x] RagService for RAG backend communication
+- [x] Domain filtering (legal, finance)
+- [x] Sector filtering (fintech, greentech, healthtech, saas, ecommerce)
 - [x] Semantic search with circuit breaker
-- [x] Document embedding queue
+- [x] **Lazy vectorization**: Files stored in Supabase, vectors created on first query
+- [x] **TTL management**: Vectors expire after 30 days of no access
+- [x] **Re-vectorization**: Expired files auto-vectorize on next query
 - [x] Context formatting for prompts
 
 ### Web Research (Built-in)
@@ -93,10 +98,13 @@
 - [x] No external MCP server required
 
 ### Admin Module
-- [x] PDF upload with Supabase Storage
-- [x] File listing with pagination
-- [x] Embedding status tracking
-- [x] File deletion
+- [x] PDF upload to Supabase Storage with domain/sector tags
+- [x] File registration with RAG service (lazy vectorization)
+- [x] File listing with domain/sector filtering
+- [x] Vector status tracking (pending/indexed/expired)
+- [x] Force vectorize endpoint (pre-warming)
+- [x] Cleanup expired vectors endpoint
+- [x] File deletion (storage + vectors)
 
 ### Webhooks
 - [x] CRUD operations
@@ -166,10 +174,12 @@ GET    /api/v1/agents/stream/:taskId    - SSE stream
 
 ### Admin
 ```
-POST   /api/v1/admin/embeddings/upload  - Upload PDF
-GET    /api/v1/admin/embeddings         - List embeddings
-GET    /api/v1/admin/embeddings/:id     - Get embedding
-DELETE /api/v1/admin/embeddings/:id     - Delete embedding
+POST   /api/v1/admin/embeddings/upload     - Upload PDF (lazy vectorization)
+GET    /api/v1/admin/embeddings            - List embeddings
+GET    /api/v1/admin/embeddings/:id        - Get embedding
+DELETE /api/v1/admin/embeddings/:id        - Delete embedding
+POST   /api/v1/admin/embeddings/:id/vectorize - Force vectorize file
+POST   /api/v1/admin/embeddings/cleanup    - Cleanup expired vectors
 ```
 
 ### MCP
@@ -232,18 +242,33 @@ GET    /api/v1/metrics                  - Prometheus metrics
 
 ## External Services
 
-### RAG Service (Optional)
-Separate Python service for document embeddings:
-- PDF parsing and chunking
-- Supabase pgvector for storage
-- Google Gemini embeddings
-- Semantic search endpoint
+### RAG Service (Required for Legal/Finance agents)
+Separate Python service with **lazy vectorization** architecture:
+
+**Architecture:**
+```
+Upload: PDF → Backend → Supabase Storage → Register with RAG (pending)
+Query:  Question → RAG → Lazy vectorize pending files → Search → Answer
+Cleanup: Cron → Remove vectors not accessed in 30 days → Status: expired
+```
+
+**Features:**
+- **Domains**: legal, finance
+- **Sectors**: fintech, greentech, healthtech, saas, ecommerce
+- **Lazy vectorization**: Vectors created on-demand, not at upload
+- **TTL management**: Vectors expire after 30 days of no access
+- **Persistent storage**: PDFs remain in Supabase for re-vectorization
+- PDF parsing and chunking (Upstash Vector, 768 dimensions)
+- Google Gemini text-embedding-004
+- Groq LLM for answer generation
+- Neon PostgreSQL for file metadata
 
 Configure:
 ```
-RAG_SERVICE_URL="http://localhost:8000"
-RAG_API_KEY="your-rag-api-key"
+RAG_SERVICE_URL="https://your-rag-service.koyeb.app"
 ```
+
+See `/RAG/README.md` for setup and Koyeb deployment instructions.
 
 ### Web Research (Built-in)
 Research is automatically enabled when `GOOGLE_AI_API_KEY` is configured.

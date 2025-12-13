@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { LlmCouncilService } from '@/common/llm/llm-council.service';
+import { RagService } from '@/common/rag/rag.service';
+import { RagSector } from '@/common/rag/rag.types';
 import { BaseAgent, AgentInput, AgentOutput } from '../../types/agent.types';
 
 const FINANCE_SYSTEM_PROMPT = `Expert startup finance advisor. Topics: modeling, burn rate, unit economics, valuation, budgets, pricing, cash flow.
@@ -9,6 +11,7 @@ Rules:
 - Bullet points only
 - Include specific numbers/formulas
 - Max 5 key metrics
+- Reference provided documents when relevant
 - Flag when CFO/accountant needed
 - No fluff`;
 
@@ -21,15 +24,28 @@ export class FinanceAgentService implements BaseAgent {
   constructor(
     private readonly council: LlmCouncilService,
     private readonly config: ConfigService,
+    private readonly ragService: RagService,
   ) {
     this.minModels = this.config.get<number>('LLM_COUNCIL_MIN_MODELS', 3);
     this.maxModels = this.config.get<number>('LLM_COUNCIL_MAX_MODELS', 5);
   }
 
   async runDraft(input: AgentInput): Promise<AgentOutput> {
-    this.logger.debug('Running finance agent with LLM Council');
+    this.logger.debug('Running finance agent with LLM Council + RAG');
 
-    const userPrompt = this.buildUserPrompt(input);
+    // Get sector from startup metadata
+    const sector = (input.context.metadata.sector as RagSector) || 'saas';
+
+    // Fetch RAG context for finance domain
+    let ragContext = '';
+    if (this.ragService.isAvailable()) {
+      ragContext = await this.ragService.getContext(input.prompt, 'finance', sector, 5);
+      if (ragContext) {
+        this.logger.debug(`RAG context fetched for finance/${sector}`);
+      }
+    }
+
+    const userPrompt = this.buildUserPrompt(input, ragContext);
 
     const result = await this.council.runCouncil(FINANCE_SYSTEM_PROMPT, userPrompt, {
       minModels: this.minModels,
@@ -45,6 +61,8 @@ export class FinanceAgentService implements BaseAgent {
       metadata: {
         phase: 'council',
         agent: 'finance',
+        sector,
+        ragEnabled: Boolean(ragContext),
         modelsUsed: result.metadata.modelsUsed,
         totalTokens: result.metadata.totalTokens,
         processingTimeMs: result.metadata.processingTimeMs,
@@ -56,9 +74,8 @@ export class FinanceAgentService implements BaseAgent {
   }
 
   runCritique(_input: AgentInput, draft: AgentOutput): Promise<AgentOutput> {
-    const critiquesCount = typeof draft.metadata?.critiquesCount === 'number'
-      ? draft.metadata.critiquesCount
-      : 0;
+    const critiquesCount =
+      typeof draft.metadata?.critiquesCount === 'number' ? draft.metadata.critiquesCount : 0;
 
     return Promise.resolve({
       content: `Council critique completed with ${String(critiquesCount)} cross-critiques`,
@@ -85,15 +102,34 @@ export class FinanceAgentService implements BaseAgent {
     });
   }
 
-  private buildUserPrompt(input: AgentInput): string {
+  private buildUserPrompt(input: AgentInput, ragContext: string): string {
     let prompt = input.prompt;
 
-    if (input.documents.length > 0) {
-      prompt += `\n\nRelevant documents:\n${input.documents.join('\n---\n')}`;
+    // Add RAG context if available
+    if (ragContext) {
+      prompt += ragContext;
     }
 
-    if (Object.keys(input.context.metadata).length > 0) {
-      prompt += `\n\nContext: ${JSON.stringify(input.context.metadata)}`;
+    // Add any additional documents
+    if (input.documents.length > 0) {
+      prompt += `\n\nAdditional documents:\n${input.documents.join('\n---\n')}`;
+    }
+
+    // Add startup context with financial info
+    const meta = input.context.metadata;
+    if (Object.keys(meta).length > 0) {
+      const companyName = typeof meta.companyName === 'string' ? meta.companyName : '';
+      const industry = typeof meta.industry === 'string' ? meta.industry : '';
+      const stage = typeof meta.stage === 'string' ? meta.stage : '';
+      const fundingStage = typeof meta.fundingStage === 'string' ? meta.fundingStage : '';
+      const totalRaised = typeof meta.totalRaised === 'number' ? meta.totalRaised : null;
+      const monthlyRevenue = typeof meta.monthlyRevenue === 'number' ? meta.monthlyRevenue : null;
+
+      let context = `\n\nStartup: ${companyName} (${industry}, ${stage})`;
+      if (fundingStage) context += `\nFunding: ${fundingStage}`;
+      if (totalRaised !== null) context += `, Raised: $${String(totalRaised)}`;
+      if (monthlyRevenue !== null) context += `\nMRR: $${String(monthlyRevenue)}`;
+      prompt += context;
     }
 
     return prompt;

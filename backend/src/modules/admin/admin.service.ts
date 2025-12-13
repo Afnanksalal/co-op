@@ -1,21 +1,17 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger, BadRequestException } from '@nestjs/common';
 import { v4 as uuid } from 'uuid';
 import { SupabaseStorageService } from '@/common/supabase/supabase-storage.service';
 import { RagService } from '@/common/rag/rag.service';
-import { UploadPdfDto, ListEmbeddingsQueryDto, EmbeddingResponseDto } from './dto';
+import { UploadPdfDto, RagDomain, RagSector } from './dto';
+import { ListEmbeddingsQueryDto, EmbeddingResponseDto } from './dto';
 import { PaginatedResult } from '@/common/dto/pagination.dto';
 
 interface UploadResult {
   id: string;
   status: string;
-  path: string;
-  embeddingStatus: string;
-}
-
-interface StorageFile {
-  name: string;
-  id: string;
-  createdAt: string;
+  storagePath: string;
+  domain: string;
+  sector: string;
 }
 
 @Injectable()
@@ -27,83 +23,104 @@ export class AdminService {
     private readonly ragService: RagService,
   ) {}
 
+  /**
+   * Upload PDF to Supabase Storage, then register with RAG service.
+   * Vectors are NOT created immediately (lazy loading on first query).
+   */
   async uploadPdf(
     dto: UploadPdfDto,
     fileBuffer: Buffer,
     contentType: string,
   ): Promise<UploadResult> {
-    const id = uuid();
-    const filePath = `pdfs/${id}/${dto.filename}`;
+    const fileId = uuid();
+    
+    // Storage path: domain/sector/fileId/filename
+    const storagePath = `${dto.domain}/${dto.sector}/${fileId}/${dto.filename}`;
 
-    // Upload to Supabase Storage
-    const uploadResult = await this.storage.upload(filePath, fileBuffer, contentType);
+    // 1. Upload to Supabase Storage
+    const uploadResult = await this.storage.upload(storagePath, fileBuffer, contentType);
+    this.logger.log(`File uploaded to storage: ${uploadResult.path}`);
 
-    // Queue for embedding processing via RAG service
-    let embeddingStatus = 'skipped';
+    // 2. Register with RAG service (lazy vectorization)
     if (this.ragService.isAvailable()) {
-      const embedResult = await this.ragService.embedDocument({
-        documentId: id,
-        filePath: uploadResult.path,
-        startupId: dto.startupId,
+      const registerResult = await this.ragService.registerFile({
+        fileId,
         filename: dto.filename,
-        metadata: dto.metadata,
+        storagePath: uploadResult.path,
+        domain: dto.domain,
+        sector: dto.sector,
+        contentType,
       });
-      embeddingStatus = embedResult.status;
-      this.logger.log(`Document ${id} queued for embedding: ${embeddingStatus}`);
+
+      if (!registerResult.success) {
+        // Rollback: delete from storage if registration fails
+        await this.storage.delete(storagePath);
+        throw new BadRequestException(`RAG registration failed: ${registerResult.message}`);
+      }
+
+      this.logger.log(`File registered with RAG: ${fileId} (${dto.domain}/${dto.sector})`);
     } else {
-      this.logger.warn('RAG service not available - document uploaded but not embedded');
+      this.logger.warn('RAG service not available - file uploaded but not registered');
     }
 
     return {
-      id,
-      status: 'uploaded',
-      path: uploadResult.path,
-      embeddingStatus,
+      id: fileId,
+      status: 'pending', // Vectors will be created on first query
+      storagePath: uploadResult.path,
+      domain: dto.domain,
+      sector: dto.sector,
     };
   }
 
-  async listEmbeddings(query: ListEmbeddingsQueryDto): Promise<PaginatedResult<EmbeddingResponseDto>> {
+  /**
+   * Force vectorization of a specific file.
+   */
+  async forceVectorize(fileId: string): Promise<{ chunksCreated: number }> {
+    if (!this.ragService.isAvailable()) {
+      throw new BadRequestException('RAG service not configured');
+    }
+
+    const result = await this.ragService.vectorizeFile(fileId);
+    
+    if (!result.success) {
+      throw new BadRequestException(result.message);
+    }
+
+    return { chunksCreated: result.chunksCreated };
+  }
+
+  /**
+   * List all embeddings with optional domain/sector filter.
+   */
+  async listEmbeddings(
+    query: ListEmbeddingsQueryDto,
+  ): Promise<PaginatedResult<EmbeddingResponseDto>> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
 
+    if (!this.ragService.isAvailable()) {
+      return {
+        data: [],
+        meta: { total: 0, page, limit, totalPages: 0 },
+      };
+    }
+
     try {
-      // List all PDF folders from storage
-      const folders = await this.storage.list('pdfs');
+      const domain = query.domain as RagDomain | undefined;
+      const sector = query.sector as RagSector | undefined;
+      const result = await this.ragService.listFiles(domain, sector);
 
-      // Get embedding status for each folder (document)
-      const embeddings: EmbeddingResponseDto[] = [];
-
-      for (const folder of folders) {
-        // folder.name is the document ID
-        const documentId = folder.name;
-
-        // Try to get status from RAG service
-        if (this.ragService.isAvailable()) {
-          const status = await this.ragService.getDocumentStatus(documentId);
-          if (status) {
-            embeddings.push({
-              id: documentId,
-              status: status.status,
-              chunksCreated: status.chunksCreated,
-              createdAt: new Date(status.createdAt),
-              completedAt: status.completedAt ? new Date(status.completedAt) : undefined,
-              error: status.error || undefined,
-            });
-            continue;
-          }
-        }
-
-        // Fallback: document exists in storage but no RAG status
-        embeddings.push({
-          id: documentId,
-          status: 'pending',
-          chunksCreated: 0,
-          createdAt: new Date(folder.createdAt),
-        });
-      }
-
-      // Sort by createdAt descending
-      embeddings.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      const embeddings: EmbeddingResponseDto[] = result.files.map((file) => ({
+        id: file.id,
+        filename: file.filename,
+        storagePath: file.storagePath,
+        domain: file.domain,
+        sector: file.sector,
+        status: file.vectorStatus,
+        chunksCreated: file.chunkCount,
+        lastAccessed: file.lastAccessed ? new Date(file.lastAccessed) : undefined,
+        createdAt: new Date(file.createdAt),
+      }));
 
       // Paginate
       const total = embeddings.length;
@@ -113,92 +130,85 @@ export class AdminService {
 
       return {
         data: paginatedData,
-        meta: {
-          total,
-          page,
-          limit,
-          totalPages,
-        },
+        meta: { total, page, limit, totalPages },
       };
     } catch (error) {
       this.logger.error('Failed to list embeddings', error);
       return {
         data: [],
-        meta: {
-          total: 0,
-          page,
-          limit,
-          totalPages: 0,
-        },
+        meta: { total: 0, page, limit, totalPages: 0 },
       };
     }
   }
 
+  /**
+   * Get embedding by ID.
+   */
   async getEmbedding(id: string): Promise<EmbeddingResponseDto> {
-    // First check if document exists in storage
-    try {
-      const files = await this.storage.list(`pdfs/${id}`);
-      if (files.length === 0) {
-        throw new NotFoundException('Document not found');
-      }
-    } catch {
+    if (!this.ragService.isAvailable()) {
+      throw new NotFoundException('RAG service not configured');
+    }
+
+    const file = await this.ragService.getFile(id);
+
+    if (!file) {
       throw new NotFoundException('Document not found');
     }
 
-    // Check embedding status from RAG service
-    if (this.ragService.isAvailable()) {
-      const status = await this.ragService.getDocumentStatus(id);
-      if (status) {
-        return {
-          id,
-          status: status.status,
-          chunksCreated: status.chunksCreated,
-          createdAt: new Date(status.createdAt),
-          completedAt: status.completedAt ? new Date(status.completedAt) : undefined,
-          error: status.error || undefined,
-        };
-      }
-    }
-
-    // Document exists but no RAG status
     return {
-      id,
-      status: 'pending',
-      chunksCreated: 0,
-      createdAt: new Date(),
+      id: file.id,
+      filename: file.filename,
+      storagePath: file.storagePath,
+      domain: file.domain,
+      sector: file.sector,
+      status: file.vectorStatus,
+      chunksCreated: file.chunkCount,
+      lastAccessed: file.lastAccessed ? new Date(file.lastAccessed) : undefined,
+      createdAt: new Date(file.createdAt),
     };
   }
 
+  /**
+   * Delete embedding and its vectors + storage file.
+   */
   async deleteEmbedding(id: string): Promise<void> {
-    const folderPath = `pdfs/${id}`;
-
-    // Delete from RAG service (vector store)
-    if (this.ragService.isAvailable()) {
-      const result = await this.ragService.deleteDocument(id);
-      this.logger.log(`Deleted ${String(result.chunksDeleted)} chunks from vector store`);
+    // Get file info first
+    const file = await this.ragService.getFile(id);
+    
+    if (!file) {
+      throw new NotFoundException('Document not found');
     }
 
-    // Delete from Supabase Storage
+    // 1. Delete from RAG service (vectors + metadata)
+    const result = await this.ragService.deleteFile(id);
+    
+    if (!result.success) {
+      throw new BadRequestException(result.message);
+    }
+
+    // 2. Delete from Supabase Storage
     try {
-      const files = await this.storage.list(folderPath);
-      for (const file of files) {
-        await this.storage.delete(`${folderPath}/${file.name}`);
-      }
-      this.logger.log(`Deleted files from storage: ${folderPath}`);
+      await this.storage.delete(file.storagePath);
+      this.logger.log(`Deleted from storage: ${file.storagePath}`);
     } catch (error) {
-      this.logger.warn(`Failed to delete from storage: ${folderPath}`, error);
+      this.logger.warn(`Failed to delete from storage: ${file.storagePath}`, error);
     }
+
+    this.logger.log(`Document deleted: ${id} (${String(result.chunksDeleted)} chunks)`);
   }
 
-  async getSignedUrl(filePath: string): Promise<{ signedUrl: string; expiresAt: Date }> {
-    return this.storage.getSignedUrl(filePath, 3600);
-  }
-
-  async getDocumentFiles(id: string): Promise<StorageFile[]> {
-    try {
-      return await this.storage.list(`pdfs/${id}`);
-    } catch {
-      return [];
+  /**
+   * Trigger cleanup of expired vectors (not accessed in X days).
+   */
+  async cleanupExpiredVectors(days = 30): Promise<{ filesCleaned: number; vectorsRemoved: number }> {
+    if (!this.ragService.isAvailable()) {
+      throw new BadRequestException('RAG service not configured');
     }
+
+    const result = await this.ragService.cleanupExpired(days);
+    
+    this.logger.log(`Cleanup completed: ${String(result.filesCleaned)} files, ${String(result.vectorsRemoved)} vectors`);
+    
+    return result;
   }
 }

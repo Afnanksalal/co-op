@@ -39,9 +39,8 @@ export const envSchema = z.object({
   NOTION_API_TOKEN: z.string().optional(),
   NOTION_DEFAULT_PAGE_ID: z.string().optional(),
 
-  // RAG Service (optional - for semantic search)
+  // RAG Service (for legal/finance agents)
   RAG_SERVICE_URL: z.string().optional(),
-  RAG_API_KEY: z.string().optional(),
 
   // API Keys
   MASTER_API_KEY: z.string().optional(),

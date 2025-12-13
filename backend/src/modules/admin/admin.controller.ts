@@ -8,12 +8,13 @@ import {
   Query,
   UseGuards,
   ParseUUIDPipe,
+  ParseIntPipe,
   UploadedFile,
   UseInterceptors,
   BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiQuery } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
 import { UploadPdfDto, ListEmbeddingsQueryDto, EmbeddingResponseDto } from './dto';
 import { AdminGuard } from '@/common/guards/admin.guard';
@@ -35,14 +36,14 @@ export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
   @Post('embeddings/upload')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 50 * 1024 * 1024 } })) // 50MB limit
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 50 * 1024 * 1024 } }))
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: 'Upload PDF for embedding' })
-  @ApiResponse({ status: 201, description: 'PDF uploaded' })
+  @ApiOperation({ summary: 'Upload PDF for RAG embedding (lazy vectorization)' })
+  @ApiResponse({ status: 201, description: 'PDF uploaded to storage, vectors created on first query' })
   async uploadPdf(
     @UploadedFile() file: UploadedFileType,
     @Body() dto: UploadPdfDto,
-  ): Promise<ApiResponseDto<{ id: string; status: string; path: string }>> {
+  ): Promise<ApiResponseDto<{ id: string; status: string; storagePath: string; domain: string; sector: string }>> {
     if (!file) {
       throw new BadRequestException('File is required');
     }
@@ -51,19 +52,18 @@ export class AdminController {
       throw new BadRequestException('Only PDF files are allowed');
     }
 
-    // Additional size check (redundant but explicit)
-    const maxSize = 50 * 1024 * 1024; // 50MB
+    const maxSize = 50 * 1024 * 1024;
     if (file.size > maxSize) {
       throw new BadRequestException('File size exceeds 50MB limit');
     }
 
     const result = await this.adminService.uploadPdf(dto, file.buffer, file.mimetype);
 
-    return ApiResponseDto.success(result, 'PDF uploaded for processing');
+    return ApiResponseDto.success(result, `PDF uploaded to ${dto.domain}/${dto.sector} (vectors created on first query)`);
   }
 
   @Get('embeddings')
-  @ApiOperation({ summary: 'List all embeddings' })
+  @ApiOperation({ summary: 'List all embeddings with optional domain/sector filter' })
   @ApiResponse({ status: 200, description: 'Embeddings list' })
   async listEmbeddings(
     @Query() query: ListEmbeddingsQueryDto,
@@ -82,12 +82,31 @@ export class AdminController {
   }
 
   @Delete('embeddings/:id')
-  @ApiOperation({ summary: 'Delete embedding' })
+  @ApiOperation({ summary: 'Delete embedding and its vectors' })
   @ApiResponse({ status: 200, description: 'Embedding deleted' })
   async deleteEmbedding(@Param('id', ParseUUIDPipe) id: string): Promise<ApiResponseDto<null>> {
-    // Note: In production, fetch the actual path from database
-    // For now, we delete the folder containing the file
     await this.adminService.deleteEmbedding(id);
     return ApiResponseDto.message('Embedding deleted successfully');
+  }
+
+  @Post('embeddings/:id/vectorize')
+  @ApiOperation({ summary: 'Force vectorization of a specific file' })
+  @ApiResponse({ status: 200, description: 'File vectorized' })
+  async forceVectorize(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<ApiResponseDto<{ chunksCreated: number }>> {
+    const result = await this.adminService.forceVectorize(id);
+    return ApiResponseDto.success(result, `Vectorized ${String(result.chunksCreated)} chunks`);
+  }
+
+  @Post('embeddings/cleanup')
+  @ApiOperation({ summary: 'Cleanup expired vectors (not accessed in X days)' })
+  @ApiQuery({ name: 'days', required: false, type: Number, description: 'Days of inactivity (default: 30)' })
+  @ApiResponse({ status: 200, description: 'Cleanup completed' })
+  async cleanupExpiredVectors(
+    @Query('days', new ParseIntPipe({ optional: true })) days?: number,
+  ): Promise<ApiResponseDto<{ filesCleaned: number; vectorsRemoved: number }>> {
+    const result = await this.adminService.cleanupExpiredVectors(days ?? 30);
+    return ApiResponseDto.success(result, `Cleaned ${String(result.filesCleaned)} files`);
   }
 }

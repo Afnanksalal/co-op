@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { LlmCouncilService } from '@/common/llm/llm-council.service';
+import { RagService } from '@/common/rag/rag.service';
+import { RagSector } from '@/common/rag/rag.types';
 import { BaseAgent, AgentInput, AgentOutput } from '../../types/agent.types';
 
 const LEGAL_SYSTEM_PROMPT = `Expert startup legal advisor. Topics: corporate structure, IP, employment, compliance, fundraising, ToS/privacy.
@@ -9,6 +11,7 @@ Rules:
 - Bullet points only
 - Max 5 key points
 - Cite specific laws/regulations
+- Reference provided documents when relevant
 - Flag when lawyer needed
 - No fluff or disclaimers`;
 
@@ -21,15 +24,28 @@ export class LegalAgentService implements BaseAgent {
   constructor(
     private readonly council: LlmCouncilService,
     private readonly config: ConfigService,
+    private readonly ragService: RagService,
   ) {
     this.minModels = this.config.get<number>('LLM_COUNCIL_MIN_MODELS', 3);
     this.maxModels = this.config.get<number>('LLM_COUNCIL_MAX_MODELS', 5);
   }
 
   async runDraft(input: AgentInput): Promise<AgentOutput> {
-    this.logger.debug('Running legal agent with LLM Council');
+    this.logger.debug('Running legal agent with LLM Council + RAG');
 
-    const userPrompt = this.buildUserPrompt(input);
+    // Get sector from startup metadata
+    const sector = (input.context.metadata.sector as RagSector) || 'saas';
+
+    // Fetch RAG context for legal domain
+    let ragContext = '';
+    if (this.ragService.isAvailable()) {
+      ragContext = await this.ragService.getContext(input.prompt, 'legal', sector, 5);
+      if (ragContext) {
+        this.logger.debug(`RAG context fetched for legal/${sector}`);
+      }
+    }
+
+    const userPrompt = this.buildUserPrompt(input, ragContext);
 
     const result = await this.council.runCouncil(LEGAL_SYSTEM_PROMPT, userPrompt, {
       minModels: this.minModels,
@@ -45,6 +61,8 @@ export class LegalAgentService implements BaseAgent {
       metadata: {
         phase: 'council',
         agent: 'legal',
+        sector,
+        ragEnabled: Boolean(ragContext),
         modelsUsed: result.metadata.modelsUsed,
         totalTokens: result.metadata.totalTokens,
         processingTimeMs: result.metadata.processingTimeMs,
@@ -56,10 +74,8 @@ export class LegalAgentService implements BaseAgent {
   }
 
   runCritique(_input: AgentInput, draft: AgentOutput): Promise<AgentOutput> {
-    // With LLM Council, critique is built into the process
-    const critiquesCount = typeof draft.metadata?.critiquesCount === 'number'
-      ? draft.metadata.critiquesCount
-      : 0;
+    const critiquesCount =
+      typeof draft.metadata?.critiquesCount === 'number' ? draft.metadata.critiquesCount : 0;
 
     return Promise.resolve({
       content: `Council critique completed with ${String(critiquesCount)} cross-critiques`,
@@ -74,7 +90,6 @@ export class LegalAgentService implements BaseAgent {
   }
 
   runFinal(_input: AgentInput, draft: AgentOutput, _critique: AgentOutput): Promise<AgentOutput> {
-    // With LLM Council, final synthesis is built into the process
     return Promise.resolve({
       content: draft.content,
       confidence: draft.confidence,
@@ -87,15 +102,23 @@ export class LegalAgentService implements BaseAgent {
     });
   }
 
-  private buildUserPrompt(input: AgentInput): string {
+  private buildUserPrompt(input: AgentInput, ragContext: string): string {
     let prompt = input.prompt;
 
-    if (input.documents.length > 0) {
-      prompt += `\n\nRelevant documents:\n${input.documents.join('\n---\n')}`;
+    // Add RAG context if available
+    if (ragContext) {
+      prompt += ragContext;
     }
 
+    // Add any additional documents
+    if (input.documents.length > 0) {
+      prompt += `\n\nAdditional documents:\n${input.documents.join('\n---\n')}`;
+    }
+
+    // Add startup context
     if (Object.keys(input.context.metadata).length > 0) {
-      prompt += `\n\nContext: ${JSON.stringify(input.context.metadata)}`;
+      const { companyName, industry, stage, country } = input.context.metadata;
+      prompt += `\n\nStartup: ${String(companyName)} (${String(industry)}, ${String(stage)}, ${String(country)})`;
     }
 
     return prompt;

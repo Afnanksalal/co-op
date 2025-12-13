@@ -55,6 +55,7 @@ export class AgentsService {
           website: startup.website,
           // Business classification
           industry: startup.industry,
+          sector: startup.sector, // RAG sector for document filtering
           businessModel: startup.businessModel,
           revenueModel: startup.revenueModel,
           // Stage
