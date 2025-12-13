@@ -103,14 +103,67 @@ export default function OnboardingPage() {
   };
 
   const handleSubmit = async () => {
+    // Validate required fields before submitting
+    if (!formData.founderName || formData.founderName.length < 2) {
+      toast.error('Please enter your name (at least 2 characters)');
+      setCurrentStep(0);
+      return;
+    }
+    if (!formData.companyName || formData.companyName.length < 2) {
+      toast.error('Please enter your company name (at least 2 characters)');
+      setCurrentStep(1);
+      return;
+    }
+    if (!formData.description || formData.description.length < 20) {
+      toast.error('Please enter a description (at least 20 characters)');
+      setCurrentStep(1);
+      return;
+    }
+    if (!formData.country || formData.country.length < 2) {
+      toast.error('Please enter your country');
+      setCurrentStep(2);
+      return;
+    }
+
+    // Clean the data - remove undefined/empty values for optional fields
+    const cleanData: OnboardingData = {
+      founderName: formData.founderName!,
+      founderRole: formData.founderRole || 'founder',
+      companyName: formData.companyName!,
+      description: formData.description!,
+      industry: formData.industry || 'saas',
+      sector: formData.sector || 'saas',
+      businessModel: formData.businessModel || 'b2b',
+      stage: formData.stage || 'mvp',
+      foundedYear: formData.foundedYear || new Date().getFullYear(),
+      teamSize: formData.teamSize || '1-5',
+      cofounderCount: formData.cofounderCount || 1,
+      country: formData.country!,
+      isRevenue: formData.isRevenue || 'pre_revenue',
+      // Optional fields - only include if they have values
+      ...(formData.tagline && { tagline: formData.tagline }),
+      ...(formData.website && { website: formData.website }),
+      ...(formData.revenueModel && { revenueModel: formData.revenueModel }),
+      ...(formData.launchDate && { launchDate: formData.launchDate }),
+      ...(formData.city && { city: formData.city }),
+      ...(formData.operatingRegions && { operatingRegions: formData.operatingRegions }),
+      ...(formData.fundingStage && { fundingStage: formData.fundingStage }),
+      ...(formData.totalRaised && { totalRaised: formData.totalRaised }),
+      ...(formData.monthlyRevenue && { monthlyRevenue: formData.monthlyRevenue }),
+      ...(formData.targetCustomer && { targetCustomer: formData.targetCustomer }),
+      ...(formData.problemSolved && { problemSolved: formData.problemSolved }),
+      ...(formData.competitiveAdvantage && { competitiveAdvantage: formData.competitiveAdvantage }),
+    };
+
     setIsLoading(true);
     try {
-      await api.completeOnboarding(formData as OnboardingData);
+      await api.completeOnboarding(cleanData);
       toast.success('Welcome to Co-Op!');
       router.push('/dashboard');
     } catch (error) {
       console.error('Onboarding failed:', error);
-      toast.error('Failed to complete onboarding. Please check all required fields.');
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      toast.error(`Failed: ${message}`);
     }
     setIsLoading(false);
   };

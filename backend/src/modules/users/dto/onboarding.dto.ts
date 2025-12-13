@@ -201,6 +201,16 @@ class IsValidRevenueStatus implements ValidatorConstraintInterface {
   }
 }
 
+@ValidatorConstraint({ name: 'isValidTeamSize', async: false })
+class IsValidTeamSize implements ValidatorConstraintInterface {
+  validate(value: string): boolean {
+    return TEAM_SIZES.includes(value as TeamSize);
+  }
+  defaultMessage(): string {
+    return `teamSize must be one of: ${TEAM_SIZES.join(', ')}`;
+  }
+}
+
 // === DTO ===
 
 export class OnboardingDto {
@@ -324,6 +334,7 @@ export class OnboardingDto {
     example: '1-5',
   })
   @IsString()
+  @Validate(IsValidTeamSize)
   teamSize: TeamSize;
 
   @ApiProperty({ description: 'Number of co-founders', example: 2 })

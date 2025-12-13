@@ -72,7 +72,12 @@ class ApiClient {
     
     if (!res.ok) {
       const error = await res.json().catch(() => ({ message: 'Request failed' }));
-      throw new ApiError(error.message || `HTTP ${res.status}`, res.status, error.code);
+      // Handle NestJS validation errors which return message as array
+      let errorMessage = error.message;
+      if (Array.isArray(error.message)) {
+        errorMessage = error.message.join(', ');
+      }
+      throw new ApiError(errorMessage || `HTTP ${res.status}`, res.status, error.code);
     }
     
     const json: ApiResponse<T> = await res.json();
