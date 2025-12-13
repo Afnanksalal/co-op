@@ -1,7 +1,13 @@
-from fastapi import FastAPI, HTTPException
+import os
+import secrets
+from fastapi import FastAPI, HTTPException, Depends, Security
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import APIKeyHeader
 from contextlib import asynccontextmanager
 from typing import Optional
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from app.database import db
 from app.services import (
@@ -17,14 +23,37 @@ from app.schemas import (
     CleanupResponse, HealthResponse
 )
 
+# API Key configuration
+RAG_API_KEY = os.getenv("RAG_API_KEY", "")
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+
+async def verify_api_key(api_key: str = Security(api_key_header)):
+    """Verify API key for protected endpoints."""
+    if not RAG_API_KEY:
+        # No API key configured - allow all requests (dev mode)
+        return True
+    
+    if not api_key:
+        raise HTTPException(status_code=401, detail="Missing API key")
+    
+    # Timing-safe comparison
+    if not secrets.compare_digest(api_key, RAG_API_KEY):
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    
+    return True
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Connect to Neon DB on startup, disconnect on shutdown."""
+    """Connect to DB on startup, disconnect on shutdown."""
     await db.connect()
     yield
     await db.disconnect()
 
+
+# CORS origins - backend URLs
+CORS_ORIGINS = os.getenv("CORS_ORIGINS", "").split(",") if os.getenv("CORS_ORIGINS") else ["*"]
 
 app = FastAPI(
     title="Co-Op RAG Service",
@@ -35,7 +64,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -56,7 +85,7 @@ async def health_check():
 
 
 @app.post("/rag/register", response_model=RegisterResponse)
-async def register_file(request: RegisterFileRequest):
+async def register_file(request: RegisterFileRequest, _: bool = Depends(verify_api_key)):
     """
     Register a file that's already uploaded to Supabase Storage.
     Called by backend after uploading PDF to storage.
@@ -85,7 +114,7 @@ async def register_file(request: RegisterFileRequest):
 
 
 @app.post("/rag/vectorize/{file_id}", response_model=VectorizeResponse)
-async def force_vectorize(file_id: str):
+async def force_vectorize(file_id: str, _: bool = Depends(verify_api_key)):
     """
     Force vectorization of a specific file.
     Useful for pre-warming or admin operations.
@@ -110,7 +139,7 @@ async def force_vectorize(file_id: str):
 
 
 @app.post("/rag/query", response_model=QueryResponse)
-async def ask_question(request: QueryRequest):
+async def ask_question(request: QueryRequest, _: bool = Depends(verify_api_key)):
     """
     Query the RAG system with lazy vectorization.
     - Automatically vectorizes any pending files for the domain/sector
@@ -131,7 +160,8 @@ async def ask_question(request: QueryRequest):
 @app.get("/rag/files")
 async def list_files(
     domain: Optional[Domain] = None,
-    sector: Optional[Sector] = None
+    sector: Optional[Sector] = None,
+    _: bool = Depends(verify_api_key)
 ):
     """List all registered files with their vector status."""
     try:
@@ -161,7 +191,7 @@ async def list_files(
 
 
 @app.get("/rag/files/{file_id}", response_model=FileResponse)
-async def get_file(file_id: str):
+async def get_file(file_id: str, _: bool = Depends(verify_api_key)):
     """Get file metadata by ID."""
     try:
         file_info = await db.get_file(file_id)
@@ -186,7 +216,7 @@ async def get_file(file_id: str):
 
 
 @app.delete("/rag/files/{file_id}")
-async def remove_file(file_id: str):
+async def remove_file(file_id: str, _: bool = Depends(verify_api_key)):
     """
     Delete file metadata and vectors.
     Note: Supabase Storage deletion should be handled by the backend.
@@ -203,7 +233,7 @@ async def remove_file(file_id: str):
 
 
 @app.post("/rag/cleanup", response_model=CleanupResponse)
-async def cleanup_vectors(days: int = 30):
+async def cleanup_vectors(days: int = 30, _: bool = Depends(verify_api_key)):
     """
     Remove vectors for files not accessed in X days.
     Files remain in Supabase Storage for future re-vectorization.

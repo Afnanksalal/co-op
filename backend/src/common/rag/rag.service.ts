@@ -19,6 +19,7 @@ import {
 export class RagService {
   private readonly logger = new Logger(RagService.name);
   private readonly ragBaseUrl: string;
+  private readonly ragApiKey: string;
   private readonly isConfigured: boolean;
 
   constructor(
@@ -26,6 +27,7 @@ export class RagService {
     private readonly circuitBreaker: CircuitBreakerService,
   ) {
     this.ragBaseUrl = this.configService.get<string>('RAG_SERVICE_URL', '');
+    this.ragApiKey = this.configService.get<string>('RAG_API_KEY', '');
     this.isConfigured = Boolean(this.ragBaseUrl);
 
     if (this.isConfigured) {
@@ -33,6 +35,14 @@ export class RagService {
     } else {
       this.logger.warn('RAG service not configured - semantic search disabled');
     }
+  }
+
+  private getHeaders(): Record<string, string> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (this.ragApiKey) {
+      headers['X-API-Key'] = this.ragApiKey;
+    }
+    return headers;
   }
 
   isAvailable(): boolean {
@@ -51,7 +61,7 @@ export class RagService {
     try {
       const response = await fetch(`${this.ragBaseUrl}/rag/register`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: this.getHeaders(),
         body: JSON.stringify({
           file_id: request.fileId,
           filename: request.filename,
@@ -91,6 +101,7 @@ export class RagService {
     try {
       const response = await fetch(`${this.ragBaseUrl}/rag/vectorize/${fileId}`, {
         method: 'POST',
+        headers: this.getHeaders(),
         signal: AbortSignal.timeout(120000), // 2 min for large files
       });
 
@@ -135,7 +146,7 @@ export class RagService {
     const queryFn = async (): Promise<QueryResponse> => {
       const response = await fetch(`${this.ragBaseUrl}/rag/query`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: this.getHeaders(),
         body: JSON.stringify({
           query: request.query,
           domain: request.domain,
@@ -225,6 +236,7 @@ export class RagService {
     try {
       const response = await fetch(`${this.ragBaseUrl}/rag/files/${fileId}`, {
         method: 'GET',
+        headers: this.getHeaders(),
         signal: AbortSignal.timeout(10000),
       });
 
@@ -278,6 +290,7 @@ export class RagService {
       const url = `${this.ragBaseUrl}/rag/files${params.toString() ? `?${params.toString()}` : ''}`;
       const response = await fetch(url, {
         method: 'GET',
+        headers: this.getHeaders(),
         signal: AbortSignal.timeout(10000),
       });
 
@@ -331,6 +344,7 @@ export class RagService {
     try {
       const response = await fetch(`${this.ragBaseUrl}/rag/files/${fileId}`, {
         method: 'DELETE',
+        headers: this.getHeaders(),
         signal: AbortSignal.timeout(30000),
       });
 
@@ -365,6 +379,7 @@ export class RagService {
     try {
       const response = await fetch(`${this.ragBaseUrl}/rag/cleanup?days=${String(days)}`, {
         method: 'POST',
+        headers: this.getHeaders(),
         signal: AbortSignal.timeout(60000),
       });
 
