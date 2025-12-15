@@ -10,7 +10,7 @@ import {
   StreamChunk,
 } from '../types/llm.types';
 
-const DEFAULT_MODEL = 'gemini-3-pro-preview';
+const DEFAULT_MODEL = 'gemini-2.5-flash';
 
 @Injectable()
 export class GoogleProvider implements LlmProviderService {

@@ -341,48 +341,30 @@ class ApiClient {
   }
 
   // ============================================
-  // METRICS ENDPOINTS (Requires API Key)
+  // METRICS ENDPOINTS
   // ============================================
 
-  async getPrometheusMetrics(apiKey?: string): Promise<string> {
-    // Try to get API key from localStorage if not provided
-    const key = apiKey || (typeof window !== 'undefined' ? localStorage.getItem('metrics_api_key') : null);
+  async getPrometheusMetrics(): Promise<string> {
+    // Use admin endpoint which uses JWT auth instead of API key
+    const supabase = createClient();
+    const { data: { session } } = await supabase.auth.getSession();
     
-    if (!key) {
-      throw new ApiError('Metrics API key not configured. Set a Master API Key in environment or store one in settings.', 401);
+    if (!session?.access_token) {
+      throw new ApiError('Authentication required for metrics', 401);
     }
     
-    const res = await fetch(`${API_URL}/metrics`, {
+    const res = await fetch(`${API_URL}/metrics/admin`, {
       method: 'GET',
       headers: {
-        'X-API-Key': key,
+        'Authorization': `Bearer ${session.access_token}`,
       },
     });
     
     if (!res.ok) {
-      throw new ApiError('Invalid API key or metrics unavailable', res.status);
+      throw new ApiError('Failed to fetch metrics - admin access required', res.status);
     }
     
     return res.text();
-  }
-
-  setMetricsApiKey(apiKey: string): void {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('metrics_api_key', apiKey);
-    }
-  }
-
-  getStoredMetricsApiKey(): string | null {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('metrics_api_key');
-    }
-    return null;
-  }
-
-  clearMetricsApiKey(): void {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('metrics_api_key');
-    }
   }
 
   // ============================================

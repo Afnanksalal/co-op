@@ -1,6 +1,6 @@
 # Contributing to Co-Op
 
-Thank you for your interest in contributing to Co-Op! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to Co-Op! This document provides guidelines for contributing to the project.
 
 ## Code of Conduct
 
@@ -13,10 +13,11 @@ By participating in this project, you agree to maintain a respectful and inclusi
 - Node.js 20+
 - Python 3.11+ (for RAG service)
 - Git
+- Code editor (VS Code recommended)
 
 ### Development Setup
 
-1. **Fork the repository**
+1. **Fork and clone the repository**
    ```bash
    git clone https://github.com/YOUR_USERNAME/co-op.git
    cd co-op
@@ -27,6 +28,7 @@ By participating in this project, you agree to maintain a respectful and inclusi
    cd Backend
    cp .env.example .env
    npm install
+   npm run db:push
    npm run dev
    ```
 
@@ -43,18 +45,20 @@ By participating in this project, you agree to maintain a respectful and inclusi
    cd RAG
    cp .env.example .env
    pip install -r requirements.txt
-   uvicorn app.main:app --reload
+   uvicorn app.main:app --reload --port 8000
    ```
 
 ## Development Workflow
 
 ### Branch Naming
 
-- `feature/` - New features
-- `fix/` - Bug fixes
-- `docs/` - Documentation updates
-- `refactor/` - Code refactoring
-- `test/` - Test additions/updates
+| Prefix | Purpose |
+|--------|---------|
+| `feature/` | New features |
+| `fix/` | Bug fixes |
+| `docs/` | Documentation |
+| `refactor/` | Code refactoring |
+| `test/` | Test additions |
 
 Example: `feature/add-slack-integration`
 
@@ -64,23 +68,20 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```
 type(scope): description
-
-[optional body]
-
-[optional footer]
 ```
 
-Types:
-- `feat` - New feature
-- `fix` - Bug fix
-- `docs` - Documentation
-- `style` - Formatting
-- `refactor` - Code restructuring
-- `test` - Tests
-- `chore` - Maintenance
+| Type | Description |
+|------|-------------|
+| `feat` | New feature |
+| `fix` | Bug fix |
+| `docs` | Documentation |
+| `style` | Formatting |
+| `refactor` | Code restructuring |
+| `test` | Tests |
+| `chore` | Maintenance |
 
 Examples:
-```
+```bash
 feat(agents): add competitor analysis caching
 fix(auth): resolve token refresh race condition
 docs(readme): update deployment instructions
@@ -99,20 +100,18 @@ docs(readme): update deployment instructions
 **Backend:**
 ```bash
 cd Backend
-npm run lint        # Check for issues
-npm run lint:fix    # Auto-fix issues
-npm run format      # Format code
-npm run build       # Verify build
+npm run lint
+npm run format
+npm run build
 ```
 
 **Frontend:**
 ```bash
 cd Frontend
-npm run lint        # Check for issues
-npm run lint:fix    # Auto-fix issues
-npm run format      # Format code
-npm run typecheck   # Type checking
-npm run build       # Verify build
+npm run lint
+npm run format
+npm run typecheck
+npm run build
 ```
 
 ## Code Style
@@ -121,23 +120,20 @@ npm run build       # Verify build
 
 - Use strict mode
 - Prefer `const` over `let`
-- Use explicit return types for functions
-- Use interfaces for object shapes
+- Use explicit return types
 - Avoid `any` type
 
 ### React/Next.js
 
 - Use functional components
 - Use hooks appropriately
-- Keep components focused and small
-- Use TypeScript for props
+- Keep components focused
 
 ### NestJS
 
 - Follow module-based architecture
 - Use dependency injection
 - Document endpoints with Swagger
-- Handle errors consistently
 
 ## Testing
 

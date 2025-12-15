@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { WebhooksLogo, Plus, Trash, Pencil, ArrowsClockwise } from '@phosphor-icons/react';
+import { WebhooksLogo, Plus, Trash, Pencil, ArrowsClockwise } from '@phosphor-icons/react/dist/ssr';
 import { api } from '@/lib/api/client';
 import type { Webhook } from '@/lib/api/types';
 import { Card, CardContent } from '@/components/ui/card';

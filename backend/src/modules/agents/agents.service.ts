@@ -249,26 +249,40 @@ Rate 1-10 and give brief feedback. JSON only:
     
     const bestCritiques = critiques.filter((c) => c.responseId === bestResponse.id);
     
-    const synthesisPrompt = `Synthesize these expert responses into one comprehensive answer.
+    const synthesisPrompt = `You are synthesizing expert advice for a startup founder who needs ACTIONABLE guidance.
 
-Question: ${prompt}
+QUESTION: ${prompt}
 
-Best response (from ${bestResponse.agent}):
-${bestResponse.content}
+EXPERT RESPONSES:
 
-Feedback:
-${bestCritiques.map((c) => `${c.criticAgent}: ${String(c.score)}/10 - ${c.feedback}`).join('\n')}
+${responses.map((r) => `=== ${r.agent.toUpperCase()} EXPERT ===
+${r.content}
+`).join('\n')}
 
-Other insights:
-${responses.filter((r) => r.id !== bestResponse.id).map((r) => `${r.agent}: ${r.content.slice(0, 300)}...`).join('\n\n')}
+PEER REVIEW SCORES:
+${bestCritiques.map((c) => `- ${c.criticAgent}: ${String(c.score)}/10 - ${c.feedback}`).join('\n')}
 
-Provide a synthesized answer combining the best insights. Use bullet points. Be concise.`;
+YOUR TASK:
+Create a comprehensive, actionable response that:
+1. Combines the BEST insights from ALL experts
+2. Provides SPECIFIC, ACTIONABLE steps (not vague advice)
+3. Includes concrete examples, numbers, or frameworks where relevant
+4. Addresses the question from multiple angles (legal, financial, strategic)
+5. Prioritizes recommendations by importance/urgency
+
+FORMAT YOUR RESPONSE:
+- Start with a brief executive summary (2-3 sentences)
+- Use clear sections with headers for different aspects
+- Include numbered action items where appropriate
+- End with immediate next steps the founder should take
+
+Be thorough but organized. Founders need detailed guidance, not surface-level advice.`;
 
     try {
       const result = await this.council.runCouncil(
-        'Synthesize expert responses concisely.',
+        'You are a senior startup advisor synthesizing expert opinions into actionable guidance. Be thorough and specific.',
         synthesisPrompt,
-        { minModels: 2, maxModels: 3, temperature: 0.3, maxTokens: 1500 },
+        { minModels: 2, maxModels: 3, temperature: 0.4, maxTokens: 3000 },
       );
       
       return { bestResponse, averageScore, synthesizedContent: result.finalResponse, allSources };

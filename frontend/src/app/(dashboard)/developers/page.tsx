@@ -15,7 +15,7 @@ import {
   ChartLineUp,
   UsersThree,
   Robot,
-} from '@phosphor-icons/react';
+} from '@phosphor-icons/react/dist/ssr';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -37,18 +37,18 @@ function CodeBlock({ code, language = 'bash' }: { code: string; language?: strin
   };
 
   return (
-    <div className="relative group rounded-lg overflow-hidden border border-zinc-800">
-      <div className="flex items-center justify-between px-4 py-2 bg-zinc-900 border-b border-zinc-800">
-        <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">{language}</span>
+    <div className="relative group rounded-lg overflow-hidden border border-border/60 bg-muted/30">
+      <div className="flex items-center justify-between px-3 sm:px-4 py-2 bg-muted/50 border-b border-border/40">
+        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{language}</span>
         <Button
           variant="ghost"
           size="sm"
           onClick={handleCopy}
-          className="h-6 px-2 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800"
+          className="h-6 px-2 text-muted-foreground hover:text-foreground"
         >
           {copied ? (
             <>
-              <Check weight="bold" className="w-3 h-3 mr-1 text-green-400" />
+              <Check weight="bold" className="w-3 h-3 mr-1 text-green-500" />
               <span className="text-[10px]">Copied</span>
             </>
           ) : (
@@ -59,8 +59,8 @@ function CodeBlock({ code, language = 'bash' }: { code: string; language?: strin
           )}
         </Button>
       </div>
-      <pre className="bg-zinc-950 text-zinc-100 p-4 text-xs sm:text-sm overflow-x-auto font-mono leading-relaxed">
-        <code className="text-zinc-300">{code}</code>
+      <pre className="p-3 sm:p-4 text-[11px] sm:text-xs overflow-x-auto font-mono leading-relaxed">
+        <code className="text-foreground/90">{code}</code>
       </pre>
     </div>
   );
@@ -264,7 +264,10 @@ curl -N ${API_URL}/agents/stream/<taskId>`} />
                 <div>
                   <h4 className="font-medium text-sm mb-3">Discover Available Tools</h4>
                   <CodeBlock code={`curl -X GET ${API_URL}/mcp-server/discover \\
-  -H "X-API-Key: <MASTER_API_KEY>"`} />
+  -H "X-API-Key: coop_your_api_key_here"`} />
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Create an API key in <a href="/settings/api-keys" className="underline">Settings → API Keys</a>
+                  </p>
                 </div>
 
                 <div>
@@ -298,7 +301,7 @@ curl -N ${API_URL}/agents/stream/<taskId>`} />
                 <div>
                   <h4 className="font-medium text-sm mb-3">Execute Tool</h4>
                   <CodeBlock code={`curl -X POST ${API_URL}/mcp-server/execute \\
-  -H "X-API-Key: <MASTER_API_KEY>" \\
+  -H "X-API-Key: coop_your_api_key_here" \\
   -H "Content-Type: application/json" \\
   -d '{
     "tool": "investor_search",
@@ -323,11 +326,14 @@ curl -N ${API_URL}/agents/stream/<taskId>`} />
       "command": "curl",
       "args": ["-X", "GET", "${API_URL}/mcp-server/discover"],
       "env": {
-        "X_API_KEY": "<your_master_api_key>"
+        "X_API_KEY": "coop_your_api_key_here"
       }
     }
   }
 }`} language="json" />
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Generate your API key at <a href="/settings/api-keys" className="underline">Settings → API Keys</a>
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -375,7 +381,7 @@ curl -N ${API_URL}/agents/stream/<taskId>`} />
                 <div>
                   <h4 className="font-medium text-sm mb-3">Multi-Agent Query</h4>
                   <CodeBlock code={`curl -X POST ${API_URL}/mcp-server/execute \\
-  -H "X-API-Key: <MASTER_API_KEY>" \\
+  -H "X-API-Key: coop_your_api_key_here" \\
   -H "Content-Type: application/json" \\
   -d '{
     "tool": "multi_agent_query",
@@ -478,9 +484,9 @@ curl -N ${API_URL}/agents/stream/<taskId>`} />
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
                 { name: 'Llama 3.3 70B', provider: 'Groq' },
-                { name: 'Gemini 3 Pro', provider: 'Google' },
-                { name: 'GPT OSS 120B', provider: 'Groq' },
-                { name: 'DeepSeek R1', provider: 'HuggingFace' },
+                { name: 'Gemini 2.5 Flash', provider: 'Google' },
+                { name: 'Llama 3.1 8B', provider: 'Groq' },
+                { name: 'Mistral 7B', provider: 'HuggingFace' },
               ].map((model) => (
                 <div key={model.name} className="p-3 rounded-lg bg-muted/30 text-center">
                   <p className="text-xs font-medium truncate">{model.name}</p>

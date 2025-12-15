@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { MagnifyingGlass, ArrowLeft } from '@phosphor-icons/react';
+import { MagnifyingGlass, ArrowLeft } from '@phosphor-icons/react/dist/ssr';
 import { Button } from '@/components/ui/button';
 
 export default function NotFound() {

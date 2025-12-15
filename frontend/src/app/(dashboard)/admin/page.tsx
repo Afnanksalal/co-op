@@ -14,7 +14,7 @@ import {
   CircleNotch,
   MagnifyingGlass,
   Broom,
-} from '@phosphor-icons/react';
+} from '@phosphor-icons/react/dist/ssr';
 import { api } from '@/lib/api/client';
 import { useRequireAdmin } from '@/lib/hooks';
 import type { Embedding, McpServer, McpTool, RagDomain, Sector } from '@/lib/api/types';

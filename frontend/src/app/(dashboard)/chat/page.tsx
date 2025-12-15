@@ -22,7 +22,7 @@ import {
 import { api } from '@/lib/api/client';
 import { useUser } from '@/lib/hooks';
 import { useChatStore, useSessionStore } from '@/lib/store';
-import type { AgentType } from '@/lib/api/types';
+import type { AgentType, Session } from '@/lib/api/types';
 import { cn, generateId, copyToClipboard } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -55,6 +55,7 @@ export default function ChatPage() {
     updateMessage,
     setSelectedAgent,
     setLoading,
+    clearMessages,
   } = useChatStore();
 
   const [input, setInput] = useState('');
@@ -64,11 +65,63 @@ export default function ChatPage() {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Initialize session
+  // Initialize session and load existing messages
   useEffect(() => {
     const initSession = async () => {
-      if (!user?.startup || currentSession) return;
+      if (!user?.startup) return;
 
+      // Check if we're continuing from a previous session
+      const continueSessionStr = sessionStorage.getItem('continueSession');
+      if (continueSessionStr) {
+        try {
+          const continueSession = JSON.parse(continueSessionStr) as Session;
+          sessionStorage.removeItem('continueSession');
+          
+          // Set the session and load its messages
+          setCurrentSession(continueSession);
+          const existingMessages = await api.getSessionMessages(continueSession.id);
+          if (existingMessages.length > 0) {
+            clearMessages();
+            existingMessages.forEach((msg) => {
+              addMessage({
+                id: msg.id,
+                role: msg.role as 'user' | 'assistant',
+                content: msg.content,
+                agent: msg.agent as AgentType | 'multi' | undefined,
+                timestamp: new Date(msg.createdAt),
+              });
+            });
+          }
+          return;
+        } catch (error) {
+          console.error('Failed to continue session:', error);
+          sessionStorage.removeItem('continueSession');
+        }
+      }
+
+      // If we have a current session, load its messages
+      if (currentSession) {
+        try {
+          const existingMessages = await api.getSessionMessages(currentSession.id);
+          if (existingMessages.length > 0 && messages.length === 0) {
+            // Only load if we don't already have messages
+            existingMessages.forEach((msg) => {
+              addMessage({
+                id: msg.id,
+                role: msg.role as 'user' | 'assistant',
+                content: msg.content,
+                agent: msg.agent as AgentType | 'multi' | undefined,
+                timestamp: new Date(msg.createdAt),
+              });
+            });
+          }
+        } catch (error) {
+          console.error('Failed to load session messages:', error);
+        }
+        return;
+      }
+
+      // Create new session if none exists
       try {
         const session = await api.createSession({
           startupId: user.startup.id,
@@ -82,7 +135,8 @@ export default function ChatPage() {
     };
 
     initSession();
-  }, [user?.startup, currentSession, setCurrentSession]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.startup]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -179,7 +233,7 @@ export default function ChatPage() {
       let completed = false;
       let finalContent = '';
       while (!completed) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 800));
         const status = await api.getTaskStatus(taskId);
 
         if (status.status === 'completed' && status.result) {
@@ -196,10 +250,37 @@ export default function ChatPage() {
           completed = true;
         } else if (status.status === 'failed') {
           throw new Error(status.error || 'Task failed');
-        } else if (status.progress > 0) {
-          const progressText = isMultiAgent
-            ? `Consulting all agents... ${status.progress}%`
-            : `Thinking... ${status.progress}%`;
+        } else {
+          // Show detailed progress
+          const detail = status.progressDetail;
+          let progressText = '';
+          
+          if (detail) {
+            const eta = detail.estimatedTimeRemaining 
+              ? ` (~${detail.estimatedTimeRemaining}s remaining)` 
+              : '';
+            
+            switch (detail.phase) {
+              case 'gathering':
+                progressText = isMultiAgent
+                  ? `Gathering expert responses (${detail.agentsCompleted ?? 0}/${detail.totalAgents ?? 4} agents)${eta}`
+                  : `${detail.currentAgent?.charAt(0).toUpperCase()}${detail.currentAgent?.slice(1) ?? 'Agent'} analyzing your question${eta}`;
+                break;
+              case 'critiquing':
+                progressText = `Cross-critiquing responses for accuracy${eta}`;
+                break;
+              case 'synthesizing':
+                progressText = `Synthesizing final response${eta}`;
+                break;
+              default:
+                progressText = detail.message ?? `Processing... ${status.progress}%`;
+            }
+          } else {
+            progressText = isMultiAgent
+              ? `Consulting all agents... ${status.progress}%`
+              : `Thinking... ${status.progress}%`;
+          }
+          
           updateMessage(assistantMessageId, {
             content: progressText,
           });
@@ -240,10 +321,40 @@ export default function ChatPage() {
     return `Ask ${agentConfig[selectedAgent].name} anything...`;
   };
 
+  const handleNewChat = async () => {
+    if (!user?.startup) return;
+    
+    // Clear current messages and session
+    clearMessages();
+    setCurrentSession(null);
+    
+    // Create new session
+    try {
+      const session = await api.createSession({
+        startupId: user.startup.id,
+        metadata: { source: 'web-chat' },
+      });
+      setCurrentSession(session);
+    } catch (error) {
+      console.error('Failed to create new session:', error);
+      toast.error('Failed to start new chat');
+    }
+  };
+
   return (
     <div className="h-[calc(100vh-4rem)] md:h-[calc(100vh-4rem)] flex flex-col max-w-4xl mx-auto">
       {/* Agent Selector */}
       <div className="flex items-center gap-1 sm:gap-2 pb-3 sm:pb-4 border-b border-border/40 shrink-0 overflow-x-auto">
+        {messages.length > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleNewChat}
+            className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground mr-2"
+          >
+            New Chat
+          </Button>
+        )}
         <span className="text-xs sm:text-sm text-muted-foreground mr-1 sm:mr-2 shrink-0">Mode:</span>
         
         {/* Multi-Agent (A2A) Option */}
@@ -345,9 +456,23 @@ export default function ChatPage() {
                   {message.isStreaming ? (
                     <Card className="border-border/40 bg-card">
                       <CardContent className="p-4">
-                        <div className="flex items-center gap-2">
-                          <CircleNotch weight="bold" className="w-4 h-4 animate-spin" />
-                          <span className="text-sm">{message.content || 'Thinking...'}</span>
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <CircleNotch weight="bold" className="w-4 h-4 animate-spin text-primary" />
+                            <span className="text-sm font-medium">{message.content || 'Thinking...'}</span>
+                          </div>
+                          {message.agent === 'multi' && (
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <div className="flex -space-x-1">
+                                {['legal', 'finance', 'investor', 'competitor'].map((agent) => (
+                                  <div key={agent} className="w-5 h-5 rounded-full bg-muted border-2 border-card flex items-center justify-center">
+                                    <span className="text-[8px] font-medium uppercase">{agent[0]}</span>
+                                  </div>
+                                ))}
+                              </div>
+                              <span>All agents collaborating</span>
+                            </div>
+                          )}
                         </div>
                       </CardContent>
                     </Card>

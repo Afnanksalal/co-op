@@ -173,6 +173,18 @@ export interface QueueTaskResponse {
   messageId: string;
 }
 
+export interface TaskProgressDetail {
+  phase: 'queued' | 'gathering' | 'critiquing' | 'synthesizing' | 'completed' | 'failed';
+  currentAgent?: string;
+  agentsCompleted?: number;
+  totalAgents?: number;
+  critiquesCompleted?: number;
+  totalCritiques?: number;
+  estimatedTimeRemaining?: number;
+  startedAt?: string;
+  message?: string;
+}
+
 export interface TaskStatus {
   status: 'waiting' | 'active' | 'completed' | 'failed' | 'cancelled';
   progress: number;
@@ -183,6 +195,7 @@ export interface TaskStatus {
     completedAt: string;
   };
   error?: string;
+  progressDetail?: TaskProgressDetail;
 }
 
 // === ONBOARDING ===

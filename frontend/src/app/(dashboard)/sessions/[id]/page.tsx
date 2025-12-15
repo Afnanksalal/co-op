@@ -10,7 +10,7 @@ import {
   Clock,
   StopCircle,
   ChatCircle,
-} from '@phosphor-icons/react';
+} from '@phosphor-icons/react/dist/ssr';
 import { api } from '@/lib/api/client';
 import type { Session, Message } from '@/lib/api/types';
 import { Card, CardContent } from '@/components/ui/card';
@@ -56,6 +56,12 @@ export default function SessionDetailPage() {
       console.error('Failed to end session:', error);
       toast.error('Failed to end session');
     }
+  };
+
+  const handleContinueChat = () => {
+    // Store session in sessionStorage for the chat page to pick up
+    sessionStorage.setItem('continueSession', JSON.stringify(session));
+    router.push('/chat');
   };
 
   if (isLoading) {
@@ -109,11 +115,18 @@ export default function SessionDetailPage() {
             {session.status}
           </Badge>
           {session.status === 'active' && (
-            <Button variant="outline" onClick={handleEndSession} size="sm" className="h-8 sm:h-9">
-              <StopCircle weight="bold" className="w-4 h-4" />
-              <span className="hidden sm:inline">End Session</span>
-              <span className="sm:hidden">End</span>
-            </Button>
+            <>
+              <Button onClick={handleContinueChat} size="sm" className="h-8 sm:h-9">
+                <ChatCircle weight="bold" className="w-4 h-4" />
+                <span className="hidden sm:inline">Continue Chat</span>
+                <span className="sm:hidden">Continue</span>
+              </Button>
+              <Button variant="outline" onClick={handleEndSession} size="sm" className="h-8 sm:h-9">
+                <StopCircle weight="bold" className="w-4 h-4" />
+                <span className="hidden sm:inline">End Session</span>
+                <span className="sm:hidden">End</span>
+              </Button>
+            </>
           )}
         </div>
       </motion.div>

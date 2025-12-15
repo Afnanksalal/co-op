@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { User, Buildings, Pencil, Check, X } from '@phosphor-icons/react';
+import { User, Buildings, Pencil, Check, X } from '@phosphor-icons/react/dist/ssr';
 import { api } from '@/lib/api/client';
 import { useUser } from '@/lib/hooks';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';

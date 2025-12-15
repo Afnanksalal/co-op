@@ -103,14 +103,15 @@ export interface ModelHealthCheck {
 // Available models configuration - updated Dec 2025
 // Health check validates on boot - only healthy models used
 export const AVAILABLE_MODELS: ModelConfig[] = [
-  // Groq - verified working
-  { provider: 'groq', model: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B' },
-  { provider: 'groq', model: 'openai/gpt-oss-120b', name: 'GPT OSS 120B' },
+  // Groq - verified working, fastest inference
+  { provider: 'groq', model: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B Versatile' },
+  { provider: 'groq', model: 'llama-3.3-70b-specdec', name: 'Llama 3.3 70B SpecDec' },
 
-  // Google AI - Gemini 3 Pro
-  { provider: 'google', model: 'gemini-3-pro-preview', name: 'Gemini 3 Pro' },
+  // Google AI - Gemini 2.5 Flash (fast, production-ready)
+  { provider: 'google', model: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
 
-  // HuggingFace - serverless inference
+  // HuggingFace - multiple models for diversity
   { provider: 'huggingface', model: 'deepseek-ai/DeepSeek-R1-Distill-Qwen-32B', name: 'DeepSeek R1 32B' },
-  { provider: 'huggingface', model: 'meta-llama/Meta-Llama-3-8B-Instruct', name: 'Llama 3 8B' },
+  { provider: 'huggingface', model: 'microsoft/Phi-3-mini-4k-instruct', name: 'Phi-3 Mini' },
+  { provider: 'huggingface', model: 'Qwen/Qwen2.5-72B-Instruct', name: 'Qwen 2.5 72B' },
 ];

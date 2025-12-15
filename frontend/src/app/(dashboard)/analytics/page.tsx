@@ -14,9 +14,7 @@ import {
   CheckCircle,
   XCircle,
   ArrowsClockwise,
-  Key,
-  Trash,
-} from '@phosphor-icons/react';
+} from '@phosphor-icons/react/dist/ssr';
 import { api } from '@/lib/api/client';
 import { useRequireAdmin } from '@/lib/hooks';
 import type { DashboardStats } from '@/lib/api/types';
@@ -24,85 +22,25 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 
-function MetricsSetup({ onConfigured }: { onConfigured: () => void }) {
-  const [apiKey, setApiKey] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const storedKey = api.getStoredMetricsApiKey();
-
-  const handleSave = async () => {
-    if (!apiKey.trim()) {
-      toast.error('Please enter an API key');
-      return;
-    }
-    
-    setIsLoading(true);
-    try {
-      // Test the key
-      await api.getPrometheusMetrics(apiKey.trim());
-      api.setMetricsApiKey(apiKey.trim());
-      toast.success('Metrics API key configured');
-      onConfigured();
-    } catch {
-      toast.error('Invalid API key');
-    }
-    setIsLoading(false);
-  };
-
-  const handleClear = () => {
-    api.clearMetricsApiKey();
-    setApiKey('');
-    toast.success('API key cleared');
-  };
-
+function MetricsError({ error, onRetry }: { error: string; onRetry: () => void }) {
   return (
     <Card className="border-border/40">
       <CardHeader>
         <CardTitle className="font-serif text-lg flex items-center gap-2">
-          <Key weight="regular" className="w-5 h-5" />
-          Configure Metrics Access
+          <Warning weight="regular" className="w-5 h-5 text-destructive" />
+          Metrics Unavailable
         </CardTitle>
         <CardDescription>
-          Prometheus metrics require a Master API Key. Set the <code className="text-xs bg-muted px-1 py-0.5 rounded">MASTER_API_KEY</code> environment variable in your backend, then enter it below.
+          {error}
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Label>Master API Key</Label>
-          <div className="flex gap-2">
-            <Input
-              type="password"
-              placeholder="Enter your Master API Key"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              className="flex-1"
-            />
-            <Button onClick={handleSave} disabled={isLoading}>
-              {isLoading ? 'Testing...' : 'Save'}
-            </Button>
-            {storedKey && (
-              <Button variant="outline" onClick={handleClear}>
-                <Trash weight="regular" className="w-4 h-4" />
-              </Button>
-            )}
-          </div>
-        </div>
-        {storedKey && (
-          <p className="text-xs text-muted-foreground">
-            A key is already configured. Enter a new one to replace it.
-          </p>
-        )}
-        <div className="p-3 rounded-lg bg-muted/50 text-sm text-muted-foreground">
-          <p className="font-medium mb-1">How to set up:</p>
-          <ol className="list-decimal list-inside space-y-1 text-xs">
-            <li>Add <code className="bg-muted px-1 rounded">MASTER_API_KEY=your-secret-key</code> to your backend .env</li>
-            <li>Restart your backend server</li>
-            <li>Enter the same key above</li>
-          </ol>
-        </div>
+      <CardContent>
+        <Button onClick={onRetry} variant="outline">
+          <ArrowsClockwise weight="bold" className="w-4 h-4" />
+          Retry
+        </Button>
       </CardContent>
     </Card>
   );
@@ -207,7 +145,8 @@ export default function AnalyticsPage() {
       setLastRefresh(new Date());
     } catch (error) {
       console.error('Failed to fetch metrics:', error);
-      setMetricsError('Metrics require a Master API Key. Create one in API Keys settings.');
+      const errorMsg = error instanceof Error ? error.message : 'Failed to load metrics';
+      setMetricsError(errorMsg);
     }
   };
 
@@ -377,7 +316,7 @@ export default function AnalyticsPage() {
         </div>
 
         {metricsError ? (
-          <MetricsSetup onConfigured={loadMetrics} />
+          <MetricsError error={metricsError} onRetry={loadMetrics} />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {/* HTTP Requests */}

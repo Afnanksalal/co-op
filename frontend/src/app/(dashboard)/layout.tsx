@@ -23,7 +23,7 @@ import {
   Code,
   List,
   X,
-} from '@phosphor-icons/react';
+} from '@phosphor-icons/react/dist/ssr';
 import { useUser, useRequireAuth } from '@/lib/hooks';
 import { useUIStore } from '@/lib/store';
 import { cn } from '@/lib/utils';

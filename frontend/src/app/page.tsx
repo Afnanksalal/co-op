@@ -19,7 +19,7 @@ import {
   Rocket,
   Check,
   X,
-} from '@phosphor-icons/react';
+} from '@phosphor-icons/react/dist/ssr';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -49,15 +49,34 @@ const agents = [
 
 const pricingPlans = [
   {
+    name: 'Pilot',
+    price: 'Free',
+    description: 'Try Co-Op during our pilot phase',
+    features: [
+      { text: '30 AI requests/month', included: true },
+      { text: 'All 4 AI agents', included: true },
+      { text: 'Multi-agent A2A mode', included: true },
+      { text: 'Session history', included: true },
+      { text: 'Basic analytics', included: true },
+      { text: 'Community support', included: true },
+      { text: 'Priority support', included: false },
+      { text: 'Custom integrations', included: false },
+    ],
+    cta: 'Start Free',
+    href: '/login',
+    popular: true,
+    badge: 'Pilot Program',
+  },
+  {
     name: 'Self-Hosted',
     price: 'Free',
     description: 'Deploy on your own infrastructure',
     features: [
+      { text: 'Unlimited requests', included: true },
       { text: 'All 4 AI agents', included: true },
-      { text: 'LLM Council architecture', included: true },
-      { text: 'RAG document search', included: true },
-      { text: 'MCP & A2A protocols', included: true },
+      { text: 'Full source code', included: true },
       { text: 'Bring your own API keys', included: true },
+      { text: 'Complete data control', included: true },
       { text: 'Community support', included: true },
       { text: 'Managed infrastructure', included: false },
       { text: 'Priority support', included: false },
@@ -68,41 +87,30 @@ const pricingPlans = [
   },
   {
     name: 'Pro',
-    price: '$49',
-    period: '/month',
-    description: 'Fully managed on our servers',
+    price: 'Coming Soon',
+    description: 'Fully managed experience',
     features: [
+      { text: 'Unlimited requests', included: true },
       { text: 'All 4 AI agents', included: true },
-      { text: 'LLM Council architecture', included: true },
-      { text: 'RAG document search', included: true },
-      { text: 'MCP & A2A protocols', included: true },
-      { text: 'No API keys needed', included: true },
-      { text: 'Managed infrastructure', included: true },
+      { text: 'Priority processing', included: true },
+      { text: 'Advanced analytics', included: true },
+      { text: 'API access', included: true },
       { text: 'Priority support', included: true },
       { text: 'Custom integrations', included: true },
+      { text: 'Team collaboration', included: true },
     ],
-    cta: 'Start Free Trial',
+    cta: 'Join Waitlist',
     href: '/login',
-    popular: true,
-  },
-  {
-    name: 'Enterprise',
-    price: 'Custom',
-    description: 'For teams and organizations',
-    features: [
-      { text: 'Everything in Pro', included: true },
-      { text: 'Dedicated infrastructure', included: true },
-      { text: 'Custom AI model training', included: true },
-      { text: 'SSO & advanced security', included: true },
-      { text: 'SLA guarantee', included: true },
-      { text: 'Dedicated success manager', included: true },
-      { text: 'On-premise deployment', included: true },
-      { text: 'White-label options', included: true },
-    ],
-    cta: 'Contact Sales',
-    href: 'mailto:sales@co-op.ai',
     popular: false,
+    disabled: true,
   },
+];
+
+const roadmapItems = [
+  { phase: 'Now', title: 'Pilot Launch', items: ['Single founder per startup', '30 free requests/month', '4 AI agents', 'A2A multi-agent mode'] },
+  { phase: 'Q1 2026', title: 'Team Features', items: ['Multiple founders per startup', 'Team collaboration', 'Shared sessions', 'Role-based access'] },
+  { phase: 'Q2 2026', title: 'Idea Stage', items: ['Idea validation flow', 'Market research agent', 'Business model canvas', 'Competitor discovery'] },
+  { phase: 'Q3 2026', title: 'Enterprise', items: ['SSO integration', 'Custom AI training', 'On-premise deployment', 'SLA guarantees'] },
 ];
 
 export default function HomePage() {
@@ -167,9 +175,9 @@ export default function HomePage() {
 
             {/* Animated Co-Op Logo */}
             <h1 className="font-serif text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-medium tracking-tight mb-6 leading-[1.1]">
-              <span className="inline-flex items-baseline justify-center">
+              <span className="inline-flex items-baseline justify-center gap-0">
                 <span>Co-</span>
-                <span className="relative inline-flex items-baseline min-w-[80px] sm:min-w-[100px] md:min-w-[120px] lg:min-w-[140px] h-[1.1em] overflow-hidden">
+                <span className="relative inline-block w-[90px] sm:w-[110px] md:w-[140px] lg:w-[160px] h-[1.15em] overflow-hidden align-baseline">
                   <AnimatePresence mode="wait">
                     <motion.span
                       key={currentOpIndex}
@@ -177,7 +185,7 @@ export default function HomePage() {
                       animate={{ y: 0, opacity: 1 }}
                       exit={{ y: '-100%', opacity: 0 }}
                       transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-                      className="absolute left-0 whitespace-nowrap"
+                      className="absolute inset-0 flex items-center justify-start"
                     >
                       {opTranslations[currentOpIndex].text}
                     </motion.span>
@@ -191,7 +199,7 @@ export default function HomePage() {
               key={currentOpIndex}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="text-xs text-muted-foreground/60 mb-4 h-4"
+              className="text-xs text-muted-foreground/60 mb-6 h-4"
             >
               {opTranslations[currentOpIndex].label}
             </motion.p>
@@ -360,13 +368,12 @@ export default function HomePage() {
               >
                 <Card className={`h-full border-border/40 ${plan.popular ? 'ring-2 ring-primary' : ''}`}>
                   <CardHeader>
-                    {plan.popular && (
-                      <Badge className="w-fit mb-2">Most Popular</Badge>
+                    {plan.badge && (
+                      <Badge className="w-fit mb-2">{plan.badge}</Badge>
                     )}
                     <CardTitle className="font-serif text-xl">{plan.name}</CardTitle>
                     <div className="flex items-baseline gap-1">
                       <span className="text-4xl font-serif font-medium">{plan.price}</span>
-                      {plan.period && <span className="text-muted-foreground">{plan.period}</span>}
                     </div>
                     <p className="text-sm text-muted-foreground">{plan.description}</p>
                   </CardHeader>
@@ -383,13 +390,60 @@ export default function HomePage() {
                         </li>
                       ))}
                     </ul>
-                    <Link href={plan.href} className="block">
-                      <Button variant={plan.popular ? 'default' : 'outline'} className="w-full">
+                    {plan.disabled ? (
+                      <Button variant="outline" className="w-full" disabled>
                         {plan.cta}
                       </Button>
-                    </Link>
+                    ) : (
+                      <Link href={plan.href} className="block">
+                        <Button variant={plan.popular ? 'default' : 'outline'} className="w-full">
+                          {plan.cta}
+                        </Button>
+                      </Link>
+                    )}
                   </CardContent>
                 </Card>
+              </motion.div>
+            ))}
+          </div>
+        </section>
+
+        {/* Roadmap */}
+        <section id="roadmap" className="max-w-6xl mx-auto px-6 py-24 border-t border-border/40">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-16"
+          >
+            <h2 className="font-serif text-3xl md:text-4xl font-medium tracking-tight mb-4">Roadmap</h2>
+            <p className="text-muted-foreground max-w-xl mx-auto">
+              We&apos;re building in public. Here&apos;s what&apos;s coming next.
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-4 gap-6">
+            {roadmapItems.map((item, index) => (
+              <motion.div
+                key={item.phase}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.1 }}
+                className={`p-6 rounded-xl border ${index === 0 ? 'border-primary/50 bg-primary/5' : 'border-border/40 bg-card/50'}`}
+              >
+                <Badge variant={index === 0 ? 'default' : 'secondary'} className="mb-3">
+                  {item.phase}
+                </Badge>
+                <h3 className="font-serif text-lg font-medium mb-3">{item.title}</h3>
+                <ul className="space-y-2">
+                  {item.items.map((feature) => (
+                    <li key={feature} className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <CheckCircle weight={index === 0 ? 'fill' : 'regular'} className={`w-4 h-4 ${index === 0 ? 'text-green-500' : ''}`} />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
               </motion.div>
             ))}
           </div>
@@ -484,8 +538,8 @@ export default function HomePage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <span className="font-serif text-sm text-muted-foreground">© {new Date().getFullYear()} Co-Op</span>
           <div className="flex items-center gap-4 sm:gap-6 text-sm text-muted-foreground">
-            <Link href="#" className="hover:text-foreground transition-colors">Privacy</Link>
-            <Link href="#" className="hover:text-foreground transition-colors">Terms</Link>
+            <Link href="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
+            <Link href="/terms" className="hover:text-foreground transition-colors">Terms</Link>
             <a href="https://github.com/Afnanksalal/co-op" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">GitHub</a>
           </div>
         </div>

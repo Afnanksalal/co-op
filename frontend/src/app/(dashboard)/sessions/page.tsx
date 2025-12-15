@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { ChatCircle, Clock, ArrowRight, Plus } from '@phosphor-icons/react';
+import { ChatCircle, Clock, ArrowRight, Plus } from '@phosphor-icons/react/dist/ssr';
 import { api } from '@/lib/api/client';
 import type { Session } from '@/lib/api/types';
 import { Card, CardContent } from '@/components/ui/card';
@@ -97,7 +97,9 @@ export default function SessionsPage() {
                           <ChatCircle weight="regular" className="w-4 sm:w-5 h-4 sm:h-5 text-muted-foreground" />
                         </div>
                         <div className="min-w-0">
-                          <p className="font-medium text-sm sm:text-base">Session</p>
+                          <p className="font-medium text-sm sm:text-base">
+                            Chat Session
+                          </p>
                           <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-muted-foreground">
                             <Clock weight="regular" className="w-3 sm:w-3.5 h-3 sm:h-3.5 shrink-0" />
                             <span className="truncate">{formatRelativeTime(session.createdAt)}</span>

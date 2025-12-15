@@ -11,6 +11,18 @@ interface AddJobResult {
   messageId: string;
 }
 
+export interface TaskProgressDetail {
+  phase: 'queued' | 'gathering' | 'critiquing' | 'synthesizing' | 'completed' | 'failed';
+  currentAgent?: string;
+  agentsCompleted?: number;
+  totalAgents?: number;
+  critiquesCompleted?: number;
+  totalCritiques?: number;
+  estimatedTimeRemaining?: number; // seconds
+  startedAt?: string;
+  message?: string;
+}
+
 const TASK_STATUS_PREFIX = 'task:status:';
 const TASK_RESULT_PREFIX = 'task:result:';
 const TASK_TTL = 86400; // 24 hours
@@ -77,6 +89,7 @@ export class AgentsQueueService {
       progress: number;
       result?: AgentJobResult;
       error?: string;
+      progressDetail?: TaskProgressDetail;
     }>(`${TASK_STATUS_PREFIX}${taskId}`);
 
     if (!status) {
@@ -88,6 +101,7 @@ export class AgentsQueueService {
       progress: status.progress,
       result: status.result,
       error: status.error,
+      progressDetail: status.progressDetail,
     };
   }
 
@@ -100,10 +114,11 @@ export class AgentsQueueService {
     progress: number,
     result?: AgentJobResult,
     error?: string,
+    progressDetail?: TaskProgressDetail,
   ): Promise<void> {
     await this.redis.set(
       `${TASK_STATUS_PREFIX}${taskId}`,
-      { status, progress, result, error, updatedAt: new Date().toISOString() },
+      { status, progress, result, error, progressDetail, updatedAt: new Date().toISOString() },
       TASK_TTL,
     );
 
@@ -111,7 +126,7 @@ export class AgentsQueueService {
       await this.redis.set(`${TASK_RESULT_PREFIX}${taskId}`, result, TASK_TTL);
     }
 
-    this.logger.debug(`Task ${taskId} status updated: ${status} (${String(progress)}%)`);
+    this.logger.debug(`Task ${taskId} status updated: ${status} (${String(progress)}%) - ${progressDetail?.phase ?? 'unknown'}`);
   }
 
   /**
