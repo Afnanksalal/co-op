@@ -4,6 +4,9 @@ import { CircuitBreakerService } from '@/common/circuit-breaker/circuit-breaker.
 import {
   RagDomain,
   RagSector,
+  RagRegion,
+  RagJurisdiction,
+  RagDocumentType,
   RegisterFileRequest,
   RegisterFileResponse,
   VectorizeResponse,
@@ -13,6 +16,7 @@ import {
   ListFilesResponse,
   DeleteFileResponse,
   CleanupResponse,
+  getRegionFromCountry,
 } from './rag.types';
 
 @Injectable()
@@ -69,6 +73,10 @@ export class RagService {
           domain: request.domain,
           sector: request.sector,
           content_type: request.contentType,
+          // New jurisdiction fields
+          region: request.region ?? 'global',
+          jurisdictions: request.jurisdictions ?? ['general'],
+          document_type: request.documentType ?? 'guide',
         }),
         signal: AbortSignal.timeout(30000),
       });
@@ -102,7 +110,7 @@ export class RagService {
       const response = await fetch(`${this.ragBaseUrl}/rag/vectorize/${fileId}`, {
         method: 'POST',
         headers: this.getHeaders(),
-        signal: AbortSignal.timeout(120000), // 2 min for large files
+        signal: AbortSignal.timeout(120000),
       });
 
       if (!response.ok) {
@@ -129,9 +137,8 @@ export class RagService {
   }
 
   /**
-   * Query RAG with domain and sector filtering.
+   * Query RAG with domain, sector, and jurisdiction filtering.
    * Returns context (document chunks) - NO LLM generation.
-   * The backend's LLM Council handles answer generation.
    */
   async query(request: QueryRequest): Promise<QueryResponse> {
     if (!this.isConfigured) {
@@ -140,6 +147,8 @@ export class RagService {
         sources: [],
         domain: request.domain,
         sector: request.sector,
+        region: request.region,
+        jurisdictions: request.jurisdictions,
         vectorsLoaded: 0,
         chunksFound: 0,
         error: 'RAG service not configured',
@@ -155,8 +164,12 @@ export class RagService {
           domain: request.domain,
           sector: request.sector,
           limit: request.limit ?? 5,
+          // New jurisdiction fields
+          region: request.region ?? null,
+          jurisdictions: request.jurisdictions ?? null,
+          document_type: request.documentType ?? null,
         }),
-        signal: AbortSignal.timeout(60000), // Longer timeout for lazy loading
+        signal: AbortSignal.timeout(60000),
       });
 
       if (!response.ok) {
@@ -165,9 +178,21 @@ export class RagService {
 
       const data = (await response.json()) as {
         context: string;
-        sources: { file_id: string; filename: string; score: number; domain: string; sector: string; chunk_index: number }[];
+        sources: {
+          file_id: string;
+          filename: string;
+          score: number;
+          domain: string;
+          sector: string;
+          chunk_index: number;
+          region?: string;
+          jurisdictions?: string[];
+          document_type?: string;
+        }[];
         domain: string;
         sector: string;
+        region?: string;
+        jurisdictions?: string[];
         vectors_loaded: number;
         chunks_found: number;
         error?: string;
@@ -182,9 +207,14 @@ export class RagService {
           domain: s.domain,
           sector: s.sector,
           chunkIndex: s.chunk_index,
+          region: s.region,
+          jurisdictions: s.jurisdictions,
+          documentType: s.document_type,
         })),
         domain: data.domain,
         sector: data.sector,
+        region: data.region,
+        jurisdictions: data.jurisdictions,
         vectorsLoaded: data.vectors_loaded,
         chunksFound: data.chunks_found,
         error: data.error,
@@ -197,6 +227,8 @@ export class RagService {
         sources: [],
         domain: request.domain,
         sector: request.sector,
+        region: request.region,
+        jurisdictions: request.jurisdictions,
         vectorsLoaded: 0,
         chunksFound: 0,
         error: 'RAG service temporarily unavailable',
@@ -208,6 +240,8 @@ export class RagService {
         sources: [],
         domain: request.domain,
         sector: request.sector,
+        region: request.region,
+        jurisdictions: request.jurisdictions,
         vectorsLoaded: 0,
         chunksFound: 0,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -216,26 +250,53 @@ export class RagService {
   }
 
   /**
-   * Get relevant context for an agent prompt.
+   * Get relevant context for an agent prompt with jurisdiction filtering.
    * Returns formatted context from RAG - the LLM Council will use this to generate answers.
+   * 
+   * @param query - The user's question
+   * @param domain - legal or finance
+   * @param sector - fintech, greentech, healthtech, saas, ecommerce
+   * @param country - User's country (will be mapped to region)
+   * @param jurisdictions - Specific regulatory frameworks to filter by
+   * @param limit - Max number of chunks to return
    */
   async getContext(
     query: string,
     domain: RagDomain,
     sector: RagSector,
+    country?: string,
+    jurisdictions?: RagJurisdiction[],
     limit = 5,
   ): Promise<string> {
-    const result = await this.query({ query, domain, sector, limit });
+    // Map country to region
+    const region: RagRegion | undefined = country ? getRegionFromCountry(country) : undefined;
+
+    const result = await this.query({
+      query,
+      domain,
+      sector,
+      limit,
+      region,
+      jurisdictions,
+    });
 
     if (!result.context || result.chunksFound === 0) {
       return '';
     }
 
+    // Build source list with jurisdiction info
     const sourceList = result.sources
-      .map((s, i) => `[${String(i + 1)}] ${s.filename} (relevance: ${(s.score * 100).toFixed(0)}%)`)
+      .map((s, i) => {
+        const regionInfo = s.region ? ` [${s.region.toUpperCase()}]` : '';
+        const jurisInfo = s.jurisdictions?.length ? ` (${s.jurisdictions.join(', ')})` : '';
+        return `[${String(i + 1)}] ${s.filename}${regionInfo}${jurisInfo} - relevance: ${(s.score * 100).toFixed(0)}%`;
+      })
       .join('\n');
 
-    return `\n\n--- RAG Context (${domain}/${sector}) ---\n${result.context}\n\nSources:\n${sourceList}\n--- End RAG Context ---\n`;
+    const regionLabel = region ? ` | Region: ${region.toUpperCase()}` : '';
+    const jurisLabel = jurisdictions?.length ? ` | Jurisdictions: ${jurisdictions.join(', ')}` : '';
+
+    return `\n\n--- RAG Context (${domain}/${sector}${regionLabel}${jurisLabel}) ---\n${result.context}\n\nSources:\n${sourceList}\n--- End RAG Context ---\n`;
   }
 
   /**
@@ -264,6 +325,9 @@ export class RagService {
         storage_path: string;
         domain: string;
         sector: string;
+        region?: string;
+        jurisdictions?: string[];
+        document_type?: string;
         vector_status: string;
         chunk_count: number;
         last_accessed: string | null;
@@ -276,6 +340,9 @@ export class RagService {
         storagePath: data.storage_path,
         domain: data.domain,
         sector: data.sector,
+        region: data.region,
+        jurisdictions: data.jurisdictions,
+        documentType: data.document_type,
         vectorStatus: data.vector_status as 'pending' | 'indexed' | 'expired',
         chunkCount: data.chunk_count,
         lastAccessed: data.last_accessed,
@@ -288,9 +355,13 @@ export class RagService {
   }
 
   /**
-   * List files with optional domain/sector filter.
+   * List files with optional domain/sector/region filter.
    */
-  async listFiles(domain?: RagDomain, sector?: RagSector): Promise<ListFilesResponse> {
+  async listFiles(
+    domain?: RagDomain,
+    sector?: RagSector,
+    region?: RagRegion,
+  ): Promise<ListFilesResponse> {
     if (!this.isConfigured) {
       return { files: [], count: 0 };
     }
@@ -299,6 +370,7 @@ export class RagService {
       const params = new URLSearchParams();
       if (domain) params.append('domain', domain);
       if (sector) params.append('sector', sector);
+      if (region) params.append('region', region);
 
       const url = `${this.ragBaseUrl}/rag/files${params.toString() ? `?${params.toString()}` : ''}`;
       const response = await fetch(url, {
@@ -318,6 +390,9 @@ export class RagService {
           storage_path: string;
           domain: string;
           sector: string;
+          region?: string;
+          jurisdictions?: string[];
+          document_type?: string;
           vector_status: string;
           chunk_count: number;
           last_accessed: string | null;
@@ -333,6 +408,9 @@ export class RagService {
           storagePath: f.storage_path,
           domain: f.domain,
           sector: f.sector,
+          region: f.region,
+          jurisdictions: f.jurisdictions,
+          documentType: f.document_type,
           vectorStatus: f.vector_status as 'pending' | 'indexed' | 'expired',
           chunkCount: f.chunk_count,
           lastAccessed: f.last_accessed,

@@ -7,7 +7,7 @@
   <img src="https://img.shields.io/badge/Docker-Ready-blue?logo=docker" alt="Docker">
 </p>
 
-Python vector search service with lazy vectorization, domain/sector filtering, and TTL management.
+Python vector search service with lazy vectorization, jurisdiction-aware filtering, and TTL management.
 
 > **Note**: This service returns **context only** - the backend's LLM Council handles all answer generation.
 
@@ -37,11 +37,14 @@ Docs: `http://localhost:8000/docs`
 ```
 UPLOAD (Admin via Backend):
 PDF → Backend → Supabase Storage → Register with RAG (status: pending)
+                                   + region, jurisdictions, document_type
 
 QUERY (User via Backend):
-Question → RAG → Lazy vectorize pending files → Search → Return context
-                                                           ↓
-                                            Backend LLM Council generates answer
+Question → RAG → Filter by domain/sector/region/jurisdiction
+              → Lazy vectorize pending files
+              → Search → Return context
+                              ↓
+               Backend LLM Council generates answer
 
 CLEANUP (Cron):
 Files not accessed in 30 days → Remove vectors → Status: expired
@@ -53,11 +56,53 @@ Files not accessed in 30 days → Remove vectors → Status: expired
 | Feature | Description |
 |---------|-------------|
 | Vector Search Only | Returns context, NOT answers |
+| Jurisdiction Filtering | Region + regulatory framework filtering |
 | Lazy Vectorization | Vectors created on-demand |
 | TTL Management | Vectors expire after 30 days |
 | Persistent Storage | PDFs stored in Supabase |
-| Domain/Sector Filtering | Precise document retrieval |
 | Gemini Embeddings | text-embedding-004 (768 dim) |
+
+## Jurisdiction Filtering
+
+The RAG system supports granular filtering by geographic region and regulatory framework:
+
+### Regions
+
+| Region | Description |
+|--------|-------------|
+| `global` | Applies everywhere (default) |
+| `eu` | European Union (GDPR, EU regulations) |
+| `us` | United States (SEC, FTC, state laws) |
+| `uk` | United Kingdom (post-Brexit) |
+| `india` | India (SEBI, RBI, IT Act) |
+| `apac` | Asia-Pacific (Singapore, Australia, Japan) |
+| `latam` | Latin America (Brazil LGPD, Mexico) |
+| `mena` | Middle East & North Africa |
+| `canada` | Canada (PIPEDA, provincial laws) |
+
+### Jurisdictions
+
+| Category | Jurisdictions |
+|----------|---------------|
+| Privacy | `gdpr`, `ccpa`, `lgpd`, `pipeda`, `pdpa`, `dpdp` |
+| Financial | `sec`, `finra`, `fca`, `sebi`, `mas`, `esma` |
+| Compliance | `hipaa`, `pci_dss`, `sox`, `aml_kyc` |
+| IP | `dmca`, `patent`, `trademark`, `copyright` |
+| Employment | `employment`, `labor` |
+| Corporate | `corporate`, `tax`, `contracts` |
+
+### Document Types
+
+| Type | Description |
+|------|-------------|
+| `regulation` | Official regulatory text |
+| `guidance` | Regulatory guidance documents |
+| `case_law` | Court decisions, precedents |
+| `template` | Contract/document templates |
+| `guide` | How-to guides, best practices |
+| `checklist` | Compliance checklists |
+| `analysis` | Legal/financial analysis |
+| `faq` | Frequently asked questions |
 
 ## Environment Variables
 
@@ -81,7 +126,6 @@ SUPABASE_STORAGE_BUCKET="documents"
 RAG_API_KEY="your-secure-api-key"
 ```
 
-
 ## API Endpoints
 
 All endpoints require `X-API-Key` header (except `/health`).
@@ -98,10 +142,13 @@ GET /health
 POST /rag/register
 {
   "file_id": "uuid",
-  "filename": "contract.pdf",
-  "storage_path": "legal/fintech/uuid/contract.pdf",
+  "filename": "gdpr-guide.pdf",
+  "storage_path": "legal/fintech/eu/uuid/gdpr-guide.pdf",
   "domain": "legal",
-  "sector": "fintech"
+  "sector": "fintech",
+  "region": "eu",
+  "jurisdictions": ["gdpr"],
+  "document_type": "guide"
 }
 ```
 
@@ -110,9 +157,11 @@ POST /rag/register
 ```bash
 POST /rag/query
 {
-  "query": "What are the compliance requirements?",
+  "query": "What are the GDPR compliance requirements?",
   "domain": "legal",
   "sector": "fintech",
+  "region": "eu",
+  "jurisdictions": ["gdpr"],
   "limit": 5
 }
 ```
@@ -120,8 +169,19 @@ POST /rag/query
 Response:
 ```json
 {
-  "context": "[Source: contract.pdf]\nThe requirements include...",
-  "sources": [{"file_id": "uuid", "filename": "contract.pdf", "score": 0.85}],
+  "context": "[Source: gdpr-guide.pdf | Region: eu | Jurisdictions: gdpr]\nThe requirements include...",
+  "sources": [
+    {
+      "file_id": "uuid",
+      "filename": "gdpr-guide.pdf",
+      "score": 0.85,
+      "region": "eu",
+      "jurisdictions": ["gdpr"],
+      "document_type": "guide"
+    }
+  ],
+  "region": "eu",
+  "jurisdictions": ["gdpr"],
   "chunks_found": 2
 }
 ```
@@ -136,7 +196,7 @@ POST /rag/vectorize/{file_id}
 
 ```bash
 GET /rag/files
-GET /rag/files?domain=legal&sector=fintech
+GET /rag/files?domain=legal&sector=fintech&region=eu
 ```
 
 ### Delete File
@@ -194,6 +254,7 @@ RAG/
 ├── app/
 │   ├── main.py           # FastAPI application
 │   ├── database.py       # PostgreSQL client
+│   ├── schemas.py        # Pydantic models
 │   └── services.py       # RAG logic
 ├── Dockerfile
 ├── requirements.txt
@@ -211,12 +272,23 @@ RAG_API_KEY=your-secure-key
 
 ### Flow
 
-1. Admin uploads PDF via Frontend
+1. Admin uploads PDF via Frontend with jurisdiction metadata
 2. Backend stores in Supabase, calls `/rag/register`
-3. User queries agent
-4. Backend calls `/rag/query`
-5. RAG lazy-vectorizes if needed, returns context
-6. Backend LLM Council generates answer
+3. User queries agent (country auto-mapped to region)
+4. Backend calls `/rag/query` with region/jurisdiction filters
+5. RAG lazy-vectorizes if needed, returns filtered context
+6. Backend LLM Council generates jurisdiction-aware answer
+
+### Country to Region Mapping
+
+The backend automatically maps user's country to the appropriate region:
+- Germany, France, Italy → `eu`
+- United States → `us`
+- India → `india`
+- Singapore, Japan → `apac`
+- Brazil, Mexico → `latam`
+- UAE, Saudi Arabia → `mena`
+- Unknown → `global`
 
 ## Why No LLM?
 

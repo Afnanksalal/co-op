@@ -1,9 +1,9 @@
 """
-RAG Service - Vector Search Only
-================================
+RAG Service - Vector Search with Jurisdiction Filtering
+========================================================
 This service handles:
 1. Document vectorization (PDF → chunks → embeddings → Upstash)
-2. Semantic search (query → embedding → vector search)
+2. Semantic search with geographic/jurisdiction filtering
 3. Context retrieval (return relevant chunks to backend)
 
 LLM answer generation is handled by the backend's LLM Council.
@@ -18,8 +18,9 @@ from upstash_vector import Index
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from pypdf import PdfReader
 from io import BytesIO
+from typing import Optional, List
 from app.database import db
-from app.schemas import Domain, Sector, VectorStatus
+from app.schemas import Domain, Sector, Region, Jurisdiction, DocumentType, VectorStatus
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -69,20 +70,15 @@ STORAGE_BUCKET = os.getenv("SUPABASE_STORAGE_BUCKET", "documents")
 async def get_embedding(text: str) -> list[float]:
     """
     Generate embedding using Gemini text-embedding-004 (768 dimensions).
-    
-    Raises:
-        ValueError: If Google AI is not configured or embedding fails
     """
     if not _google_ai_ready:
         raise ValueError("Google AI not configured - cannot generate embeddings")
     
-    # Clean and validate text
     clean_text = text.replace("\n", " ").strip()
     if not clean_text:
         clean_text = "empty"
     
-    # Truncate if too long (Gemini has token limits)
-    max_chars = 8000  # Safe limit for embedding
+    max_chars = 8000
     if len(clean_text) > max_chars:
         clean_text = clean_text[:max_chars]
     
@@ -99,9 +95,7 @@ async def get_embedding(text: str) -> list[float]:
 
 
 async def get_query_embedding(text: str) -> list[float]:
-    """
-    Generate embedding for a query (uses retrieval_query task type).
-    """
+    """Generate embedding for a query (uses retrieval_query task type)."""
     if not _google_ai_ready:
         raise ValueError("Google AI not configured - cannot generate embeddings")
     
@@ -126,12 +120,7 @@ async def get_query_embedding(text: str) -> list[float]:
 # ===========================================
 
 async def download_from_storage(storage_path: str) -> bytes:
-    """
-    Download file from Supabase Storage.
-    
-    Raises:
-        ValueError: If Supabase is not configured or download fails
-    """
+    """Download file from Supabase Storage."""
     if not supabase:
         raise ValueError("Supabase not configured - cannot download files")
     
@@ -144,13 +133,7 @@ async def download_from_storage(storage_path: str) -> bytes:
 
 
 async def extract_text(file_content: bytes, content_type: str) -> str:
-    """
-    Extract text from file content.
-    
-    Supports:
-    - PDF files (application/pdf)
-    - Plain text files
-    """
+    """Extract text from file content (PDF or plain text)."""
     if content_type == "application/pdf":
         try:
             pdf = PdfReader(BytesIO(file_content))
@@ -182,19 +165,7 @@ async def vectorize_file(file_id: str, file_info: dict) -> int:
     """
     Vectorize a file on-demand (lazy loading).
     
-    Process:
-    1. Download from Supabase Storage
-    2. Extract text from PDF
-    3. Chunk text into segments
-    4. Generate embeddings for each chunk
-    5. Store vectors in Upstash
-    6. Update database status
-    
-    Returns:
-        Number of chunks created
-        
-    Raises:
-        ValueError: If vectorization fails
+    Stores jurisdiction metadata in vectors for filtering.
     """
     if not vector_index:
         raise ValueError("Vector index not configured")
@@ -203,6 +174,7 @@ async def vectorize_file(file_id: str, file_info: dict) -> int:
     logger.info(f"Vectorizing file {file_id}")
     logger.info(f"Storage path: {storage_path}")
     logger.info(f"Domain: {file_info.get('domain')}, Sector: {file_info.get('sector')}")
+    logger.info(f"Region: {file_info.get('region', 'global')}, Jurisdictions: {file_info.get('jurisdictions', ['general'])}")
     
     # Download from Supabase Storage
     try:
@@ -218,7 +190,7 @@ async def vectorize_file(file_id: str, file_info: dict) -> int:
     if not text.strip():
         raise ValueError("No text content extracted from file")
 
-    # Chunk text with optimal settings for RAG
+    # Chunk text
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=1000,
         chunk_overlap=200,
@@ -232,9 +204,16 @@ async def vectorize_file(file_id: str, file_info: dict) -> int:
 
     logger.info(f"Vectorizing {file_id}: {len(chunks)} chunks")
 
+    # Get jurisdiction metadata
+    region = file_info.get("region", "global")
+    jurisdictions = file_info.get("jurisdictions", ["general"])
+    if isinstance(jurisdictions, str):
+        jurisdictions = jurisdictions.split(",")
+    document_type = file_info.get("document_type", "guide")
+
     # Embed & upsert to Upstash in batches
     vectors_to_upsert = []
-    batch_size = 10  # Process 10 chunks at a time
+    batch_size = 10
 
     for i in range(0, len(chunks), batch_size):
         batch = chunks[i:i + batch_size]
@@ -256,9 +235,13 @@ async def vectorize_file(file_id: str, file_info: dict) -> int:
                     "filename": file_info["filename"],
                     "chunk_index": chunk_idx,
                     "domain": file_info["domain"],
-                    "sector": file_info["sector"]
+                    "sector": file_info["sector"],
+                    # Jurisdiction metadata for filtering
+                    "region": region,
+                    "jurisdictions": ",".join(jurisdictions),  # Store as comma-separated for Upstash
+                    "document_type": document_type,
                 },
-                "data": chunk  # Store text in 'data' field for retrieval
+                "data": chunk
             })
 
     if not vectors_to_upsert:
@@ -291,14 +274,14 @@ async def remove_vectors(file_id: str, chunk_count: int) -> None:
         logger.warning(f"Failed to remove vectors for {file_id}: {e}")
 
 
-async def ensure_vectors_loaded(domain: Domain, sector: Sector) -> int:
-    """
-    Ensure all files for domain/sector are vectorized.
-    
-    Returns:
-        Count of newly vectorized files
-    """
-    pending_files = await db.get_pending_files(domain.value, sector.value)
+async def ensure_vectors_loaded(
+    domain: Domain, 
+    sector: Sector,
+    region: Optional[Region] = None
+) -> int:
+    """Ensure all files for domain/sector/region are vectorized."""
+    region_val = region.value if region else None
+    pending_files = await db.get_pending_files(domain.value, sector.value, region_val)
     loaded_count = 0
     
     for file_info in pending_files:
@@ -316,34 +299,70 @@ async def ensure_vectors_loaded(domain: Domain, sector: Sector) -> int:
 # Query Functions (Context Retrieval Only)
 # ===========================================
 
+def _build_vector_filter(
+    domain: Domain,
+    sector: Sector,
+    region: Optional[Region] = None,
+    jurisdictions: Optional[List[Jurisdiction]] = None,
+    document_type: Optional[DocumentType] = None
+) -> str:
+    """
+    Build Upstash vector filter string.
+    
+    Filter logic:
+    - Domain and sector are required exact matches
+    - Region: matches exact region OR 'global'
+    - Jurisdictions: uses CONTAINS for comma-separated string matching
+    - Document type: optional exact match
+    """
+    filters = [
+        f"domain = '{domain.value}'",
+        f"sector = '{sector.value}'"
+    ]
+    
+    # Region filter: include global docs + region-specific
+    if region and region != Region.GLOBAL:
+        filters.append(f"(region = '{region.value}' OR region = 'global')")
+    
+    # Document type filter
+    if document_type:
+        filters.append(f"document_type = '{document_type.value}'")
+    
+    return " AND ".join(filters)
+
+
+def _matches_jurisdictions(
+    file_jurisdictions: str,
+    requested_jurisdictions: Optional[List[Jurisdiction]]
+) -> bool:
+    """Check if file jurisdictions match any requested jurisdiction."""
+    if not requested_jurisdictions:
+        return True
+    
+    file_juris_list = file_jurisdictions.split(",")
+    
+    # Include if file has 'general' OR any overlap
+    if "general" in file_juris_list:
+        return True
+    
+    requested_values = [j.value for j in requested_jurisdictions]
+    return any(j in file_juris_list for j in requested_values)
+
+
 async def query_rag(
     query: str,
     domain: Domain,
     sector: Sector,
-    limit: int = 5
+    limit: int = 5,
+    region: Optional[Region] = None,
+    jurisdictions: Optional[List[Jurisdiction]] = None,
+    document_type: Optional[DocumentType] = None
 ) -> dict:
     """
-    Query the RAG system - returns context only, NO LLM generation.
+    Query the RAG system with jurisdiction filtering.
     
+    Returns context only, NO LLM generation.
     The backend's LLM Council handles answer generation.
-    This keeps RAG focused on retrieval and removes duplicate dependencies.
-    
-    Process:
-    1. Ensure all matching files are vectorized (lazy loading)
-    2. Generate query embedding
-    3. Search vectors with domain/sector filter
-    4. Update access timestamps for used files
-    5. Return context chunks and sources
-    
-    Returns:
-        {
-            "context": str,           # Combined text from relevant chunks
-            "sources": [...],         # Source file information
-            "domain": str,
-            "sector": str,
-            "vectors_loaded": int,    # Files vectorized during this query
-            "chunks_found": int       # Number of relevant chunks found
-        }
     """
     if not vector_index:
         return {
@@ -351,13 +370,15 @@ async def query_rag(
             "sources": [],
             "domain": domain.value,
             "sector": sector.value,
+            "region": region.value if region else None,
+            "jurisdictions": [j.value for j in jurisdictions] if jurisdictions else None,
             "vectors_loaded": 0,
             "chunks_found": 0,
             "error": "Vector index not configured"
         }
 
     # Lazy load: vectorize any pending files
-    vectors_loaded = await ensure_vectors_loaded(domain, sector)
+    vectors_loaded = await ensure_vectors_loaded(domain, sector, region)
     
     # Generate query embedding
     try:
@@ -368,19 +389,24 @@ async def query_rag(
             "sources": [],
             "domain": domain.value,
             "sector": sector.value,
+            "region": region.value if region else None,
+            "jurisdictions": [j.value for j in jurisdictions] if jurisdictions else None,
             "vectors_loaded": vectors_loaded,
             "chunks_found": 0,
             "error": f"Failed to embed query: {str(e)}"
         }
 
+    # Build filter for vector search
+    vector_filter = _build_vector_filter(domain, sector, region, jurisdictions, document_type)
+    
     # Search Upstash with metadata filter
     try:
         results = vector_index.query(
             vector=query_embedding,
-            top_k=limit * 2,  # Get more results for filtering
+            top_k=limit * 3,  # Get more results for jurisdiction filtering
             include_metadata=True,
             include_data=True,
-            filter=f"domain = '{domain.value}' AND sector = '{sector.value}'"
+            filter=vector_filter
         )
     except Exception as e:
         logger.error(f"Vector search failed: {e}")
@@ -389,18 +415,25 @@ async def query_rag(
             "sources": [],
             "domain": domain.value,
             "sector": sector.value,
+            "region": region.value if region else None,
+            "jurisdictions": [j.value for j in jurisdictions] if jurisdictions else None,
             "vectors_loaded": vectors_loaded,
             "chunks_found": 0,
             "error": f"Vector search failed: {str(e)}"
         }
 
-    # Filter and limit results
-    filtered_results = [
-        r for r in results
-        if r.metadata.get("domain") == domain.value
-        and r.metadata.get("sector") == sector.value
-        and r.score >= 0.5  # Minimum relevance threshold
-    ][:limit]
+    # Filter by jurisdictions (post-filter since Upstash doesn't support CONTAINS well)
+    filtered_results = []
+    for r in results:
+        if r.score < 0.5:  # Minimum relevance threshold
+            continue
+        
+        file_jurisdictions = r.metadata.get("jurisdictions", "general")
+        if _matches_jurisdictions(file_jurisdictions, jurisdictions):
+            filtered_results.append(r)
+        
+        if len(filtered_results) >= limit:
+            break
 
     if not filtered_results:
         return {
@@ -408,6 +441,8 @@ async def query_rag(
             "sources": [],
             "domain": domain.value,
             "sector": sector.value,
+            "region": region.value if region else None,
+            "jurisdictions": [j.value for j in jurisdictions] if jurisdictions else None,
             "vectors_loaded": vectors_loaded,
             "chunks_found": 0
         }
@@ -417,16 +452,18 @@ async def query_rag(
     for file_id in used_file_ids:
         await db.touch_file(file_id)
 
-    # Build context from chunks
+    # Build context from chunks with jurisdiction info
     context_parts = []
     for res in filtered_results:
         source = res.metadata.get("filename", "Unknown")
+        region_info = res.metadata.get("region", "global")
+        juris_info = res.metadata.get("jurisdictions", "general")
         chunk_text = res.data if res.data else ""
-        context_parts.append(f"[Source: {source}]\n{chunk_text}")
+        context_parts.append(f"[Source: {source} | Region: {region_info} | Jurisdictions: {juris_info}]\n{chunk_text}")
     
     context_text = "\n\n---\n\n".join(context_parts)
 
-    # Build sources list
+    # Build sources list with jurisdiction info
     sources = [
         {
             "file_id": r.metadata.get("file_id", ""),
@@ -434,7 +471,10 @@ async def query_rag(
             "score": round(r.score, 4),
             "domain": r.metadata.get("domain", domain.value),
             "sector": r.metadata.get("sector", sector.value),
-            "chunk_index": r.metadata.get("chunk_index", 0)
+            "chunk_index": r.metadata.get("chunk_index", 0),
+            "region": r.metadata.get("region", "global"),
+            "jurisdictions": r.metadata.get("jurisdictions", "general").split(","),
+            "document_type": r.metadata.get("document_type", "guide"),
         }
         for r in filtered_results
     ]
@@ -444,6 +484,8 @@ async def query_rag(
         "sources": sources,
         "domain": domain.value,
         "sector": sector.value,
+        "region": region.value if region else None,
+        "jurisdictions": [j.value for j in jurisdictions] if jurisdictions else None,
         "vectors_loaded": vectors_loaded,
         "chunks_found": len(filtered_results)
     }
@@ -454,17 +496,7 @@ async def query_rag(
 # ===========================================
 
 async def cleanup_expired_vectors(days: int = 30) -> dict:
-    """
-    Remove vectors for files not accessed in X days.
-    Files remain in Supabase Storage for future re-vectorization.
-    
-    Returns:
-        {
-            "files_cleaned": int,
-            "vectors_removed": int,
-            "message": str
-        }
-    """
+    """Remove vectors for files not accessed in X days."""
     expired_files = await db.get_expired_files(days)
     files_cleaned = 0
     vectors_removed = 0
@@ -473,10 +505,7 @@ async def cleanup_expired_vectors(days: int = 30) -> dict:
         file_id = str(file_info["id"])
         chunk_count = file_info.get("chunk_count", 0)
         
-        # Remove vectors from Upstash
         await remove_vectors(file_id, chunk_count)
-        
-        # Update status to expired
         await db.update_vector_status(file_id, VectorStatus.EXPIRED.value, 0)
         
         files_cleaned += 1
@@ -492,17 +521,7 @@ async def cleanup_expired_vectors(days: int = 30) -> dict:
 
 
 async def delete_file_completely(file_id: str) -> dict:
-    """
-    Delete file metadata and vectors.
-    Storage deletion is handled by the backend.
-    
-    Returns:
-        {
-            "success": bool,
-            "message": str,
-            "chunks_deleted": int
-        }
-    """
+    """Delete file metadata and vectors."""
     file_info = await db.get_file(file_id)
     
     if not file_info:
@@ -510,11 +529,9 @@ async def delete_file_completely(file_id: str) -> dict:
 
     chunk_count = file_info.get("chunk_count", 0)
     
-    # Remove vectors if indexed
     if file_info.get("vector_status") == VectorStatus.INDEXED.value:
         await remove_vectors(file_id, chunk_count)
     
-    # Delete from DB
     await db.delete_file(file_id)
 
     logger.info(f"Deleted file {file_id}: {chunk_count} chunks removed")

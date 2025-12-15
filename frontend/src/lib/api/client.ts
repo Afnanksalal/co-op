@@ -303,24 +303,40 @@ class ApiClient {
   // ADMIN ENDPOINTS
   // ============================================
 
-  async uploadPdf(file: File, domain: string, sector: string): Promise<UploadResult> {
+  async uploadPdf(
+    file: File,
+    domain: string,
+    sector: string,
+    options?: {
+      region?: string;
+      jurisdictions?: string[];
+      documentType?: string;
+    },
+  ): Promise<UploadResult> {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('domain', domain);
     formData.append('sector', sector);
     formData.append('filename', file.name);
+    if (options?.region) formData.append('region', options.region);
+    if (options?.jurisdictions?.length) {
+      options.jurisdictions.forEach((j) => formData.append('jurisdictions', j));
+    }
+    if (options?.documentType) formData.append('documentType', options.documentType);
     return this.upload<UploadResult>('/admin/embeddings/upload', formData);
   }
 
   async getEmbeddings(params?: {
     domain?: string;
     sector?: string;
+    region?: string;
     page?: number;
     limit?: number;
   }): Promise<PaginatedResult<Embedding>> {
     const searchParams = new URLSearchParams();
     if (params?.domain) searchParams.set('domain', params.domain);
     if (params?.sector) searchParams.set('sector', params.sector);
+    if (params?.region) searchParams.set('region', params.region);
     if (params?.page) searchParams.set('page', String(params.page));
     if (params?.limit) searchParams.set('limit', String(params.limit));
     

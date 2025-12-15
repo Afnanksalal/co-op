@@ -14,37 +14,46 @@ import {
   CircleNotch,
   MagnifyingGlass,
   Broom,
+  Globe,
 } from '@phosphor-icons/react/dist/ssr';
 import { api } from '@/lib/api/client';
 import { useRequireAdmin } from '@/lib/hooks';
-import type { Embedding, McpServer, McpTool, RagDomain, Sector } from '@/lib/api/types';
+import type {
+  Embedding,
+  McpServer,
+  McpTool,
+  RagDomain,
+  Sector,
+  RagRegion,
+  RagJurisdiction,
+  RagDocumentType,
+} from '@/lib/api/types';
+import { RAG_REGIONS, RAG_JURISDICTIONS, RAG_DOCUMENT_TYPES } from '@/lib/api/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatRelativeTime } from '@/lib/utils';
 import { toast } from 'sonner';
 
 const RAG_DOMAINS: RagDomain[] = ['legal', 'finance'];
 const SECTORS: Sector[] = ['fintech', 'greentech', 'healthtech', 'saas', 'ecommerce'];
+
+// Jurisdiction labels for display
+const JURISDICTION_LABELS: Record<string, string> = {
+  general: 'General', gdpr: 'GDPR (EU)', ccpa: 'CCPA (California)', lgpd: 'LGPD (Brazil)',
+  pipeda: 'PIPEDA (Canada)', pdpa: 'PDPA (Singapore)', dpdp: 'DPDP (India)',
+  sec: 'SEC (US)', finra: 'FINRA (US)', fca: 'FCA (UK)', sebi: 'SEBI (India)',
+  mas: 'MAS (Singapore)', esma: 'ESMA (EU)', hipaa: 'HIPAA', pci_dss: 'PCI-DSS',
+  sox: 'SOX', aml_kyc: 'AML/KYC', dmca: 'DMCA', patent: 'Patent', trademark: 'Trademark',
+  copyright: 'Copyright', employment: 'Employment', labor: 'Labor', corporate: 'Corporate',
+  tax: 'Tax', contracts: 'Contracts',
+};
+
 
 export default function AdminPage() {
   const { isLoading: authLoading, isAdmin } = useRequireAdmin();
@@ -54,9 +63,13 @@ export default function AdminPage() {
   const [isLoadingEmbeddings, setIsLoadingEmbeddings] = useState(true);
   const [selectedDomain, setSelectedDomain] = useState<RagDomain | 'all'>('all');
   const [selectedSector, setSelectedSector] = useState<Sector | 'all'>('all');
+  const [selectedRegion, setSelectedRegion] = useState<RagRegion | 'all'>('all');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadDomain, setUploadDomain] = useState<RagDomain>('legal');
   const [uploadSector, setUploadSector] = useState<Sector>('fintech');
+  const [uploadRegion, setUploadRegion] = useState<RagRegion>('global');
+  const [uploadJurisdictions, setUploadJurisdictions] = useState<RagJurisdiction[]>(['general']);
+  const [uploadDocType, setUploadDocType] = useState<RagDocumentType>('guide');
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -70,14 +83,14 @@ export default function AdminPage() {
   const [serverTools, setServerTools] = useState<McpTool[]>([]);
   const [isLoadingTools, setIsLoadingTools] = useState(false);
 
-  // Track if data has been loaded
   const dataLoadedRef = useRef(false);
 
-  const loadEmbeddings = async (domain: string, sector: string) => {
+  const loadEmbeddings = async (domain: string, sector: string, region: string) => {
     try {
-      const params: { domain?: string; sector?: string } = {};
+      const params: { domain?: string; sector?: string; region?: string } = {};
       if (domain !== 'all') params.domain = domain;
       if (sector !== 'all') params.sector = sector;
+      if (region !== 'all') params.region = region;
       const result = await api.getEmbeddings(params);
       setEmbeddings(result.data);
     } catch (error) {
@@ -100,19 +113,25 @@ export default function AdminPage() {
   useEffect(() => {
     if (authLoading || !isAdmin || dataLoadedRef.current) return;
     dataLoadedRef.current = true;
-    loadEmbeddings('all', 'all');
+    loadEmbeddings('all', 'all', 'all');
     loadMcpServers();
   }, [authLoading, isAdmin]);
 
   const handleDomainChange = (value: string) => {
     setSelectedDomain(value as RagDomain | 'all');
-    loadEmbeddings(value, selectedSector);
+    loadEmbeddings(value, selectedSector, selectedRegion);
   };
 
   const handleSectorChange = (value: string) => {
     setSelectedSector(value as Sector | 'all');
-    loadEmbeddings(selectedDomain, value);
+    loadEmbeddings(selectedDomain, value, selectedRegion);
   };
+
+  const handleRegionChange = (value: string) => {
+    setSelectedRegion(value as RagRegion | 'all');
+    loadEmbeddings(selectedDomain, selectedSector, value);
+  };
+
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -123,10 +142,14 @@ export default function AdminPage() {
     }
     setIsUploading(true);
     try {
-      await api.uploadPdf(file, uploadDomain, uploadSector);
+      await api.uploadPdf(file, uploadDomain, uploadSector, {
+        region: uploadRegion,
+        jurisdictions: uploadJurisdictions,
+        documentType: uploadDocType,
+      });
       toast.success('PDF uploaded successfully');
       setShowUploadDialog(false);
-      loadEmbeddings(selectedDomain, selectedSector);
+      loadEmbeddings(selectedDomain, selectedSector, selectedRegion);
     } catch (error) {
       console.error('Failed to upload PDF:', error);
       toast.error('Failed to upload PDF');
@@ -139,7 +162,7 @@ export default function AdminPage() {
     try {
       const result = await api.vectorizeEmbedding(id);
       toast.success(`Vectorized ${result.chunksCreated} chunks`);
-      loadEmbeddings(selectedDomain, selectedSector);
+      loadEmbeddings(selectedDomain, selectedSector, selectedRegion);
     } catch (error) {
       console.error('Failed to vectorize:', error);
       toast.error('Failed to vectorize');
@@ -151,7 +174,7 @@ export default function AdminPage() {
     try {
       await api.deleteEmbedding(id);
       toast.success('Embedding deleted');
-      loadEmbeddings(selectedDomain, selectedSector);
+      loadEmbeddings(selectedDomain, selectedSector, selectedRegion);
     } catch (error) {
       console.error('Failed to delete:', error);
       toast.error('Failed to delete');
@@ -163,12 +186,19 @@ export default function AdminPage() {
     try {
       const result = await api.cleanupEmbeddings(30);
       toast.success(`Cleaned ${result.filesCleaned} files`);
-      loadEmbeddings(selectedDomain, selectedSector);
+      loadEmbeddings(selectedDomain, selectedSector, selectedRegion);
     } catch (error) {
       console.error('Failed to cleanup:', error);
       toast.error('Failed to cleanup');
     }
   };
+
+  const toggleJurisdiction = (j: RagJurisdiction) => {
+    setUploadJurisdictions((prev) =>
+      prev.includes(j) ? prev.filter((x) => x !== j) : [...prev, j]
+    );
+  };
+
 
   const handleRegisterMcp = async () => {
     if (!mcpForm.id || !mcpForm.name || !mcpForm.baseUrl) {
@@ -232,6 +262,7 @@ export default function AdminPage() {
     );
   }
 
+
   return (
     <div className="max-w-6xl mx-auto space-y-8">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
@@ -253,9 +284,9 @@ export default function AdminPage() {
 
         <TabsContent value="rag" className="space-y-4 sm:space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
-            <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <Select value={selectedDomain} onValueChange={handleDomainChange}>
-                <SelectTrigger className="w-[110px] sm:w-[140px] text-xs sm:text-sm">
+                <SelectTrigger className="w-[100px] sm:w-[120px] text-xs sm:text-sm">
                   <SelectValue placeholder="Domain" />
                 </SelectTrigger>
                 <SelectContent>
@@ -266,13 +297,24 @@ export default function AdminPage() {
                 </SelectContent>
               </Select>
               <Select value={selectedSector} onValueChange={handleSectorChange}>
-                <SelectTrigger className="w-[110px] sm:w-[140px] text-xs sm:text-sm">
+                <SelectTrigger className="w-[100px] sm:w-[120px] text-xs sm:text-sm">
                   <SelectValue placeholder="Sector" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Sectors</SelectItem>
                   {SECTORS.map((s) => (
                     <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={selectedRegion} onValueChange={handleRegionChange}>
+                <SelectTrigger className="w-[100px] sm:w-[120px] text-xs sm:text-sm">
+                  <SelectValue placeholder="Region" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Regions</SelectItem>
+                  {RAG_REGIONS.map((r) => (
+                    <SelectItem key={r} value={r}>{r.toUpperCase()}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -286,33 +328,75 @@ export default function AdminPage() {
                 <DialogTrigger asChild>
                   <Button size="sm" className="h-9"><Upload weight="bold" className="w-4 h-4" /><span className="hidden sm:inline">Upload PDF</span><span className="sm:hidden">Upload</span></Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>Upload PDF for RAG</DialogTitle>
-                    <DialogDescription>Upload a PDF document for RAG embeddings.</DialogDescription>
+                    <DialogDescription>Upload a PDF document with jurisdiction metadata.</DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label>Domain</Label>
-                      <Select value={uploadDomain} onValueChange={(v) => setUploadDomain(v as RagDomain)}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {RAG_DOMAINS.map((d) => (
-                            <SelectItem key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Domain</Label>
+                        <Select value={uploadDomain} onValueChange={(v) => setUploadDomain(v as RagDomain)}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {RAG_DOMAINS.map((d) => (
+                              <SelectItem key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Sector</Label>
+                        <Select value={uploadSector} onValueChange={(v) => setUploadSector(v as Sector)}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {SECTORS.map((s) => (
+                              <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="flex items-center gap-1"><Globe weight="regular" className="w-3 h-3" />Region</Label>
+                        <Select value={uploadRegion} onValueChange={(v) => setUploadRegion(v as RagRegion)}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {RAG_REGIONS.map((r) => (
+                              <SelectItem key={r} value={r}>{r.toUpperCase()}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Document Type</Label>
+                        <Select value={uploadDocType} onValueChange={(v) => setUploadDocType(v as RagDocumentType)}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {RAG_DOCUMENT_TYPES.map((dt) => (
+                              <SelectItem key={dt} value={dt}>{dt.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase())}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                     <div className="space-y-2">
-                      <Label>Sector</Label>
-                      <Select value={uploadSector} onValueChange={(v) => setUploadSector(v as Sector)}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {SECTORS.map((s) => (
-                            <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Label>Jurisdictions</Label>
+                      <div className="flex flex-wrap gap-1.5 p-2 border rounded-md max-h-32 overflow-y-auto">
+                        {RAG_JURISDICTIONS.map((j) => (
+                          <Badge
+                            key={j}
+                            variant={uploadJurisdictions.includes(j) ? 'default' : 'outline'}
+                            className="cursor-pointer text-[10px]"
+                            onClick={() => toggleJurisdiction(j)}
+                          >
+                            {JURISDICTION_LABELS[j] || j}
+                          </Badge>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground">Click to select applicable jurisdictions</p>
                     </div>
                     <div className="space-y-2">
                       <Label>PDF File</Label>
@@ -327,6 +411,7 @@ export default function AdminPage() {
               </Dialog>
             </div>
           </div>
+
 
           {isLoadingEmbeddings ? (
             <div className="space-y-3">{[1, 2, 3].map((i) => <div key={i} className="h-20 bg-muted rounded-lg animate-pulse" />)}</div>
@@ -343,28 +428,37 @@ export default function AdminPage() {
               {embeddings.map((emb) => (
                 <Card key={emb.id} className="border-border/40">
                   <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-4 min-w-0">
+                        <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
                           <FileText weight="regular" className="w-5 h-5 text-muted-foreground" />
                         </div>
-                        <div>
-                          <p className="font-medium text-sm">{emb.filename}</p>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm truncate">{emb.filename}</p>
+                          <div className="flex flex-wrap items-center gap-1.5 mt-1">
                             <Badge variant="outline" className="text-[10px]">{emb.domain}</Badge>
                             <Badge variant="outline" className="text-[10px]">{emb.sector}</Badge>
-                            <span>·</span>
-                            <span>{emb.chunksCreated} chunks</span>
-                            <span>·</span>
-                            <span>{formatRelativeTime(emb.createdAt)}</span>
+                            <Badge variant="secondary" className="text-[10px]">{emb.region?.toUpperCase() || 'GLOBAL'}</Badge>
+                            {emb.documentType && <Badge variant="secondary" className="text-[10px]">{emb.documentType}</Badge>}
                           </div>
+                          {emb.jurisdictions && emb.jurisdictions.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              {emb.jurisdictions.slice(0, 3).map((j) => (
+                                <Badge key={j} variant="outline" className="text-[9px] bg-muted/50">{JURISDICTION_LABELS[j] || j}</Badge>
+                              ))}
+                              {emb.jurisdictions.length > 3 && (
+                                <Badge variant="outline" className="text-[9px]">+{emb.jurisdictions.length - 3}</Badge>
+                              )}
+                            </div>
+                          )}
+                          <p className="text-xs text-muted-foreground mt-1">{emb.chunksCreated} chunks · {formatRelativeTime(emb.createdAt)}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-shrink-0">
                         <Badge variant={emb.status === 'indexed' ? 'default' : emb.status === 'pending' ? 'secondary' : 'outline'}>{emb.status}</Badge>
                         {emb.status === 'pending' && (
                           <Button variant="ghost" size="sm" onClick={() => handleVectorize(emb.id)}>
-                            <Lightning weight="bold" className="w-4 h-4" />Vectorize
+                            <Lightning weight="bold" className="w-4 h-4" />
                           </Button>
                         )}
                         <Button variant="ghost" size="icon" onClick={() => handleDeleteEmbedding(emb.id)} className="text-destructive hover:text-destructive">
@@ -378,6 +472,7 @@ export default function AdminPage() {
             </div>
           )}
         </TabsContent>
+
 
         <TabsContent value="mcp" className="space-y-6">
           <div className="flex items-center justify-between">

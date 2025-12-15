@@ -43,7 +43,7 @@ export class AdminController {
   async uploadPdf(
     @UploadedFile() file: UploadedFileType,
     @Body() dto: UploadPdfDto,
-  ): Promise<ApiResponseDto<{ id: string; status: string; storagePath: string; domain: string; sector: string }>> {
+  ): Promise<ApiResponseDto<{ id: string; status: string; storagePath: string; domain: string; sector: string; region: string; jurisdictions: string[]; documentType: string }>> {
     if (!file) {
       throw new BadRequestException('File is required');
     }
@@ -59,7 +59,7 @@ export class AdminController {
 
     const result = await this.adminService.uploadPdf(dto, file.buffer, file.mimetype);
 
-    return ApiResponseDto.success(result, `PDF uploaded to ${dto.domain}/${dto.sector} (vectors created on first query)`);
+    return ApiResponseDto.success(result, `PDF uploaded to ${dto.domain}/${dto.sector}/${dto.region ?? 'global'} (vectors created on first query)`);
   }
 
   @Get('embeddings')

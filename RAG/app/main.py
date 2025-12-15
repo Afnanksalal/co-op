@@ -4,7 +4,7 @@ from fastapi import FastAPI, HTTPException, Depends, Security
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 from contextlib import asynccontextmanager
-from typing import Optional
+from typing import Optional, List
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -17,7 +17,7 @@ from app.services import (
     vectorize_file
 )
 from app.schemas import (
-    Domain, Sector,
+    Domain, Sector, Region, Jurisdiction, DocumentType,
     RegisterFileRequest, QueryRequest, QueryResponse,
     FileResponse, RegisterResponse, VectorizeResponse,
     CleanupResponse, HealthResponse
@@ -31,13 +31,11 @@ api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 async def verify_api_key(api_key: str = Security(api_key_header)):
     """Verify API key for protected endpoints."""
     if not RAG_API_KEY:
-        # No API key configured - allow all requests (dev mode)
         return True
     
     if not api_key:
         raise HTTPException(status_code=401, detail="Missing API key")
     
-    # Timing-safe comparison
     if not secrets.compare_digest(api_key, RAG_API_KEY):
         raise HTTPException(status_code=401, detail="Invalid API key")
     
@@ -52,13 +50,12 @@ async def lifespan(app: FastAPI):
     await db.disconnect()
 
 
-# CORS origins - backend URLs
 CORS_ORIGINS = os.getenv("CORS_ORIGINS", "").split(",") if os.getenv("CORS_ORIGINS") else ["*"]
 
 app = FastAPI(
     title="Co-Op RAG Service",
-    description="Lazy-loading RAG with Supabase Storage + Upstash Vector",
-    version="2.0.0",
+    description="Lazy-loading RAG with jurisdiction filtering - Supabase Storage + Upstash Vector",
+    version="3.0.0",
     lifespan=lifespan
 )
 
@@ -73,39 +70,47 @@ app.add_middleware(
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
-    """Health check endpoint."""
+    """Health check endpoint with supported filters."""
     return {
         "status": "ok",
         "db": "Neon",
         "vector": "Upstash",
         "storage": "Supabase",
         "domains": [d.value for d in Domain],
-        "sectors": [s.value for s in Sector]
+        "sectors": [s.value for s in Sector],
+        "regions": [r.value for r in Region],
+        "jurisdictions": [j.value for j in Jurisdiction],
+        "document_types": [dt.value for dt in DocumentType]
     }
 
 
 @app.post("/rag/register", response_model=RegisterResponse)
 async def register_file(request: RegisterFileRequest, _: bool = Depends(verify_api_key)):
     """
-    Register a file that's already uploaded to Supabase Storage.
+    Register a file with jurisdiction metadata.
     Called by backend after uploading PDF to storage.
     Vectors are NOT created yet (lazy loading).
     """
     try:
+        jurisdictions = [j.value for j in request.jurisdictions] if request.jurisdictions else ["general"]
+        
         success = await db.register_file(
             file_id=request.file_id,
             filename=request.filename,
             storage_path=request.storage_path,
             domain=request.domain.value,
             sector=request.sector.value,
-            content_type=request.content_type
+            content_type=request.content_type,
+            region=request.region.value if request.region else "global",
+            jurisdictions=jurisdictions,
+            document_type=request.document_type.value if request.document_type else "guide"
         )
         
         if success:
             return {
                 "success": True,
                 "file_id": request.file_id,
-                "message": f"File registered for {request.domain.value}/{request.sector.value}. Vectors will be created on first query."
+                "message": f"File registered for {request.domain.value}/{request.sector.value}/{request.region.value if request.region else 'global'}. Vectors will be created on first query."
             }
         else:
             raise HTTPException(status_code=500, detail="Failed to register file")
@@ -115,10 +120,7 @@ async def register_file(request: RegisterFileRequest, _: bool = Depends(verify_a
 
 @app.post("/rag/vectorize/{file_id}", response_model=VectorizeResponse)
 async def force_vectorize(file_id: str, _: bool = Depends(verify_api_key)):
-    """
-    Force vectorization of a specific file.
-    Useful for pre-warming or admin operations.
-    """
+    """Force vectorization of a specific file."""
     try:
         file_info = await db.get_file(file_id)
         if not file_info:
@@ -141,9 +143,9 @@ async def force_vectorize(file_id: str, _: bool = Depends(verify_api_key)):
 @app.post("/rag/query", response_model=QueryResponse)
 async def ask_question(request: QueryRequest, _: bool = Depends(verify_api_key)):
     """
-    Query the RAG system with lazy vectorization.
-    - Automatically vectorizes any pending files for the domain/sector
-    - Searches indexed vectors
+    Query the RAG system with jurisdiction filtering.
+    - Filters by domain, sector, region, and jurisdictions
+    - Automatically vectorizes any pending files
     - Updates access timestamps (for TTL tracking)
     """
     try:
@@ -151,7 +153,10 @@ async def ask_question(request: QueryRequest, _: bool = Depends(verify_api_key))
             query=request.query,
             domain=request.domain,
             sector=request.sector,
-            limit=request.limit
+            limit=request.limit,
+            region=request.region,
+            jurisdictions=request.jurisdictions,
+            document_type=request.document_type
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Query failed: {str(e)}")
@@ -161,13 +166,17 @@ async def ask_question(request: QueryRequest, _: bool = Depends(verify_api_key))
 async def list_files(
     domain: Optional[Domain] = None,
     sector: Optional[Sector] = None,
+    region: Optional[Region] = None,
+    document_type: Optional[DocumentType] = None,
     _: bool = Depends(verify_api_key)
 ):
-    """List all registered files with their vector status."""
+    """List all registered files with their vector status and jurisdiction info."""
     try:
         files = await db.list_files(
             domain=domain.value if domain else None,
-            sector=sector.value if sector else None
+            sector=sector.value if sector else None,
+            region=region.value if region else None,
+            document_type=document_type.value if document_type else None
         )
         return {
             "files": [
@@ -177,6 +186,9 @@ async def list_files(
                     "storage_path": f["storage_path"],
                     "domain": f["domain"],
                     "sector": f["sector"],
+                    "region": f.get("region", "global"),
+                    "jurisdictions": f.get("jurisdictions", ["general"]),
+                    "document_type": f.get("document_type", "guide"),
                     "vector_status": f["vector_status"],
                     "chunk_count": f["chunk_count"],
                     "last_accessed": f["last_accessed"].isoformat() if f["last_accessed"] else None,
@@ -192,7 +204,7 @@ async def list_files(
 
 @app.get("/rag/files/{file_id}", response_model=FileResponse)
 async def get_file(file_id: str, _: bool = Depends(verify_api_key)):
-    """Get file metadata by ID."""
+    """Get file metadata by ID including jurisdiction info."""
     try:
         file_info = await db.get_file(file_id)
         if not file_info:
@@ -204,6 +216,9 @@ async def get_file(file_id: str, _: bool = Depends(verify_api_key)):
             "storage_path": file_info["storage_path"],
             "domain": file_info["domain"],
             "sector": file_info["sector"],
+            "region": file_info.get("region", "global"),
+            "jurisdictions": file_info.get("jurisdictions", ["general"]),
+            "document_type": file_info.get("document_type", "guide"),
             "vector_status": file_info["vector_status"],
             "chunk_count": file_info["chunk_count"],
             "last_accessed": file_info["last_accessed"],
@@ -217,10 +232,7 @@ async def get_file(file_id: str, _: bool = Depends(verify_api_key)):
 
 @app.delete("/rag/files/{file_id}")
 async def remove_file(file_id: str, _: bool = Depends(verify_api_key)):
-    """
-    Delete file metadata and vectors.
-    Note: Supabase Storage deletion should be handled by the backend.
-    """
+    """Delete file metadata and vectors."""
     try:
         result = await delete_file_completely(file_id)
         if not result["success"]:
@@ -234,11 +246,7 @@ async def remove_file(file_id: str, _: bool = Depends(verify_api_key)):
 
 @app.post("/rag/cleanup", response_model=CleanupResponse)
 async def cleanup_vectors(days: int = 30, _: bool = Depends(verify_api_key)):
-    """
-    Remove vectors for files not accessed in X days.
-    Files remain in Supabase Storage for future re-vectorization.
-    Should be called by a cron job (e.g., daily).
-    """
+    """Remove vectors for files not accessed in X days."""
     try:
         result = await cleanup_expired_vectors(days)
         return result

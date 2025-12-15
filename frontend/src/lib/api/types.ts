@@ -49,6 +49,21 @@ export type MessageRole = (typeof MESSAGE_ROLES)[number];
 export const RAG_DOMAINS = ['legal', 'finance'] as const;
 export type RagDomain = (typeof RAG_DOMAINS)[number];
 
+export const RAG_REGIONS = ['global', 'eu', 'us', 'uk', 'india', 'apac', 'latam', 'mena', 'canada'] as const;
+export type RagRegion = (typeof RAG_REGIONS)[number];
+
+export const RAG_JURISDICTIONS = [
+  'general', 'gdpr', 'ccpa', 'lgpd', 'pipeda', 'pdpa', 'dpdp',
+  'sec', 'finra', 'fca', 'sebi', 'mas', 'esma',
+  'hipaa', 'pci_dss', 'sox', 'aml_kyc',
+  'dmca', 'patent', 'trademark', 'copyright',
+  'employment', 'labor', 'corporate', 'tax', 'contracts',
+] as const;
+export type RagJurisdiction = (typeof RAG_JURISDICTIONS)[number];
+
+export const RAG_DOCUMENT_TYPES = ['regulation', 'guidance', 'case_law', 'template', 'guide', 'checklist', 'analysis', 'faq'] as const;
+export type RagDocumentType = (typeof RAG_DOCUMENT_TYPES)[number];
+
 export const VECTOR_STATUSES = ['pending', 'indexed', 'expired'] as const;
 export type VectorStatus = (typeof VECTOR_STATUSES)[number];
 
@@ -280,6 +295,9 @@ export interface Embedding {
   storagePath: string;
   domain: RagDomain;
   sector: Sector;
+  region: RagRegion;
+  jurisdictions: RagJurisdiction[];
+  documentType: RagDocumentType;
   status: VectorStatus;
   chunksCreated: number;
   lastAccessed?: string;
@@ -289,6 +307,9 @@ export interface Embedding {
 export interface UploadPdfRequest {
   domain: RagDomain;
   sector: Sector;
+  region?: RagRegion;
+  jurisdictions?: RagJurisdiction[];
+  documentType?: RagDocumentType;
   filename: string;
 }
 
@@ -298,6 +319,9 @@ export interface UploadResult {
   storagePath: string;
   domain: string;
   sector: string;
+  region: string;
+  jurisdictions: string[];
+  documentType: string;
 }
 
 export interface VectorizeResult {

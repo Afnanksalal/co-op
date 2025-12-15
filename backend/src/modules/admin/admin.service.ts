@@ -13,6 +13,9 @@ interface UploadResult {
   storagePath: string;
   domain: string;
   sector: string;
+  region: string;
+  jurisdictions: string[];
+  documentType: string;
 }
 
 @Injectable()
@@ -35,19 +38,24 @@ export class AdminService {
     contentType: string,
   ): Promise<UploadResult> {
     const fileId = uuid();
-    
+
     // Sanitize filename to prevent path traversal
     const sanitizedFilename = dto.filename
-      .replace(/[^a-zA-Z0-9._-]/g, '_') // Replace unsafe chars
-      .replace(/\.{2,}/g, '.') // Remove consecutive dots
-      .slice(0, 255); // Limit length
-    
-    // Storage path: domain/sector/fileId/filename
-    const storagePath = `${dto.domain}/${dto.sector}/${fileId}/${sanitizedFilename}`;
+      .replace(/[^a-zA-Z0-9._-]/g, '_')
+      .replace(/\.{2,}/g, '.')
+      .slice(0, 255);
+
+    // Storage path: domain/sector/region/fileId/filename
+    const region = dto.region ?? 'global';
+    const storagePath = `${dto.domain}/${dto.sector}/${region}/${fileId}/${sanitizedFilename}`;
 
     // 1. Upload to Supabase Storage
     const uploadResult = await this.storage.upload(storagePath, fileBuffer, contentType);
     this.logger.log(`File uploaded to storage: ${uploadResult.path}`);
+
+    // Prepare jurisdiction data
+    const jurisdictions = dto.jurisdictions ?? ['general'];
+    const documentType = dto.documentType ?? 'guide';
 
     // 2. Register with RAG service (lazy vectorization)
     if (this.ragService.isAvailable()) {
@@ -58,6 +66,9 @@ export class AdminService {
         domain: dto.domain,
         sector: dto.sector,
         contentType,
+        region,
+        jurisdictions,
+        documentType,
       });
 
       if (!registerResult.success) {
@@ -66,7 +77,9 @@ export class AdminService {
         throw new BadRequestException(`RAG registration failed: ${registerResult.message}`);
       }
 
-      this.logger.log(`File registered with RAG: ${fileId} (${dto.domain}/${dto.sector})`);
+      this.logger.log(
+        `File registered with RAG: ${fileId} (${dto.domain}/${dto.sector}/${region}, jurisdictions: ${jurisdictions.join(',')})`,
+      );
     } else {
       this.logger.warn('RAG service not available - file uploaded but not registered');
     }
@@ -78,7 +91,14 @@ export class AdminService {
       resource: 'embedding',
       resourceId: fileId,
       oldValue: null,
-      newValue: { filename: sanitizedFilename, domain: dto.domain, sector: dto.sector },
+      newValue: {
+        filename: sanitizedFilename,
+        domain: dto.domain,
+        sector: dto.sector,
+        region,
+        jurisdictions,
+        documentType,
+      },
       ipAddress: null,
       userAgent: null,
       metadata: { storagePath: uploadResult.path },
@@ -86,10 +106,13 @@ export class AdminService {
 
     return {
       id: fileId,
-      status: 'pending', // Vectors will be created on first query
+      status: 'pending',
       storagePath: uploadResult.path,
       domain: dto.domain,
       sector: dto.sector,
+      region,
+      jurisdictions,
+      documentType,
     };
   }
 
@@ -101,16 +124,16 @@ export class AdminService {
       throw new BadRequestException('RAG service not configured');
     }
 
-    // Get file info first to log the storage path
     const fileInfo = await this.ragService.getFile(fileId);
     if (fileInfo) {
       this.logger.log(`Vectorizing file: ${fileId}`);
       this.logger.log(`Storage path: ${fileInfo.storagePath}`);
       this.logger.log(`Domain: ${fileInfo.domain}, Sector: ${fileInfo.sector}`);
+      this.logger.log(`Region: ${fileInfo.region ?? 'global'}, Jurisdictions: ${fileInfo.jurisdictions?.join(',') ?? 'general'}`);
     }
 
     const result = await this.ragService.vectorizeFile(fileId);
-    
+
     if (!result.success) {
       this.logger.error(`Vectorization failed for ${fileId}: ${result.message}`);
       throw new BadRequestException(result.message);
@@ -121,7 +144,7 @@ export class AdminService {
   }
 
   /**
-   * List all embeddings with optional domain/sector filter.
+   * List all embeddings with optional domain/sector/region filter.
    */
   async listEmbeddings(
     query: ListEmbeddingsQueryDto,
@@ -139,7 +162,8 @@ export class AdminService {
     try {
       const domain = query.domain;
       const sector = query.sector;
-      const result = await this.ragService.listFiles(domain, sector);
+      const region = query.region;
+      const result = await this.ragService.listFiles(domain, sector, region);
 
       const embeddings: EmbeddingResponseDto[] = result.files.map((file) => ({
         id: file.id,
@@ -147,6 +171,9 @@ export class AdminService {
         storagePath: file.storagePath,
         domain: file.domain,
         sector: file.sector,
+        region: file.region ?? 'global',
+        jurisdictions: file.jurisdictions ?? ['general'],
+        documentType: file.documentType ?? 'guide',
         status: file.vectorStatus,
         chunksCreated: file.chunkCount,
         lastAccessed: file.lastAccessed ? new Date(file.lastAccessed) : undefined,
@@ -192,6 +219,9 @@ export class AdminService {
       storagePath: file.storagePath,
       domain: file.domain,
       sector: file.sector,
+      region: file.region ?? 'global',
+      jurisdictions: file.jurisdictions ?? ['general'],
+      documentType: file.documentType ?? 'guide',
       status: file.vectorStatus,
       chunksCreated: file.chunkCount,
       lastAccessed: file.lastAccessed ? new Date(file.lastAccessed) : undefined,
@@ -203,16 +233,15 @@ export class AdminService {
    * Delete embedding and its vectors + storage file.
    */
   async deleteEmbedding(id: string): Promise<void> {
-    // Get file info first
     const file = await this.ragService.getFile(id);
-    
+
     if (!file) {
       throw new NotFoundException('Document not found');
     }
 
     // 1. Delete from RAG service (vectors + metadata)
     const result = await this.ragService.deleteFile(id);
-    
+
     if (!result.success) {
       throw new BadRequestException(result.message);
     }
@@ -227,11 +256,17 @@ export class AdminService {
 
     // Audit log
     await this.audit.log({
-      userId: null, // Admin action
+      userId: null,
       action: 'embedding.deleted',
       resource: 'embedding',
       resourceId: id,
-      oldValue: { filename: file.filename, domain: file.domain, sector: file.sector },
+      oldValue: {
+        filename: file.filename,
+        domain: file.domain,
+        sector: file.sector,
+        region: file.region,
+        jurisdictions: file.jurisdictions,
+      },
       newValue: null,
       ipAddress: null,
       userAgent: null,
@@ -250,9 +285,9 @@ export class AdminService {
     }
 
     const result = await this.ragService.cleanupExpired(days);
-    
+
     this.logger.log(`Cleanup completed: ${String(result.filesCleaned)} files, ${String(result.vectorsRemoved)} vectors`);
-    
+
     return result;
   }
 }
