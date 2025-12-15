@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -114,8 +113,8 @@ const roadmapItems = [
 ];
 
 export default function HomePage() {
-  const router = useRouter();
   const [currentOpIndex, setCurrentOpIndex] = useState(0);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -123,12 +122,10 @@ export default function HomePage() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (session) {
-        router.push('/dashboard');
-      }
+      setIsAuthenticated(!!session);
     };
     checkSession();
-  }, [router]);
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -154,12 +151,20 @@ export default function HomePage() {
             <a href="#developers" className="text-muted-foreground hover:text-foreground transition-colors">Developers</a>
           </nav>
           <div className="flex items-center gap-2 sm:gap-4">
-            <Link href="/login" className="hidden sm:block">
-              <Button variant="ghost" size="sm">Sign In</Button>
-            </Link>
-            <Link href="/login?mode=signup">
-              <Button size="sm">Get Started</Button>
-            </Link>
+            {isAuthenticated ? (
+              <Link href="/dashboard">
+                <Button size="sm">Dashboard</Button>
+              </Link>
+            ) : (
+              <>
+                <Link href="/login" className="hidden sm:block">
+                  <Button variant="ghost" size="sm">Sign In</Button>
+                </Link>
+                <Link href="/login?mode=signup">
+                  <Button size="sm">Get Started</Button>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </header>
