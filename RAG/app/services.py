@@ -1,157 +1,106 @@
 """
-RAG Service - Vector Search with Jurisdiction Filtering + CLaRA
-================================================================
-This service handles:
-1. Document vectorization (PDF → chunks → embeddings → Upstash)
-2. Semantic search with geographic/jurisdiction filtering
-3. Context retrieval (return relevant chunks to backend)
-4. CLaRA semantic compression for query-aware context extraction
-
-LLM answer generation is handled by the backend's LLM Council.
-This keeps the RAG service focused and removes duplicate LLM dependencies.
+RAG Service - Vector Search with Jurisdiction Filtering
 """
 
 import os
 import logging
-import time
+import asyncio
 import google.generativeai as genai
 from supabase import create_client, Client
 from upstash_vector import Index
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from pypdf import PdfReader
 from io import BytesIO
-from typing import Optional, List, Tuple
+from typing import Optional, List
 from app.database import db
 from app.schemas import Domain, Sector, Region, Jurisdiction, DocumentType, VectorStatus
 
-# Configure logging
 logger = logging.getLogger(__name__)
 
-# ===========================================
-# Client Initialization with Validation
-# ===========================================
 
 def _init_google_ai() -> bool:
-    """Initialize Google AI for embeddings."""
     api_key = os.getenv("GOOGLE_AI_API_KEY")
     if not api_key:
-        logger.warning("GOOGLE_AI_API_KEY not set - embeddings will fail")
+        logger.warning("GOOGLE_AI_API_KEY not set")
         return False
     genai.configure(api_key=api_key)
     return True
 
+
 def _init_supabase() -> Client | None:
-    """Initialize Supabase client for storage access."""
     url = os.getenv("SUPABASE_URL")
     key = os.getenv("SUPABASE_SERVICE_KEY")
     if not url or not key:
-        logger.warning("SUPABASE_URL or SUPABASE_SERVICE_KEY not set - storage access will fail")
+        logger.warning("Supabase not configured")
         return None
     return create_client(url, key)
 
+
 def _init_vector_index() -> Index | None:
-    """Initialize Upstash Vector index."""
     url = os.getenv("UPSTASH_VECTOR_REST_URL")
     token = os.getenv("UPSTASH_VECTOR_REST_TOKEN")
     if not url or not token:
-        logger.warning("UPSTASH_VECTOR_REST_URL or UPSTASH_VECTOR_REST_TOKEN not set - vector search will fail")
+        logger.warning("Upstash Vector not configured")
         return None
     return Index(url=url, token=token)
 
-# Initialize clients
+
 _google_ai_ready = _init_google_ai()
 supabase: Client | None = _init_supabase()
 vector_index: Index | None = _init_vector_index()
 STORAGE_BUCKET = os.getenv("SUPABASE_STORAGE_BUCKET", "documents")
 
 
-# ===========================================
-# Embedding Functions
-# ===========================================
+def _sync_embed_content(text: str, task_type: str) -> list[float]:
+    result = genai.embed_content(
+        model="models/text-embedding-004",
+        content=text,
+        task_type=task_type
+    )
+    return result['embedding']
+
 
 async def get_embedding(text: str) -> list[float]:
-    """
-    Generate embedding using Gemini text-embedding-004 (768 dimensions).
-    """
     if not _google_ai_ready:
-        raise ValueError("Google AI not configured - cannot generate embeddings")
+        raise ValueError("Google AI not configured")
     
-    clean_text = text.replace("\n", " ").strip()
-    if not clean_text:
-        clean_text = "empty"
+    clean_text = text.replace("\n", " ").strip() or "empty"
+    if len(clean_text) > 8000:
+        clean_text = clean_text[:8000]
     
-    max_chars = 8000
-    if len(clean_text) > max_chars:
-        clean_text = clean_text[:max_chars]
-    
-    try:
-        result = genai.embed_content(
-            model="models/text-embedding-004",
-            content=clean_text,
-            task_type="retrieval_document"
-        )
-        return result['embedding']
-    except Exception as e:
-        logger.error(f"Embedding generation failed: {e}")
-        raise ValueError(f"Failed to generate embedding: {str(e)}")
+    return await asyncio.to_thread(_sync_embed_content, clean_text, "retrieval_document")
 
 
 async def get_query_embedding(text: str) -> list[float]:
-    """Generate embedding for a query (uses retrieval_query task type)."""
     if not _google_ai_ready:
-        raise ValueError("Google AI not configured - cannot generate embeddings")
+        raise ValueError("Google AI not configured")
     
     clean_text = text.replace("\n", " ").strip()
     if not clean_text:
         raise ValueError("Query cannot be empty")
     
-    try:
-        result = genai.embed_content(
-            model="models/text-embedding-004",
-            content=clean_text,
-            task_type="retrieval_query"
-        )
-        return result['embedding']
-    except Exception as e:
-        logger.error(f"Query embedding generation failed: {e}")
-        raise ValueError(f"Failed to generate query embedding: {str(e)}")
+    # Use asyncio.to_thread to avoid blocking the event loop
+    return await asyncio.to_thread(_sync_embed_content, clean_text, "retrieval_query")
 
-
-# ===========================================
-# Storage Functions
-# ===========================================
 
 async def download_from_storage(storage_path: str) -> bytes:
-    """Download file from Supabase Storage."""
     if not supabase:
-        raise ValueError("Supabase not configured - cannot download files")
-    
-    try:
-        response = supabase.storage.from_(STORAGE_BUCKET).download(storage_path)
-        return response
-    except Exception as e:
-        logger.error(f"Storage download failed for {storage_path}: {e}")
-        raise ValueError(f"Failed to download from storage: {str(e)}")
+        raise ValueError("Supabase not configured")
+    return supabase.storage.from_(STORAGE_BUCKET).download(storage_path)
 
 
 async def extract_text(file_content: bytes, content_type: str) -> str:
-    """Extract text from file content (PDF or plain text)."""
     if content_type == "application/pdf":
-        try:
-            pdf = PdfReader(BytesIO(file_content))
-            text_parts = []
-            for page_num, page in enumerate(pdf.pages):
-                try:
-                    page_text = page.extract_text()
-                    if page_text:
-                        text_parts.append(page_text)
-                except Exception as e:
-                    logger.warning(f"Failed to extract text from page {page_num}: {e}")
-                    continue
-            return "\n".join(text_parts)
-        except Exception as e:
-            logger.error(f"PDF extraction failed: {e}")
-            raise ValueError(f"Failed to extract text from PDF: {str(e)}")
+        pdf = PdfReader(BytesIO(file_content))
+        text_parts = []
+        for page in pdf.pages:
+            try:
+                page_text = page.extract_text()
+                if page_text:
+                    text_parts.append(page_text)
+            except Exception:
+                continue
+        return "\n".join(text_parts)
     else:
         try:
             return file_content.decode("utf-8")
@@ -159,61 +108,35 @@ async def extract_text(file_content: bytes, content_type: str) -> str:
             return file_content.decode("latin-1")
 
 
-# ===========================================
-# Vectorization Functions
-# ===========================================
-
 async def vectorize_file(file_id: str, file_info: dict) -> int:
-    """
-    Vectorize a file on-demand (lazy loading).
-    
-    Stores jurisdiction metadata in vectors for filtering.
-    """
     if not vector_index:
         raise ValueError("Vector index not configured")
     
     storage_path = file_info["storage_path"]
     logger.info(f"Vectorizing file {file_id}")
-    logger.info(f"Storage path: {storage_path}")
-    logger.info(f"Domain: {file_info.get('domain')}, Sector: {file_info.get('sector')}")
-    logger.info(f"Region: {file_info.get('region', 'global')}, Jurisdictions: {file_info.get('jurisdictions', ['general'])}")
     
-    # Download from Supabase Storage
-    try:
-        file_content = await download_from_storage(storage_path)
-        logger.info(f"Downloaded {len(file_content)} bytes from storage")
-    except Exception as e:
-        logger.error(f"Failed to download from storage path: {storage_path}")
-        raise ValueError(f"Storage download failed for path '{storage_path}': {str(e)}")
-    
-    # Extract text
+    file_content = await download_from_storage(storage_path)
     text = await extract_text(file_content, file_info.get("content_type", "application/pdf"))
     
     if not text.strip():
-        raise ValueError("No text content extracted from file")
+        raise ValueError("No text content extracted")
 
-    # Chunk text
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=1000,
         chunk_overlap=200,
         separators=["\n\n", "\n", ". ", " ", ""],
-        length_function=len,
     )
     chunks = splitter.split_text(text)
 
     if not chunks:
-        raise ValueError("No chunks created from document")
+        raise ValueError("No chunks created")
 
-    logger.info(f"Vectorizing {file_id}: {len(chunks)} chunks")
-
-    # Get jurisdiction metadata
     region = file_info.get("region", "global")
     jurisdictions = file_info.get("jurisdictions", ["general"])
     if isinstance(jurisdictions, str):
         jurisdictions = jurisdictions.split(",")
     document_type = file_info.get("document_type", "guide")
 
-    # Embed & upsert to Upstash in batches
     vectors_to_upsert = []
     batch_size = 10
 
@@ -227,10 +150,8 @@ async def vectorize_file(file_id: str, file_info: dict) -> int:
                 logger.warning(f"Failed to embed chunk {chunk_idx}: {e}")
                 continue
                 
-            chunk_id = f"{file_id}_{chunk_idx}"
-
             vectors_to_upsert.append({
-                "id": chunk_id,
+                "id": f"{file_id}_{chunk_idx}",
                 "vector": embedding,
                 "metadata": {
                     "file_id": file_id,
@@ -238,42 +159,31 @@ async def vectorize_file(file_id: str, file_info: dict) -> int:
                     "chunk_index": chunk_idx,
                     "domain": file_info["domain"],
                     "sector": file_info["sector"],
-                    # Jurisdiction metadata for filtering
                     "region": region,
-                    "jurisdictions": ",".join(jurisdictions),  # Store as comma-separated for Upstash
+                    "jurisdictions": ",".join(jurisdictions),
                     "document_type": document_type,
                 },
                 "data": chunk
             })
 
     if not vectors_to_upsert:
-        raise ValueError("No vectors created - all embeddings failed")
+        raise ValueError("No vectors created")
 
-    # Upsert to Upstash
-    try:
-        vector_index.upsert(vectors=vectors_to_upsert)
-    except Exception as e:
-        logger.error(f"Vector upsert failed: {e}")
-        raise ValueError(f"Failed to store vectors: {str(e)}")
-
-    # Update status in DB
+    vector_index.upsert(vectors=vectors_to_upsert)
     await db.update_vector_status(file_id, VectorStatus.INDEXED.value, len(vectors_to_upsert))
     
-    logger.info(f"Vectorized {file_id}: {len(vectors_to_upsert)} vectors stored")
+    logger.info(f"Vectorized {file_id}: {len(vectors_to_upsert)} vectors")
     return len(vectors_to_upsert)
 
 
 async def remove_vectors(file_id: str, chunk_count: int) -> None:
-    """Remove vectors for a file from Upstash."""
     if not vector_index or chunk_count == 0:
         return
-        
     vector_ids = [f"{file_id}_{i}" for i in range(chunk_count)]
     try:
         vector_index.delete(ids=vector_ids)
-        logger.info(f"Removed {len(vector_ids)} vectors for {file_id}")
     except Exception as e:
-        logger.warning(f"Failed to remove vectors for {file_id}: {e}")
+        logger.warning(f"Failed to remove vectors: {e}")
 
 
 async def ensure_vectors_loaded(
@@ -281,7 +191,6 @@ async def ensure_vectors_loaded(
     sector: Sector,
     region: Optional[Region] = None
 ) -> int:
-    """Ensure all files for domain/sector/region are vectorized."""
     region_val = region.value if region else None
     pending_files = await db.get_pending_files(domain.value, sector.value, region_val)
     loaded_count = 0
@@ -292,14 +201,9 @@ async def ensure_vectors_loaded(
             loaded_count += 1
         except Exception as e:
             logger.error(f"Failed to vectorize {file_info['id']}: {e}")
-            continue
     
     return loaded_count
 
-
-# ===========================================
-# Query Functions (Context Retrieval Only)
-# ===========================================
 
 def _build_vector_filter(
     domain: Domain,
@@ -308,25 +212,14 @@ def _build_vector_filter(
     jurisdictions: Optional[List[Jurisdiction]] = None,
     document_type: Optional[DocumentType] = None
 ) -> str:
-    """
-    Build Upstash vector filter string.
-    
-    Filter logic:
-    - Domain and sector are required exact matches
-    - Region: matches exact region OR 'global'
-    - Jurisdictions: uses CONTAINS for comma-separated string matching
-    - Document type: optional exact match
-    """
     filters = [
         f"domain = '{domain.value}'",
         f"sector = '{sector.value}'"
     ]
     
-    # Region filter: include global docs + region-specific
     if region and region != Region.GLOBAL:
         filters.append(f"(region = '{region.value}' OR region = 'global')")
     
-    # Document type filter
     if document_type:
         filters.append(f"document_type = '{document_type.value}'")
     
@@ -337,13 +230,10 @@ def _matches_jurisdictions(
     file_jurisdictions: str,
     requested_jurisdictions: Optional[List[Jurisdiction]]
 ) -> bool:
-    """Check if file jurisdictions match any requested jurisdiction."""
     if not requested_jurisdictions:
         return True
     
     file_juris_list = file_jurisdictions.split(",")
-    
-    # Include if file has 'general' OR any overlap
     if "general" in file_juris_list:
         return True
     
@@ -360,12 +250,6 @@ async def query_rag(
     jurisdictions: Optional[List[Jurisdiction]] = None,
     document_type: Optional[DocumentType] = None
 ) -> dict:
-    """
-    Query the RAG system with jurisdiction filtering.
-    
-    Returns context only, NO LLM generation.
-    The backend's LLM Council handles answer generation.
-    """
     if not vector_index:
         return {
             "context": "",
@@ -379,10 +263,8 @@ async def query_rag(
             "error": "Vector index not configured"
         }
 
-    # Lazy load: vectorize any pending files
     vectors_loaded = await ensure_vectors_loaded(domain, sector, region)
     
-    # Generate query embedding
     try:
         query_embedding = await get_query_embedding(query)
     except Exception as e:
@@ -398,14 +280,12 @@ async def query_rag(
             "error": f"Failed to embed query: {str(e)}"
         }
 
-    # Build filter for vector search
     vector_filter = _build_vector_filter(domain, sector, region, jurisdictions, document_type)
     
-    # Search Upstash with metadata filter
     try:
         results = vector_index.query(
             vector=query_embedding,
-            top_k=limit * 3,  # Get more results for jurisdiction filtering
+            top_k=limit * 3,
             include_metadata=True,
             include_data=True,
             filter=vector_filter
@@ -424,10 +304,9 @@ async def query_rag(
             "error": f"Vector search failed: {str(e)}"
         }
 
-    # Filter by jurisdictions (post-filter since Upstash doesn't support CONTAINS well)
     filtered_results = []
     for r in results:
-        if r.score < 0.5:  # Minimum relevance threshold
+        if r.score < 0.5:
             continue
         
         file_jurisdictions = r.metadata.get("jurisdictions", "general")
@@ -449,12 +328,10 @@ async def query_rag(
             "chunks_found": 0
         }
 
-    # Update access timestamps for used files
     used_file_ids = set(r.metadata.get("file_id") for r in filtered_results if r.metadata.get("file_id"))
     for file_id in used_file_ids:
         await db.touch_file(file_id)
 
-    # Build context from chunks with jurisdiction info
     context_parts = []
     for res in filtered_results:
         source = res.metadata.get("filename", "Unknown")
@@ -465,7 +342,6 @@ async def query_rag(
     
     context_text = "\n\n---\n\n".join(context_parts)
 
-    # Build sources list with jurisdiction info
     sources = [
         {
             "file_id": r.metadata.get("file_id", ""),
@@ -493,12 +369,7 @@ async def query_rag(
     }
 
 
-# ===========================================
-# Maintenance Functions
-# ===========================================
-
 async def cleanup_expired_vectors(days: int = 30) -> dict:
-    """Remove vectors for files not accessed in X days."""
     expired_files = await db.get_expired_files(days)
     files_cleaned = 0
     vectors_removed = 0
@@ -513,8 +384,6 @@ async def cleanup_expired_vectors(days: int = 30) -> dict:
         files_cleaned += 1
         vectors_removed += chunk_count
     
-    logger.info(f"Cleanup: {files_cleaned} files, {vectors_removed} vectors removed")
-    
     return {
         "files_cleaned": files_cleaned,
         "vectors_removed": vectors_removed,
@@ -523,7 +392,6 @@ async def cleanup_expired_vectors(days: int = 30) -> dict:
 
 
 async def delete_file_completely(file_id: str) -> dict:
-    """Delete file metadata and vectors."""
     file_info = await db.get_file(file_id)
     
     if not file_info:
@@ -536,8 +404,6 @@ async def delete_file_completely(file_id: str) -> dict:
     
     await db.delete_file(file_id)
 
-    logger.info(f"Deleted file {file_id}: {chunk_count} chunks removed")
-
     return {
         "success": True,
         "message": "File deleted",
@@ -545,128 +411,134 @@ async def delete_file_completely(file_id: str) -> dict:
     }
 
 
-# ===========================================
-# CLaRA Service - Semantic Document Compression
-# ===========================================
-# Apple CLaRA-7B-Instruct for intelligent context processing
-# Requires: transformers, torch, accelerate
-# Model: apple/CLaRa-7B-Instruct
-
-_clara_model = None
-_clara_device = None
-_clara_error = None
+# Optional compression provider support
+_compression_provider = None
+_compression_error = None
 
 
-def _init_clara() -> Tuple[bool, Optional[str]]:
-    """
-    Initialize CLaRA model for semantic compression.
-    Returns (success, error_message).
+def init_compression_provider() -> tuple[bool, str | None]:
+    """Initialize optional compression provider using HuggingFace Inference API."""
+    global _compression_provider, _compression_error
     
-    CLaRA is NOT a chat model - it uses AutoModel + generate_from_text().
-    """
-    global _clara_model, _clara_device, _clara_error
+    if os.getenv("COMPRESSION_ENABLED", "false").lower() != "true":
+        _compression_error = "Compression disabled"
+        return False, _compression_error
     
-    # Check if CUDA is available
-    try:
-        import torch
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        _clara_device = device
-        
-        if device == "cpu":
-            logger.warning("CLaRA: CUDA not available, running on CPU (slow)")
-    except ImportError:
-        _clara_error = "PyTorch not installed"
-        logger.warning(f"CLaRA initialization skipped: {_clara_error}")
-        return False, _clara_error
+    provider_type = os.getenv("COMPRESSION_PROVIDER", "none")
     
-    # Check environment variable to enable/disable CLaRA
-    if os.getenv("CLARA_ENABLED", "false").lower() != "true":
-        _clara_error = "CLaRA disabled via CLARA_ENABLED env var"
-        logger.info(_clara_error)
-        return False, _clara_error
-    
-    try:
-        from transformers import AutoModel
+    if provider_type == "huggingface":
+        # Use HuggingFace Inference API - no local model download
+        api_key = os.getenv("HUGGINGFACE_API_KEY")
+        if not api_key:
+            _compression_error = "HUGGINGFACE_API_KEY not set"
+            return False, _compression_error
         
-        model_name = os.getenv("CLARA_MODEL", "apple/CLaRa-7B-Instruct")
-        logger.info(f"Loading CLaRA model: {model_name} on {device}")
+        model_name = os.getenv("COMPRESSION_MODEL", "mistralai/Mistral-7B-Instruct-v0.2")
         
-        # CLaRA uses AutoModel, NOT AutoModelForCausalLM
-        _clara_model = AutoModel.from_pretrained(
-            model_name,
-            trust_remote_code=True,
-            torch_dtype=torch.float16 if device == "cuda" else torch.float32,
-        ).to(device)
-        
-        logger.info(f"CLaRA model loaded successfully on {device}")
+        _compression_provider = {
+            "type": "huggingface",
+            "api_key": api_key,
+            "model_name": model_name,
+            "api_url": f"https://api-inference.huggingface.co/models/{model_name}",
+        }
+        logger.info(f"Compression provider configured: HuggingFace Inference API ({model_name})")
         return True, None
+    
+    elif provider_type == "clara":
+        # Clara via HuggingFace Inference API (if available)
+        api_key = os.getenv("HUGGINGFACE_API_KEY")
+        if not api_key:
+            _compression_error = "HUGGINGFACE_API_KEY not set for Clara"
+            return False, _compression_error
         
-    except Exception as e:
-        _clara_error = str(e)
-        logger.error(f"CLaRA initialization failed: {_clara_error}")
-        return False, _clara_error
+        model_name = os.getenv("COMPRESSION_MODEL", "apple/CLaRa-7B-Instruct")
+        
+        _compression_provider = {
+            "type": "huggingface",
+            "api_key": api_key,
+            "model_name": model_name,
+            "api_url": f"https://api-inference.huggingface.co/models/{model_name}",
+        }
+        logger.info(f"Compression provider configured: Clara via HuggingFace Inference API")
+        return True, None
+    
+    _compression_error = f"Unknown provider: {provider_type}"
+    return False, _compression_error
 
 
-def clara_is_ready() -> bool:
-    """Check if CLaRA model is loaded and ready."""
-    return _clara_model is not None
-
-
-def clara_health() -> dict:
-    """Get CLaRA health status."""
+def compression_health() -> dict:
     return {
-        "available": _clara_model is not None,
-        "model": os.getenv("CLARA_MODEL", "apple/CLaRa-7B-Instruct") if _clara_model else None,
-        "device": _clara_device,
-        "error": _clara_error,
+        "available": _compression_provider is not None,
+        "provider": _compression_provider.get("type") if _compression_provider else None,
+        "model": _compression_provider.get("model_name") if _compression_provider else None,
+        "device": "cloud" if _compression_provider else None,
+        "error": _compression_error,
     }
 
 
-async def clara_compress_context(
-    documents: List[str],
-    query: str,
-    max_new_tokens: int = 512,
-) -> Tuple[str, float]:
-    """
-    Use CLaRA to compress documents into query-relevant context.
+async def compress_context(documents: List[str], query: str, max_tokens: int = 512) -> tuple[str, float]:
+    """Compress documents using HuggingFace Inference API."""
+    import httpx
     
-    Args:
-        documents: List of document chunks
-        query: User's question
-        max_new_tokens: Max tokens for generated output
-        
-    Returns:
-        Tuple of (compressed_context, compression_ratio)
-    """
-    if not _clara_model:
-        raise ValueError("CLaRA model not loaded")
+    if not _compression_provider:
+        raise ValueError("Compression provider not available")
     
-    try:
-        # CLaRA expects documents as list of lists (batched)
-        # Each inner list is a set of documents for one query
-        doc_batch = [documents]
-        questions = [query]
+    if _compression_provider["type"] == "huggingface":
+        # Build prompt for compression
+        combined_docs = "\n\n".join(documents)
+        prompt = f"""<s>[INST] You are a document compression assistant. Given the following documents and query, extract and summarize only the most relevant information.
+
+Query: {query}
+
+Documents:
+{combined_docs[:6000]}
+
+Provide a concise summary focusing only on information relevant to the query. [/INST]"""
+
+        headers = {
+            "Authorization": f"Bearer {_compression_provider['api_key']}",
+            "Content-Type": "application/json",
+        }
         
-        # Generate compressed context using CLaRA's generate_from_text
-        output = _clara_model.generate_from_text(
-            questions=questions,
-            documents=doc_batch,
-            max_new_tokens=max_new_tokens,
-        )
+        payload = {
+            "inputs": prompt,
+            "parameters": {
+                "max_new_tokens": max_tokens,
+                "temperature": 0.3,
+                "return_full_text": False,
+            }
+        }
         
-        # Calculate compression ratio
-        original_length = sum(len(d) for d in documents)
-        compressed_length = len(output) if isinstance(output, str) else len(str(output))
-        ratio = original_length / compressed_length if compressed_length > 0 else 1.0
-        
-        return output if isinstance(output, str) else str(output), ratio
-        
-    except Exception as e:
-        logger.error(f"CLaRA compression failed: {e}")
-        raise ValueError(f"CLaRA compression failed: {str(e)}")
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                _compression_provider["api_url"],
+                headers=headers,
+                json=payload,
+            )
+            
+            if response.status_code != 200:
+                raise ValueError(f"HuggingFace API error: {response.status_code} - {response.text}")
+            
+            result = response.json()
+            
+            # Handle different response formats
+            if isinstance(result, list) and len(result) > 0:
+                output = result[0].get("generated_text", "")
+            elif isinstance(result, dict):
+                output = result.get("generated_text", "")
+            else:
+                output = str(result)
+            
+            original_length = sum(len(d) for d in documents)
+            compressed_length = len(output) if output else 1
+            ratio = original_length / compressed_length if compressed_length > 0 else 1.0
+            
+            return output, ratio
+    
+    raise ValueError(f"Unknown provider type: {_compression_provider['type']}")
 
 
-async def query_rag_with_clara(
+async def query_rag_compressed(
     query: str,
     domain: Domain,
     sector: Sector,
@@ -675,16 +547,10 @@ async def query_rag_with_clara(
     jurisdictions: Optional[List[Jurisdiction]] = None,
     document_type: Optional[DocumentType] = None,
 ) -> dict:
-    """
-    Query RAG with CLaRA semantic compression.
-    
-    1. Retrieves relevant chunks via standard RAG
-    2. Compresses chunks using CLaRA for query-aware context
-    3. Returns compressed context with metadata
-    """
+    """Query RAG with optional compression."""
+    import time
     start_time = time.time()
     
-    # First, get standard RAG results
     rag_result = await query_rag(
         query=query,
         domain=domain,
@@ -706,56 +572,31 @@ async def query_rag_with_clara(
             "error": rag_result.get("error"),
         }
     
-    # If CLaRA is not available, return standard results
-    if not clara_is_ready():
-        processing_time = int((time.time() - start_time) * 1000)
+    if not _compression_provider:
         return {
             "context": rag_result.get("context", ""),
             "compressed": False,
             "compression_ratio": None,
-            "processing_time_ms": processing_time,
+            "processing_time_ms": int((time.time() - start_time) * 1000),
             "chunks_found": rag_result.get("chunks_found", 0),
             "sources": rag_result.get("sources", []),
-            "error": "CLaRA not available",
+            "error": None,
         }
     
-    # Extract document chunks from context
-    # Context format: [Source: ...]\nchunk_text\n\n---\n\n[Source: ...]...
     context = rag_result.get("context", "")
-    chunks = []
-    for part in context.split("\n\n---\n\n"):
-        # Remove source header
-        lines = part.strip().split("\n", 1)
-        if len(lines) > 1:
-            chunks.append(lines[1])
-        elif lines:
-            chunks.append(lines[0])
-    
-    if not chunks:
-        chunks = [context]
+    chunks = [part.split("\n", 1)[-1] for part in context.split("\n\n---\n\n")]
     
     try:
-        # Compress with CLaRA
-        compressed_context, compression_ratio = await clara_compress_context(
-            documents=chunks,
-            query=query,
-            max_new_tokens=512,
-        )
+        compressed_context, compression_ratio = await compress_context(chunks, query)
         
-        processing_time = int((time.time() - start_time) * 1000)
-        
-        # Build formatted context with sources
         sources = rag_result.get("sources", [])
         source_list = "\n".join([
-            f"[{i+1}] {s.get('filename', 'Unknown')} - {s.get('region', 'global')} ({', '.join(s.get('jurisdictions', ['general']))})"
+            f"[{i+1}] {s.get('filename', 'Unknown')} - {s.get('region', 'global')}"
             for i, s in enumerate(sources)
         ])
         
-        region_label = f" | Region: {region.value.upper()}" if region else ""
-        juris_label = f" | Jurisdictions: {', '.join(j.value for j in jurisdictions)}" if jurisdictions else ""
-        
         formatted_context = (
-            f"\n\n--- CLaRA Compressed Context ({domain.value}/{sector.value}{region_label}{juris_label}) ---\n"
+            f"\n\n--- Compressed Context ({domain.value}/{sector.value}) ---\n"
             f"{compressed_context}\n\n"
             f"Sources:\n{source_list}\n"
             f"--- End Context (compressed {compression_ratio:.1f}x) ---\n"
@@ -765,26 +606,22 @@ async def query_rag_with_clara(
             "context": formatted_context,
             "compressed": True,
             "compression_ratio": compression_ratio,
-            "processing_time_ms": processing_time,
+            "processing_time_ms": int((time.time() - start_time) * 1000),
             "chunks_found": rag_result.get("chunks_found", 0),
             "sources": sources,
             "error": None,
         }
-        
     except Exception as e:
-        logger.error(f"CLaRA processing failed, returning standard context: {e}")
-        processing_time = int((time.time() - start_time) * 1000)
-        
+        logger.error(f"Compression failed: {e}")
         return {
             "context": rag_result.get("context", ""),
             "compressed": False,
             "compression_ratio": None,
-            "processing_time_ms": processing_time,
+            "processing_time_ms": int((time.time() - start_time) * 1000),
             "chunks_found": rag_result.get("chunks_found", 0),
             "sources": rag_result.get("sources", []),
-            "error": f"CLaRA failed: {str(e)}",
+            "error": f"Compression failed: {str(e)}",
         }
 
 
-# Initialize CLaRA on module load (if enabled)
-_init_clara()
+init_compression_provider()

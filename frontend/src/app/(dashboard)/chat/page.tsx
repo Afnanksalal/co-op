@@ -284,7 +284,7 @@ export default function ChatPage() {
       const collectedThinkingSteps: string[] = [];
 
       // Use SSE streaming for real-time updates
-      const handleStreamEvent = (event: StreamEvent) => {
+      const handleStreamEvent = async (event: StreamEvent) => {
         switch (event.type) {
           case 'progress': {
             const { phase, progress, content } = event.data;
@@ -359,13 +359,20 @@ export default function ChatPage() {
               }
             }
             
-            // Save assistant response
+            // Save assistant response - ensure it persists to database
             if (finalContent && sessionToUse) {
-              api.addSessionMessage(sessionToUse.id, {
-                role: 'assistant',
-                content: finalContent,
-                agent: isMultiAgent ? undefined : selectedAgent ?? undefined,
-              }).catch(console.error);
+              try {
+                await api.addSessionMessage(sessionToUse.id, {
+                  role: 'assistant',
+                  content: finalContent,
+                  // For multi-agent, store as undefined (backend accepts any string for agent)
+                  agent: isMultiAgent ? undefined : selectedAgent ?? undefined,
+                  metadata: isMultiAgent ? { multiAgent: true } : undefined,
+                });
+              } catch (saveError) {
+                console.error('Failed to save assistant message:', saveError);
+                toast.error('Response generated but failed to save to history');
+              }
               
               setFollowUpSuggestions(generateFollowUpSuggestions(prompt, finalContent));
             }
@@ -512,11 +519,17 @@ export default function ChatPage() {
     }
 
     if (finalContent && currentSession) {
-      await api.addSessionMessage(currentSession.id, {
-        role: 'assistant',
-        content: finalContent,
-        agent: isMultiAgent ? undefined : selectedAgent ?? undefined,
-      });
+      try {
+        await api.addSessionMessage(currentSession.id, {
+          role: 'assistant',
+          content: finalContent,
+          agent: isMultiAgent ? undefined : selectedAgent ?? undefined,
+          metadata: isMultiAgent ? { multiAgent: true } : undefined,
+        });
+      } catch (saveError) {
+        console.error('Failed to save assistant message:', saveError);
+        toast.error('Response generated but failed to save to history');
+      }
       setFollowUpSuggestions(generateFollowUpSuggestions(prompt, finalContent));
     }
     
@@ -736,16 +749,16 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="h-[calc(100vh-4rem)] md:h-[calc(100vh-4rem)] flex flex-col max-w-4xl mx-auto">
-      {/* Agent Selector */}
-      <div className="flex items-center gap-1 sm:gap-2 pb-3 sm:pb-4 border-b border-border/40 shrink-0 overflow-x-auto">
+    <div className="h-[calc(100vh-4rem)] md:h-[calc(100vh-4rem)] flex flex-col max-w-4xl mx-auto px-3 sm:px-4 md:px-0">
+      {/* Agent Selector - Mobile optimized with horizontal scroll */}
+      <div className="flex items-center gap-2 sm:gap-3 py-3 sm:py-4 border-b border-border/40 shrink-0 overflow-x-auto scrollbar-hide -mx-3 sm:-mx-4 md:mx-0 px-3 sm:px-4 md:px-0">
         {messages.length > 0 && (
           <>
             <Button
               variant="ghost"
               size="sm"
               onClick={handleNewChat}
-              className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+              className="h-9 sm:h-8 px-3 sm:px-2 text-xs text-muted-foreground hover:text-foreground touch-manipulation active:scale-95 shrink-0"
             >
               New Chat
             </Button>
@@ -753,7 +766,7 @@ export default function ChatPage() {
               variant="ghost"
               size="sm"
               onClick={() => handleExportSession('markdown')}
-              className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground mr-2"
+              className="h-9 sm:h-8 w-9 sm:w-8 p-0 text-muted-foreground hover:text-foreground mr-1 sm:mr-2 touch-manipulation active:scale-95 shrink-0"
               title="Export as Markdown"
             >
               <DownloadSimple weight="regular" className="w-4 h-4" />
@@ -766,17 +779,17 @@ export default function ChatPage() {
         <button
           onClick={() => setSelectedAgent(null)}
           className={cn(
-            'flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm transition-all duration-200 shrink-0',
+            'flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3 py-2 sm:py-1.5 rounded-xl sm:rounded-lg text-xs sm:text-sm transition-all duration-200 shrink-0 touch-manipulation active:scale-95',
             selectedAgent === null
-              ? 'bg-primary/10 text-foreground'
+              ? 'bg-primary/10 text-foreground font-medium'
               : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
           )}
         >
           <Lightning weight={selectedAgent === null ? 'fill' : 'regular'} className="w-4 h-4" />
-          <span className="hidden sm:inline">All Agents</span>
+          <span className="sm:inline">All</span>
         </button>
 
-        <div className="w-px h-4 bg-border/40 mx-1" />
+        <div className="w-px h-5 sm:h-4 bg-border/40 mx-0.5 sm:mx-1 shrink-0" />
 
         {/* Individual Agents */}
         {(Object.keys(agentConfig) as AgentType[]).map((agent) => {
@@ -787,14 +800,15 @@ export default function ChatPage() {
               key={agent}
               onClick={() => setSelectedAgent(agent)}
               className={cn(
-                'flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm transition-all duration-200 shrink-0',
+                'flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3 py-2 sm:py-1.5 rounded-xl sm:rounded-lg text-xs sm:text-sm transition-all duration-200 shrink-0 touch-manipulation active:scale-95',
                 isSelected
-                  ? 'bg-primary/10 text-foreground'
+                  ? 'bg-primary/10 text-foreground font-medium'
                   : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
               )}
             >
               <config.icon weight={isSelected ? 'fill' : 'regular'} className="w-4 h-4" />
-              <span className="hidden sm:inline">{config.name}</span>
+              <span className="sm:inline">{config.name.slice(0, 3)}</span>
+              <span className="hidden sm:inline">{config.name.slice(3)}</span>
             </button>
           );
         })}
@@ -803,34 +817,34 @@ export default function ChatPage() {
       {/* Messages */}
       <div 
         ref={messagesContainerRef}
-        className="flex-1 overflow-y-auto py-6 space-y-4 scrollbar-hide"
+        className="flex-1 overflow-y-auto py-4 sm:py-6 space-y-3 sm:space-y-4 scrollbar-hide -mx-3 sm:-mx-4 md:mx-0 px-3 sm:px-4 md:px-0"
       >
         {messages.length === 0 ? (
           <div className="h-full flex items-center justify-center px-2">
-            <div className="text-center max-w-md">
+            <div className="text-center max-w-md mx-auto">
               {selectedAgent === null ? (
                 <>
-                  <Lightning weight="light" className="w-10 sm:w-12 h-10 sm:h-12 text-muted-foreground mx-auto mb-4 sm:mb-6" />
+                  <Lightning weight="light" className="w-12 sm:w-14 h-12 sm:h-14 text-muted-foreground mx-auto mb-4 sm:mb-6" />
                   <h2 className="font-serif text-xl sm:text-2xl font-medium mb-2 sm:mb-3">Multi-Agent Mode</h2>
-                  <p className="text-muted-foreground text-xs sm:text-sm mb-6 sm:mb-8">
+                  <p className="text-muted-foreground text-sm sm:text-sm mb-6 sm:mb-8 px-4 sm:px-0 leading-relaxed">
                     All 4 agents collaborate to answer your question. They critique each other and synthesize the best response.
                   </p>
                 </>
               ) : (
                 <>
-                  <Sparkle weight="light" className="w-10 sm:w-12 h-10 sm:h-12 text-muted-foreground mx-auto mb-4 sm:mb-6" />
+                  <Sparkle weight="light" className="w-12 sm:w-14 h-12 sm:h-14 text-muted-foreground mx-auto mb-4 sm:mb-6" />
                   <h2 className="font-serif text-xl sm:text-2xl font-medium mb-2 sm:mb-3">Start a conversation</h2>
-                  <p className="text-muted-foreground text-xs sm:text-sm mb-6 sm:mb-8">
+                  <p className="text-muted-foreground text-sm sm:text-sm mb-6 sm:mb-8 px-4 sm:px-0 leading-relaxed">
                     Ask {agentConfig[selectedAgent].name} agent any question.
                   </p>
                 </>
               )}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 px-2 sm:px-0">
                 {suggestions.map((suggestion) => (
                   <button
                     key={suggestion}
                     onClick={() => setInput(suggestion)}
-                    className="text-left text-xs sm:text-sm p-3 sm:p-4 rounded-lg border border-border/40 hover:border-border hover:bg-muted/30 transition-all duration-200"
+                    className="text-left text-sm sm:text-sm p-4 sm:p-4 rounded-xl sm:rounded-lg border border-border/40 hover:border-border hover:bg-muted/30 transition-all duration-200 touch-manipulation active:scale-[0.98] active:bg-muted/40"
                   >
                     {suggestion}
                   </button>
@@ -845,23 +859,23 @@ export default function ChatPage() {
                 key={message.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className={cn('flex gap-3', message.role === 'user' ? 'justify-end' : 'justify-start')}
+                className={cn('flex gap-2 sm:gap-3', message.role === 'user' ? 'justify-end' : 'justify-start')}
               >
                 {message.role === 'assistant' && (
-                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0 mt-1">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-muted flex items-center justify-center shrink-0 mt-1">
                     {message.agent === 'multi' ? (
-                      <Lightning weight="regular" className="w-4 h-4 text-muted-foreground" />
+                      <Lightning weight="regular" className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
                     ) : (
-                      <Robot weight="regular" className="w-4 h-4 text-muted-foreground" />
+                      <Robot weight="regular" className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
                     )}
                   </div>
                 )}
 
-                <div className={cn('max-w-[85%]', message.role === 'user' ? 'order-first' : '')}>
+                <div className={cn('max-w-[88%] sm:max-w-[85%]', message.role === 'user' ? 'order-first' : '')}>
                   {message.isStreaming ? (
                     <Card className="border-border/40 bg-card">
-                      <CardContent className="p-4">
-                        <div className="space-y-3">
+                      <CardContent className="p-3 sm:p-4">
+                        <div className="space-y-2.5 sm:space-y-3">
                           <div className="flex items-center gap-2">
                             <CircleNotch weight="bold" className="w-4 h-4 animate-spin text-primary" />
                             <span className="text-sm font-medium">{message.content || 'Thinking...'}</span>
@@ -928,14 +942,14 @@ export default function ChatPage() {
                     </Card>
                   ) : message.role === 'user' ? (
                     <Card className="border-border/40 bg-primary/10">
-                      <CardContent className="p-4">
+                      <CardContent className="p-3 sm:p-4">
                         <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
                       </CardContent>
                     </Card>
                   ) : (
                     <div className="space-y-2">
                       <Card className="border-border/40 bg-card">
-                        <CardContent className="p-4">
+                        <CardContent className="p-3 sm:p-4">
                           {message.agent === 'multi' && (
                             <Badge variant="secondary" className="mb-2 text-xs">
                               <Lightning weight="fill" className="w-3 h-3 mr-1" />
@@ -947,10 +961,10 @@ export default function ChatPage() {
                       </Card>
 
                       {message.confidence && (
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                           <button
                             onClick={() => toggleDetails(message.id)}
-                            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1 touch-manipulation"
                           >
                             {expandedDetails === message.id ? (
                               <CaretUp weight="bold" className="w-3 h-3" />
@@ -959,70 +973,73 @@ export default function ChatPage() {
                             )}
                             <span>{Math.round(message.confidence * 100)}% confidence</span>
                             {message.thinkingSteps && message.thinkingSteps.length > 0 && (
-                              <span>· {message.thinkingSteps.length} thinking steps</span>
+                              <span className="hidden sm:inline">· {message.thinkingSteps.length} steps</span>
                             )}
                             {message.sources && message.sources.length > 0 && (
-                              <span>· {message.sources.length} sources</span>
+                              <span className="hidden sm:inline">· {message.sources.length} sources</span>
                             )}
                           </button>
-                          <div className="flex-1" />
-                          {/* Rating buttons */}
-                          {!ratedMessages.has(message.id) && (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleRate(message.id, true)}
-                                className="h-7 px-2 text-muted-foreground hover:text-green-500"
-                              >
-                                <ThumbsUp weight="regular" className="w-3.5 h-3.5" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleRate(message.id, false)}
-                                className="h-7 px-2 text-muted-foreground hover:text-red-500"
-                              >
-                                <ThumbsDown weight="regular" className="w-3.5 h-3.5" />
-                              </Button>
-                            </>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleCopy(message.content, message.id)}
-                            className="h-7 px-2 text-muted-foreground hover:text-foreground"
-                          >
-                            {copiedId === message.id ? (
-                              <Check weight="bold" className="w-3.5 h-3.5" />
-                            ) : (
-                              <Copy weight="regular" className="w-3.5 h-3.5" />
+                          <div className="hidden sm:block flex-1" />
+                          {/* Action buttons - horizontal scroll on mobile */}
+                          <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide -mx-1 px-1">
+                            {/* Rating buttons */}
+                            {!ratedMessages.has(message.id) && (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleRate(message.id, true)}
+                                  className="h-9 w-9 sm:h-7 sm:w-auto sm:px-2 p-0 text-muted-foreground hover:text-green-500 touch-manipulation active:scale-95 shrink-0"
+                                >
+                                  <ThumbsUp weight="regular" className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleRate(message.id, false)}
+                                  className="h-9 w-9 sm:h-7 sm:w-auto sm:px-2 p-0 text-muted-foreground hover:text-red-500 touch-manipulation active:scale-95 shrink-0"
+                                >
+                                  <ThumbsDown weight="regular" className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                                </Button>
+                              </>
                             )}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleBookmark(message.id, message.content, message.agent === 'multi' ? 'multi-agent' : message.agent)}
-                            className="h-7 px-2 text-muted-foreground hover:text-foreground"
-                            title="Save to bookmarks"
-                          >
-                            <BookmarkSimple weight="regular" className="w-3.5 h-3.5" />
-                          </Button>
-                          {message.agent && (
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleExportToNotion(message.id, message.content, message.agent!)}
-                              disabled={isExporting === message.id}
-                              className="h-7 px-2 text-muted-foreground hover:text-foreground"
+                              onClick={() => handleCopy(message.content, message.id)}
+                              className="h-9 w-9 sm:h-7 sm:w-auto sm:px-2 p-0 text-muted-foreground hover:text-foreground touch-manipulation active:scale-95 shrink-0"
                             >
-                              {isExporting === message.id ? (
-                                <CircleNotch weight="bold" className="w-3.5 h-3.5 animate-spin" />
+                              {copiedId === message.id ? (
+                                <Check weight="bold" className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                               ) : (
-                                <NotionLogo weight="regular" className="w-3.5 h-3.5" />
+                                <Copy weight="regular" className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                               )}
                             </Button>
-                          )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleBookmark(message.id, message.content, message.agent === 'multi' ? 'multi-agent' : message.agent)}
+                              className="h-9 w-9 sm:h-7 sm:w-auto sm:px-2 p-0 text-muted-foreground hover:text-foreground touch-manipulation active:scale-95 shrink-0"
+                              title="Save to bookmarks"
+                            >
+                              <BookmarkSimple weight="regular" className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                            </Button>
+                            {message.agent && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleExportToNotion(message.id, message.content, message.agent!)}
+                                disabled={isExporting === message.id}
+                                className="h-9 w-9 sm:h-7 sm:w-auto sm:px-2 p-0 text-muted-foreground hover:text-foreground touch-manipulation active:scale-95 shrink-0"
+                              >
+                                {isExporting === message.id ? (
+                                  <CircleNotch weight="bold" className="w-4 h-4 sm:w-3.5 sm:h-3.5 animate-spin" />
+                                ) : (
+                                  <NotionLogo weight="regular" className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                                )}
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       )}
 
@@ -1072,8 +1089,8 @@ export default function ChatPage() {
                 </div>
 
                 {message.role === 'user' && (
-                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0 mt-1">
-                    <UserIcon weight="regular" className="w-4 h-4 text-muted-foreground" />
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-muted flex items-center justify-center shrink-0 mt-1">
+                    <UserIcon weight="regular" className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
                   </div>
                 )}
               </motion.div>
@@ -1085,27 +1102,27 @@ export default function ChatPage() {
 
       {/* Follow-up Suggestions */}
       {followUpSuggestions.length > 0 && messages.length > 0 && !isLoading && (
-        <div className="pb-2 shrink-0">
-          <div className="flex items-center gap-2 mb-2">
+        <div className="pb-2 sm:pb-2 shrink-0 -mx-3 sm:-mx-4 md:mx-0 px-3 sm:px-4 md:px-0">
+          <div className="flex items-center gap-2 mb-2 sm:mb-2">
             <span className="text-xs text-muted-foreground">Follow-up:</span>
             {lastUserPrompt && (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={handleRegenerate}
-                className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                className="h-8 sm:h-6 px-2.5 sm:px-2 text-xs text-muted-foreground hover:text-foreground touch-manipulation active:scale-95"
               >
-                <ArrowClockwise weight="regular" className="w-3 h-3 mr-1" />
+                <ArrowClockwise weight="regular" className="w-3.5 h-3.5 sm:w-3 sm:h-3 mr-1" />
                 Regenerate
               </Button>
             )}
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 sm:gap-2">
             {followUpSuggestions.map((suggestion, i) => (
               <button
                 key={i}
                 onClick={() => setInput(suggestion)}
-                className="text-xs px-3 py-1.5 rounded-full border border-border/40 hover:border-border hover:bg-muted/30 transition-all"
+                className="text-xs px-3.5 sm:px-3 py-2 sm:py-1.5 rounded-full border border-border/40 hover:border-border hover:bg-muted/30 transition-all touch-manipulation active:scale-[0.98] active:bg-muted/40"
               >
                 {suggestion}
               </button>
@@ -1114,26 +1131,26 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* Input */}
-      <div className="pt-3 sm:pt-4 border-t border-border/40 shrink-0">
+      {/* Input - Mobile optimized sticky footer */}
+      <div className="pt-3 sm:pt-4 border-t border-border/40 shrink-0 bg-background pb-safe">
         {/* Uploaded Documents */}
         {uploadedDocs.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-3">
+          <div className="flex flex-wrap gap-2 mb-3 px-1">
             {uploadedDocs.map((doc) => {
               const DocIcon = getDocIcon(doc.mimeType);
               return (
                 <div
                   key={doc.id}
-                  className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted/50 border border-border/40 text-xs"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-muted/50 border border-border/40 text-xs touch-manipulation"
                 >
-                  <DocIcon weight="regular" className="w-3.5 h-3.5 text-muted-foreground" />
-                  <span className="max-w-[120px] truncate">{doc.originalName}</span>
+                  <DocIcon weight="regular" className="w-4 h-4 text-muted-foreground" />
+                  <span className="max-w-[100px] sm:max-w-[120px] truncate">{doc.originalName}</span>
                   <button
                     type="button"
                     onClick={() => handleRemoveDoc(doc.id)}
-                    className="text-muted-foreground hover:text-foreground transition-colors"
+                    className="text-muted-foreground hover:text-foreground transition-colors p-1 -mr-1 touch-manipulation"
                   >
-                    <X weight="bold" className="w-3 h-3" />
+                    <X weight="bold" className="w-4 h-4" />
                   </button>
                 </div>
               );
@@ -1142,8 +1159,8 @@ export default function ChatPage() {
         )}
         
         <form onSubmit={handleSubmit}>
-          <div className="relative flex items-end gap-2">
-            {/* File upload button */}
+          <div className="relative flex items-end gap-2 sm:gap-3">
+            {/* File upload button - larger touch target on mobile */}
             <input
               ref={fileInputRef}
               type="file"
@@ -1157,7 +1174,7 @@ export default function ChatPage() {
               size="icon"
               onClick={handleFileSelect}
               disabled={isLoading || isUploading}
-              className="h-10 w-10 shrink-0 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-full"
+              className="h-11 w-11 sm:h-10 sm:w-10 shrink-0 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-full touch-manipulation active:scale-95 transition-transform"
               title="Attach document"
             >
               {isUploading ? (
@@ -1173,15 +1190,16 @@ export default function ChatPage() {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={getPlaceholder()}
-                className="min-h-[44px] sm:min-h-[48px] max-h-[120px] sm:max-h-[150px] pr-12 resize-none text-sm py-3"
+                className="min-h-[48px] sm:min-h-[48px] max-h-[100px] sm:max-h-[150px] pr-2 resize-none text-base sm:text-sm py-3 px-4 rounded-2xl border-border/60 focus:border-primary/50 touch-manipulation"
                 disabled={isLoading}
+                rows={1}
               />
             </div>
             
             <Button
               type="submit"
               size="icon"
-              className="h-10 w-10 shrink-0 rounded-full"
+              className="h-11 w-11 sm:h-10 sm:w-10 shrink-0 rounded-full touch-manipulation active:scale-95 transition-transform"
               disabled={!input.trim() || isLoading}
             >
               {isLoading ? (
@@ -1191,8 +1209,12 @@ export default function ChatPage() {
               )}
             </Button>
           </div>
-          <p className="text-[10px] sm:text-xs text-muted-foreground mt-2 text-center hidden sm:block">
-            {selectedAgent === null ? 'Multi-agent A2A mode · ' : ''}Press Enter to send · Shift+Enter for new line · Attach PDFs for context
+          {/* Mobile hint - show on mobile too but shorter */}
+          <p className="text-[10px] sm:text-xs text-muted-foreground mt-2 text-center">
+            <span className="sm:hidden">Tap to send · Attach files for context</span>
+            <span className="hidden sm:inline">
+              {selectedAgent === null ? 'Multi-agent A2A mode · ' : ''}Press Enter to send · Shift+Enter for new line · Attach PDFs for context
+            </span>
           </p>
         </form>
       </div>

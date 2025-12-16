@@ -29,7 +29,6 @@
 
 ## Agent Improvements - COMPLETED ✓
 
-- [x] CLaRA RAG Specialist integration (Apple CLaRa-7B-Instruct)
 - [x] Legal: Jurisdiction selector for region-specific advice
 - [x] Finance: Built-in financial calculators
 - [x] Investor: Searchable investor database
@@ -97,13 +96,6 @@
 - [x] Audit logging service
 - [x] Circuit breaker with LRU cleanup
 - [x] Timing-safe API key comparison
-
-### RAG Enhancements
-- [x] CLaRA RAG Specialist (apple/CLaRa-7B-Instruct)
-  - Semantic document compression (16×/128×)
-  - Query-aware context extraction
-  - Document analysis and classification
-  - Relevance scoring for RAG chunks
 
 ### Agent Improvements
 - [x] Legal: Jurisdiction selector (region + specific regulations)

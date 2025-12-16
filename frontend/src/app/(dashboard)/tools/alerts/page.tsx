@@ -225,31 +225,31 @@ export default function AlertsPage() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between"
+        className="flex items-start sm:items-center justify-between gap-3"
       >
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.back()}>
+        <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+          <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-9 w-9 sm:h-10 sm:w-10 shrink-0">
             <ArrowLeftIcon />
           </Button>
-          <div>
-            <h1 className="font-serif text-2xl sm:text-3xl font-medium tracking-tight">
+          <div className="min-w-0">
+            <h1 className="font-serif text-xl sm:text-2xl md:text-3xl font-medium tracking-tight">
               Monitoring Alerts
             </h1>
-            <p className="text-sm text-muted-foreground">
-              Get notified about competitor updates and market changes
+            <p className="text-xs sm:text-sm text-muted-foreground truncate">
+              Competitor updates and market changes
             </p>
           </div>
         </div>
         
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
           <DialogTrigger asChild>
-            <Button disabled={alerts.length >= 3}>
+            <Button disabled={alerts.length >= 3} size="sm" className="shrink-0 h-9 sm:h-10">
               <PlusIcon />
-              <span className="ml-1.5">New Alert</span>
+              <span className="ml-1.5 hidden sm:inline">New Alert</span>
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-md">
@@ -382,20 +382,20 @@ export default function AlertsPage() {
 
       {/* Pilot limit notice */}
       <Card className="border-border/40 bg-muted/30">
-        <CardContent className="p-4">
-          <p className="text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">Pilot Program:</span> You can create up to 3 monitoring alerts.
-            {alerts.length >= 3 && ' Delete an existing alert to create a new one.'}
+        <CardContent className="p-3 sm:p-4">
+          <p className="text-xs sm:text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">Pilot:</span> Up to 3 alerts.
+            {alerts.length >= 3 && ' Delete one to create new.'}
           </p>
         </CardContent>
       </Card>
 
 
       {/* Main content - split view */}
-      <div className="grid lg:grid-cols-2 gap-6">
+      <div className="grid lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Alerts list */}
-        <div className="space-y-3">
-          <h2 className="text-sm font-medium text-muted-foreground">Your Alerts</h2>
+        <div className="space-y-2 sm:space-y-3">
+          <h2 className="text-xs sm:text-sm font-medium text-muted-foreground">Your Alerts</h2>
           {isLoading ? (
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
@@ -511,9 +511,9 @@ export default function AlertsPage() {
         </div>
 
         {/* Results panel */}
-        <div className="space-y-3">
-          <h2 className="text-sm font-medium text-muted-foreground">
-            {selectedAlert ? `Results for "${selectedAlert.name}"` : 'Select an alert to view results'}
+        <div className="space-y-2 sm:space-y-3">
+          <h2 className="text-xs sm:text-sm font-medium text-muted-foreground truncate">
+            {selectedAlert ? `Results: "${selectedAlert.name}"` : 'Select an alert'}
           </h2>
           
           {!selectedAlert ? (

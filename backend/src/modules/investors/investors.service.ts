@@ -107,9 +107,9 @@ export class InvestorsService {
       filteredIds = regionMatches.map((r) => r.investorId);
     }
 
-    // Get full data for filtered investors
+    // Get full data for filtered investors - use batch fetch to avoid N+1
     const finalInvestors = baseInvestors.filter((i) => filteredIds.includes(i.id));
-    return Promise.all(finalInvestors.map((i) => this.buildResponseDto(i)));
+    return this.buildResponseDtosBatch(finalInvestors);
   }
 
   async findAllAdmin(): Promise<InvestorResponseDto[]> {
@@ -118,7 +118,7 @@ export class InvestorsService {
       .from(investors)
       .orderBy(desc(investors.createdAt));
 
-    return Promise.all(results.map((i) => this.buildResponseDto(i)));
+    return this.buildResponseDtosBatch(results);
   }
 
   async findOne(id: string): Promise<InvestorResponseDto> {
@@ -285,50 +285,92 @@ export class InvestorsService {
     }
   }
 
-  private async buildResponseDto(
-    investor: typeof investors.$inferSelect,
-  ): Promise<InvestorResponseDto> {
-    // Fetch related data from junction tables
-    const [sectors, regions, portfolio, exits] = await Promise.all([
+  /**
+   * Batch fetch related data for multiple investors to avoid N+1 queries
+   */
+  private async buildResponseDtosBatch(
+    investorList: (typeof investors.$inferSelect)[],
+  ): Promise<InvestorResponseDto[]> {
+    if (investorList.length === 0) return [];
+
+    const investorIds = investorList.map((i) => i.id);
+
+    // Batch fetch all related data in 4 queries instead of 4*N queries
+    const [allSectors, allRegions, allPortfolio, allExits] = await Promise.all([
       this.db
-        .select({ sector: investorSectors.sector })
+        .select({ investorId: investorSectors.investorId, sector: investorSectors.sector })
         .from(investorSectors)
-        .where(eq(investorSectors.investorId, investor.id)),
+        .where(inArray(investorSectors.investorId, investorIds)),
       this.db
-        .select({ region: investorRegions.region })
+        .select({ investorId: investorRegions.investorId, region: investorRegions.region })
         .from(investorRegions)
-        .where(eq(investorRegions.investorId, investor.id)),
+        .where(inArray(investorRegions.investorId, investorIds)),
       this.db
-        .select({ companyName: investorPortfolioCompanies.companyName })
+        .select({ investorId: investorPortfolioCompanies.investorId, companyName: investorPortfolioCompanies.companyName })
         .from(investorPortfolioCompanies)
-        .where(eq(investorPortfolioCompanies.investorId, investor.id)),
+        .where(inArray(investorPortfolioCompanies.investorId, investorIds)),
       this.db
-        .select({ companyName: investorNotableExits.companyName })
+        .select({ investorId: investorNotableExits.investorId, companyName: investorNotableExits.companyName })
         .from(investorNotableExits)
-        .where(eq(investorNotableExits.investorId, investor.id)),
+        .where(inArray(investorNotableExits.investorId, investorIds)),
     ]);
 
-    return {
+    // Group by investor ID for O(1) lookup
+    const sectorsMap = new Map<string, string[]>();
+    const regionsMap = new Map<string, string[]>();
+    const portfolioMap = new Map<string, string[]>();
+    const exitsMap = new Map<string, string[]>();
+
+    for (const s of allSectors) {
+      const arr = sectorsMap.get(s.investorId) ?? [];
+      arr.push(s.sector);
+      sectorsMap.set(s.investorId, arr);
+    }
+    for (const r of allRegions) {
+      const arr = regionsMap.get(r.investorId) ?? [];
+      arr.push(r.region);
+      regionsMap.set(r.investorId, arr);
+    }
+    for (const p of allPortfolio) {
+      const arr = portfolioMap.get(p.investorId) ?? [];
+      arr.push(p.companyName);
+      portfolioMap.set(p.investorId, arr);
+    }
+    for (const e of allExits) {
+      const arr = exitsMap.get(e.investorId) ?? [];
+      arr.push(e.companyName);
+      exitsMap.set(e.investorId, arr);
+    }
+
+    return investorList.map((investor) => ({
       id: investor.id,
       name: investor.name,
       description: investor.description,
       website: investor.website,
       logoUrl: investor.logoUrl,
       stage: investor.stage as InvestorResponseDto['stage'],
-      sectors: sectors.map((s) => s.sector),
+      sectors: sectorsMap.get(investor.id) ?? [],
       checkSizeMin: investor.checkSizeMin,
       checkSizeMax: investor.checkSizeMax,
       location: investor.location,
-      regions: regions.map((r) => r.region),
+      regions: regionsMap.get(investor.id) ?? [],
       contactEmail: investor.contactEmail,
       linkedinUrl: investor.linkedinUrl,
       twitterUrl: investor.twitterUrl,
-      portfolioCompanies: portfolio.map((p) => p.companyName),
-      notableExits: exits.map((e) => e.companyName),
+      portfolioCompanies: portfolioMap.get(investor.id) ?? [],
+      notableExits: exitsMap.get(investor.id) ?? [],
       isActive: investor.isActive,
       isFeatured: investor.isFeatured,
       createdAt: investor.createdAt.toISOString(),
       updatedAt: investor.updatedAt.toISOString(),
-    };
+    }));
+  }
+
+  private async buildResponseDto(
+    investor: typeof investors.$inferSelect,
+  ): Promise<InvestorResponseDto> {
+    // For single investor, use batch method with array of 1
+    const [result] = await this.buildResponseDtosBatch([investor]);
+    return result;
   }
 }

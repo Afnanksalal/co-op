@@ -75,7 +75,6 @@ export class RagService {
           domain: request.domain,
           sector: request.sector,
           content_type: request.contentType,
-          // New jurisdiction fields
           region: request.region ?? 'global',
           jurisdictions: request.jurisdictions ?? ['general'],
           document_type: request.documentType ?? 'guide',
@@ -174,7 +173,6 @@ export class RagService {
           domain: request.domain,
           sector: request.sector,
           limit: request.limit ?? 5,
-          // New jurisdiction fields
           region: request.region ?? null,
           jurisdictions: request.jurisdictions ?? null,
           document_type: request.documentType ?? null,
@@ -268,17 +266,6 @@ export class RagService {
 
   /**
    * Get relevant context for an agent prompt with jurisdiction filtering.
-   * Returns formatted context from RAG - the LLM Council will use this to generate answers.
-   * 
-   * CLaRA processing is handled by the Python RAG service when useClara=true.
-   * 
-   * @param query - The user's question
-   * @param domain - legal or finance
-   * @param sector - fintech, greentech, healthtech, saas, ecommerce
-   * @param country - User's country (will be mapped to region)
-   * @param jurisdictions - Specific regulatory frameworks to filter by
-   * @param limit - Max number of chunks to return
-   * @param useClara - Whether to use CLaRA for context processing (default: true)
    */
   async getContext(
     query: string,
@@ -287,19 +274,8 @@ export class RagService {
     country?: string,
     jurisdictions?: RagJurisdiction[],
     limit = 5,
-    useClara = true,
   ): Promise<string> {
-    // Map country to region
     const region: RagRegion | undefined = country ? getRegionFromCountry(country) : undefined;
-
-    // If CLaRA is requested, use the dedicated endpoint
-    if (useClara) {
-      const claraResult = await this.queryWithClara(query, domain, sector, limit, region, jurisdictions);
-      if (claraResult) {
-        return claraResult;
-      }
-      // Fall through to regular query if CLaRA fails
-    }
 
     const result = await this.query({
       query,
@@ -314,7 +290,6 @@ export class RagService {
       return '';
     }
 
-    // Build source list with jurisdiction info
     const sourceList = result.sources
       .map((s, i) => {
         const regionInfo = s.region ? ` [${s.region.toUpperCase()}]` : '';
@@ -327,93 +302,6 @@ export class RagService {
     const jurisLabel = jurisdictions?.length ? ` | Jurisdictions: ${jurisdictions.join(', ')}` : '';
 
     return `\n\n--- RAG Context (${domain}/${sector}${regionLabel}${jurisLabel}) ---\n${result.context}\n\nSources:\n${sourceList}\n--- End RAG Context ---\n`;
-  }
-
-  /**
-   * Query RAG with CLaRA semantic compression via Python service.
-   * Returns compressed, query-aware context.
-   */
-  private async queryWithClara(
-    query: string,
-    domain: RagDomain,
-    sector: RagSector,
-    limit: number,
-    region?: RagRegion,
-    jurisdictions?: RagJurisdiction[],
-  ): Promise<string | null> {
-    if (!this.isConfigured) {
-      return null;
-    }
-
-    try {
-      const response = await fetch(`${this.ragBaseUrl}/rag/clara/query`, {
-        method: 'POST',
-        headers: this.getHeaders(),
-        body: JSON.stringify({
-          query,
-          domain,
-          sector,
-          limit,
-          region: region ?? null,
-          jurisdictions: jurisdictions ?? null,
-        }),
-        signal: AbortSignal.timeout(90000), // CLaRA needs more time
-      });
-
-      if (!response.ok) {
-        this.logger.warn(`CLaRA query failed: ${response.statusText}`);
-        return null;
-      }
-
-      const data = (await response.json()) as {
-        context: string;
-        compressed: boolean;
-        compression_ratio?: number;
-        processing_time_ms: number;
-        chunks_found: number;
-        error?: string;
-      };
-
-      if (data.error) {
-        this.logger.warn(`CLaRA error: ${data.error}`);
-        return null;
-      }
-
-      this.logger.debug(
-        `CLaRA processed context: compressed=${String(data.compressed)}, ` +
-        `ratio=${data.compression_ratio?.toFixed(2) ?? 'N/A'}, ` +
-        `time=${String(data.processing_time_ms)}ms`,
-      );
-
-      return data.context;
-    } catch (error) {
-      this.logger.warn('CLaRA query failed, falling back to standard RAG', error);
-      return null;
-    }
-  }
-
-  /**
-   * Check if CLaRA RAG specialist is available via Python service
-   */
-  async isClaraAvailable(): Promise<boolean> {
-    if (!this.isConfigured) {
-      return false;
-    }
-
-    try {
-      const response = await fetch(`${this.ragBaseUrl}/rag/clara/health`, {
-        method: 'GET',
-        headers: this.getHeaders(),
-        signal: AbortSignal.timeout(5000),
-      });
-      
-      if (!response.ok) return false;
-      
-      const data = (await response.json()) as { available: boolean };
-      return data.available;
-    } catch {
-      return false;
-    }
   }
 
   /**

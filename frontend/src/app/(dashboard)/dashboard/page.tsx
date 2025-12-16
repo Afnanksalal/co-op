@@ -103,16 +103,16 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-12">
+    <div className="max-w-5xl mx-auto space-y-6 sm:space-y-8 md:space-y-12">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <h1 className="font-serif text-2xl sm:text-3xl md:text-4xl font-medium tracking-tight mb-2">
+        <h1 className="font-serif text-xl sm:text-2xl md:text-3xl lg:text-4xl font-medium tracking-tight mb-1 sm:mb-2">
           Welcome back, {user?.name?.split(' ')[0] || 'there'}
         </h1>
-        <p className="text-sm sm:text-base text-muted-foreground">
+        <p className="text-xs sm:text-sm md:text-base text-muted-foreground">
           {user?.startup?.companyName ? `${user.startup.companyName} · ${user.startup.stage} stage` : 'Your AI advisory board is ready'}
         </p>
       </motion.div>
@@ -122,22 +122,22 @@ export default function DashboardPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1, duration: 0.5 }}
-          className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4"
+          className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 md:gap-4"
         >
           {[
             { label: 'Sessions', value: stats.totalSessions, icon: ChatCircle },
             { label: 'Active', value: stats.activeSessions, icon: Pulse },
-            { label: 'Events Today', value: stats.eventsToday, icon: Sparkle },
+            { label: 'Events', value: stats.eventsToday, icon: Sparkle },
             { label: 'Users', value: stats.totalUsers, icon: UsersThree },
           ].map((stat) => (
             <Card key={stat.label} className="border-border/40">
-              <CardContent className="p-5">
+              <CardContent className="p-3 sm:p-4 md:p-5">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-2xl font-serif font-medium">{stat.value}</p>
-                    <p className="text-sm text-muted-foreground">{stat.label}</p>
+                    <p className="text-xl sm:text-2xl font-serif font-medium">{stat.value}</p>
+                    <p className="text-[10px] sm:text-xs md:text-sm text-muted-foreground">{stat.label}</p>
                   </div>
-                  <stat.icon weight="light" className="w-6 h-6 text-muted-foreground" />
+                  <stat.icon weight="light" className="w-5 h-5 sm:w-6 sm:h-6 text-muted-foreground" />
                 </div>
               </CardContent>
             </Card>
@@ -153,20 +153,20 @@ export default function DashboardPage() {
           transition={{ delay: 0.15, duration: 0.5 }}
         >
           <Card className="border-border/40">
-            <CardContent className="p-5 sm:p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <Gauge weight="light" className="w-5 h-5 text-muted-foreground" />
-                  <h3 className="font-serif text-lg font-medium">Monthly Usage</h3>
+            <CardContent className="p-4 sm:p-5 md:p-6">
+              <div className="flex items-center justify-between mb-3 sm:mb-4">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <Gauge weight="light" className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
+                  <h3 className="font-serif text-base sm:text-lg font-medium">Monthly Usage</h3>
                 </div>
-                <Badge variant={usage.remaining <= 5 ? 'destructive' : 'secondary'}>
+                <Badge variant={usage.remaining <= 5 ? 'destructive' : 'secondary'} className="text-[10px] sm:text-xs">
                   {usage.remaining} left
                 </Badge>
               </div>
-              <div className="space-y-3">
-                <Progress value={(usage.used / usage.limit) * 100} className="h-2" />
-                <div className="flex items-center justify-between text-sm text-muted-foreground">
-                  <span>{usage.used} / {usage.limit} AI requests used</span>
+              <div className="space-y-2 sm:space-y-3">
+                <Progress value={(usage.used / usage.limit) * 100} className="h-1.5 sm:h-2" />
+                <div className="flex items-center justify-between text-[10px] sm:text-xs md:text-sm text-muted-foreground">
+                  <span>{usage.used} / {usage.limit} requests</span>
                   {usage.resetsAt && (
                     <span>Resets {new Date(usage.resetsAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
                   )}
@@ -199,15 +199,15 @@ export default function DashboardPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2, duration: 0.5 }}
       >
-        <div className="flex items-center justify-between mb-4 sm:mb-6">
-          <h2 className="font-serif text-xl sm:text-2xl font-medium">Agents</h2>
+        <div className="flex items-center justify-between mb-3 sm:mb-4 md:mb-6">
+          <h2 className="font-serif text-lg sm:text-xl md:text-2xl font-medium">Agents</h2>
           <Link href="/chat">
-            <Button variant="ghost" size="sm">
-              Open Chat <ArrowRight weight="bold" className="w-4 h-4" />
+            <Button variant="ghost" size="sm" className="h-8 sm:h-9 text-xs sm:text-sm">
+              Chat <ArrowRight weight="bold" className="w-3.5 h-3.5 sm:w-4 sm:h-4 ml-1" />
             </Button>
           </Link>
         </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
           {agents.map((agent, index) => (
             <motion.div
               key={agent.id}
@@ -217,10 +217,10 @@ export default function DashboardPage() {
             >
               <Link href={agent.href}>
                 <Card className="h-full border-border/40 hover:border-border transition-colors">
-                  <CardContent className="p-4 sm:p-6">
-                    <agent.icon weight="light" className="w-6 sm:w-7 h-6 sm:h-7 text-foreground/70 mb-3 sm:mb-4" />
-                    <h3 className="font-serif text-base sm:text-lg font-medium mb-1">{agent.name}</h3>
-                    <p className="text-xs sm:text-sm text-muted-foreground">{agent.description}</p>
+                  <CardContent className="p-3 sm:p-4 md:p-6">
+                    <agent.icon weight="light" className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 text-foreground/70 mb-2 sm:mb-3 md:mb-4" />
+                    <h3 className="font-serif text-sm sm:text-base md:text-lg font-medium mb-0.5 sm:mb-1">{agent.name}</h3>
+                    <p className="text-[10px] sm:text-xs md:text-sm text-muted-foreground line-clamp-2">{agent.description}</p>
                   </CardContent>
                 </Card>
               </Link>
@@ -234,25 +234,25 @@ export default function DashboardPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3, duration: 0.5 }}
       >
-        <div className="flex items-center justify-between mb-4 sm:mb-6">
-          <h2 className="font-serif text-xl sm:text-2xl font-medium">Recent Sessions</h2>
+        <div className="flex items-center justify-between mb-3 sm:mb-4 md:mb-6">
+          <h2 className="font-serif text-lg sm:text-xl md:text-2xl font-medium">Recent Sessions</h2>
           <Link href="/sessions">
-            <Button variant="ghost" size="sm">
-              View All <ArrowRight weight="bold" className="w-4 h-4" />
+            <Button variant="ghost" size="sm" className="h-8 sm:h-9 text-xs sm:text-sm">
+              All <ArrowRight weight="bold" className="w-3.5 h-3.5 sm:w-4 sm:h-4 ml-1" />
             </Button>
           </Link>
         </div>
 
         {sessions.length === 0 ? (
           <Card className="border-border/40">
-            <CardContent className="p-12 text-center">
-              <ChatCircle weight="light" className="w-10 h-10 text-muted-foreground mx-auto mb-4" />
-              <h3 className="font-serif text-lg font-medium mb-2">No sessions yet</h3>
-              <p className="text-sm text-muted-foreground mb-6">
-                Start a conversation with one of our AI agents
+            <CardContent className="p-8 sm:p-12 text-center">
+              <ChatCircle weight="light" className="w-8 h-8 sm:w-10 sm:h-10 text-muted-foreground mx-auto mb-3 sm:mb-4" />
+              <h3 className="font-serif text-base sm:text-lg font-medium mb-2">No sessions yet</h3>
+              <p className="text-xs sm:text-sm text-muted-foreground mb-4 sm:mb-6">
+                Start a conversation with our AI agents
               </p>
               <Link href="/chat">
-                <Button>Start Chat</Button>
+                <Button size="sm">Start Chat</Button>
               </Link>
             </CardContent>
           </Card>
@@ -261,19 +261,19 @@ export default function DashboardPage() {
             {sessions.map((session) => (
               <Link key={session.id} href={`/sessions/${session.id}`}>
                 <Card className="border-border/40 hover:border-border transition-colors">
-                  <CardContent className="p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <ChatCircle weight="light" className="w-5 h-5 text-muted-foreground" />
-                      <div>
-                        <p className="text-sm font-medium truncate max-w-[200px] sm:max-w-[300px]">
+                  <CardContent className="p-3 sm:p-4 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+                      <ChatCircle weight="light" className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-xs sm:text-sm font-medium truncate">
                           {session.title || 'Untitled Session'}
                         </p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-[10px] sm:text-xs text-muted-foreground">
                           {formatRelativeTime(session.createdAt)}
                         </p>
                       </div>
                     </div>
-                    <Badge variant={session.status === 'active' ? 'default' : 'secondary'}>
+                    <Badge variant={session.status === 'active' ? 'default' : 'secondary'} className="text-[9px] sm:text-[10px] shrink-0">
                       {session.status}
                     </Badge>
                   </CardContent>
@@ -290,17 +290,17 @@ export default function DashboardPage() {
         transition={{ delay: 0.4, duration: 0.5 }}
       >
         <Card className="border-border/40">
-          <CardContent className="p-5 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <CardContent className="p-4 sm:p-5 md:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
             <div>
-              <h3 className="font-serif text-lg sm:text-xl font-medium mb-1">Need guidance?</h3>
-              <p className="text-xs sm:text-sm text-muted-foreground">
+              <h3 className="font-serif text-base sm:text-lg md:text-xl font-medium mb-0.5 sm:mb-1">Need guidance?</h3>
+              <p className="text-[10px] sm:text-xs md:text-sm text-muted-foreground">
                 Ask any question and our AI council will provide expert advice
               </p>
             </div>
             <Link href="/chat" className="w-full sm:w-auto">
-              <Button className="w-full sm:w-auto">
-                <Sparkle weight="fill" className="w-4 h-4" />
-                Start Conversation
+              <Button className="w-full sm:w-auto h-9 sm:h-10 text-xs sm:text-sm">
+                <Sparkle weight="fill" className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <span className="ml-1.5">Start Chat</span>
               </Button>
             </Link>
           </CardContent>

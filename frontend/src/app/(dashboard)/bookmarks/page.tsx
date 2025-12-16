@@ -77,20 +77,17 @@ export default function BookmarksPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
+    <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
       >
-        <div>
-          <h1 className="font-serif text-2xl sm:text-3xl font-medium tracking-tight">
-            Saved Responses
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Your bookmarked AI responses
-          </p>
-        </div>
+        <h1 className="font-serif text-xl sm:text-2xl md:text-3xl font-medium tracking-tight">
+          Saved Responses
+        </h1>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">
+          Your bookmarked AI responses
+        </p>
       </motion.div>
 
       {/* Search */}
@@ -101,10 +98,10 @@ export default function BookmarksPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search bookmarks..."
-            className="pl-9"
+            className="pl-9 h-9 sm:h-10 text-sm"
           />
         </div>
-        <Button type="submit" variant="outline">
+        <Button type="submit" variant="outline" size="sm" className="h-9 sm:h-10">
           Search
         </Button>
       </form>
@@ -112,16 +109,16 @@ export default function BookmarksPage() {
       {/* Bookmarks List */}
       {bookmarks.length === 0 ? (
         <Card className="border-border/40">
-          <CardContent className="p-12 text-center">
-            <BookmarkSimple weight="light" className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="font-serif text-xl font-medium mb-2">No bookmarks yet</h3>
-            <p className="text-sm text-muted-foreground">
+          <CardContent className="p-8 sm:p-12 text-center">
+            <BookmarkSimple weight="light" className="w-10 h-10 sm:w-12 sm:h-12 text-muted-foreground mx-auto mb-3 sm:mb-4" />
+            <h3 className="font-serif text-lg sm:text-xl font-medium mb-2">No bookmarks yet</h3>
+            <p className="text-xs sm:text-sm text-muted-foreground">
               Save responses from chat to access them later
             </p>
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-2 sm:space-y-4">
           {bookmarks.map((bookmark, index) => (
             <motion.div
               key={bookmark.id}
@@ -130,23 +127,23 @@ export default function BookmarksPage() {
               transition={{ delay: index * 0.05 }}
             >
               <Card className="border-border/40 hover:border-border transition-colors">
-                <CardContent className="p-4 sm:p-5">
-                  <div className="flex items-start justify-between gap-4 mb-3">
-                    <div>
-                      <h3 className="font-medium text-sm sm:text-base">{bookmark.title}</h3>
-                      <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                <CardContent className="p-3 sm:p-4 md:p-5">
+                  <div className="flex items-start justify-between gap-3 mb-2 sm:mb-3">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-medium text-sm truncate">{bookmark.title}</h3>
+                      <div className="flex items-center gap-2 mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground">
                         <span>{formatRelativeTime(bookmark.createdAt)}</span>
                         {bookmark.agent && (
                           <>
                             <span>·</span>
-                            <Badge variant="outline" className="text-[10px]">
+                            <Badge variant="outline" className="text-[9px] sm:text-[10px]">
                               {bookmark.agent}
                             </Badge>
                           </>
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
                       <Button
                         variant="ghost"
                         size="icon"
@@ -169,15 +166,15 @@ export default function BookmarksPage() {
                       </Button>
                     </div>
                   </div>
-                  <p className="text-sm text-muted-foreground line-clamp-3">
+                  <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2 sm:line-clamp-3">
                     {bookmark.content}
                   </p>
                   {(bookmark.tags || []).length > 0 && (
-                    <div className="flex items-center gap-2 mt-3">
-                      <Tag weight="regular" className="w-3.5 h-3.5 text-muted-foreground" />
+                    <div className="flex items-center gap-2 mt-2 sm:mt-3">
+                      <Tag weight="regular" className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-muted-foreground shrink-0" />
                       <div className="flex flex-wrap gap-1">
                         {(bookmark.tags || []).map((tag) => (
-                          <Badge key={tag} variant="secondary" className="text-[10px]">
+                          <Badge key={tag} variant="secondary" className="text-[9px] sm:text-[10px]">
                             {tag}
                           </Badge>
                         ))}

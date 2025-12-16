@@ -1,4 +1,4 @@
-import { IsString, IsArray, IsBoolean, IsOptional, IsEnum, IsInt, Min, IsUrl, IsEmail, MaxLength, ArrayMaxSize } from 'class-validator';
+import { IsString, IsArray, IsBoolean, IsOptional, IsEnum, IsInt, Min, IsUrl, IsEmail } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export type InvestorStage = 'pre-seed' | 'seed' | 'series-a' | 'series-b' | 'series-c' | 'growth';
@@ -6,13 +6,11 @@ export type InvestorStage = 'pre-seed' | 'seed' | 'series-a' | 'series-b' | 'ser
 export class CreateInvestorDto {
   @ApiProperty({ example: 'Sequoia Capital' })
   @IsString()
-  @MaxLength(200)
   name: string;
 
   @ApiPropertyOptional({ example: 'Leading venture capital firm' })
   @IsOptional()
   @IsString()
-  @MaxLength(1000)
   description?: string;
 
   @ApiPropertyOptional({ example: 'https://sequoiacap.com' })
@@ -27,7 +25,6 @@ export class CreateInvestorDto {
   @ApiProperty({ example: ['saas', 'fintech', 'ai'] })
   @IsArray()
   @IsString({ each: true })
-  @ArrayMaxSize(20)
   sectors: string[];
 
   @ApiPropertyOptional({ example: 1000, description: 'Minimum check size in thousands USD' })
@@ -44,7 +41,6 @@ export class CreateInvestorDto {
 
   @ApiProperty({ example: 'Menlo Park, CA' })
   @IsString()
-  @MaxLength(200)
   location: string;
 
   @ApiPropertyOptional({ example: ['us', 'eu', 'apac'] })
@@ -95,13 +91,11 @@ export class UpdateInvestorDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @MaxLength(200)
   name?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @MaxLength(1000)
   description?: string;
 
   @ApiPropertyOptional()
@@ -135,7 +129,6 @@ export class UpdateInvestorDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @MaxLength(200)
   location?: string;
 
   @ApiPropertyOptional()

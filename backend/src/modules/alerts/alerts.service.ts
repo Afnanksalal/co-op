@@ -84,7 +84,7 @@ export class AlertsService {
       .where(eq(alerts.userId, userId))
       .orderBy(desc(alerts.createdAt));
 
-    return Promise.all(userAlerts.map((a) => this.buildAlertResponseDto(a)));
+    return this.buildAlertResponseDtosBatch(userAlerts);
   }
 
   async findOne(userId: string, alertId: string): Promise<AlertResponseDto> {
@@ -218,35 +218,65 @@ export class AlertsService {
     return unreadResults.length;
   }
 
-  private async buildAlertResponseDto(
-    alert: typeof alerts.$inferSelect,
-  ): Promise<AlertResponseDto> {
-    // Fetch keywords and competitors from junction tables
-    const [keywords, competitors] = await Promise.all([
+  /**
+   * Batch fetch related data for multiple alerts to avoid N+1 queries
+   */
+  private async buildAlertResponseDtosBatch(
+    alertList: (typeof alerts.$inferSelect)[],
+  ): Promise<AlertResponseDto[]> {
+    if (alertList.length === 0) return [];
+
+    const alertIds = alertList.map((a) => a.id);
+
+    // Batch fetch all related data in 2 queries instead of 2*N queries
+    const [allKeywords, allCompetitors] = await Promise.all([
       this.db
-        .select({ keyword: alertKeywords.keyword })
+        .select({ alertId: alertKeywords.alertId, keyword: alertKeywords.keyword })
         .from(alertKeywords)
-        .where(eq(alertKeywords.alertId, alert.id)),
+        .where(inArray(alertKeywords.alertId, alertIds)),
       this.db
-        .select({ competitor: alertCompetitors.competitor })
+        .select({ alertId: alertCompetitors.alertId, competitor: alertCompetitors.competitor })
         .from(alertCompetitors)
-        .where(eq(alertCompetitors.alertId, alert.id)),
+        .where(inArray(alertCompetitors.alertId, alertIds)),
     ]);
 
-    return {
+    // Group by alert ID for O(1) lookup
+    const keywordsMap = new Map<string, string[]>();
+    const competitorsMap = new Map<string, string[]>();
+
+    for (const k of allKeywords) {
+      const arr = keywordsMap.get(k.alertId) ?? [];
+      arr.push(k.keyword);
+      keywordsMap.set(k.alertId, arr);
+    }
+    for (const c of allCompetitors) {
+      const arr = competitorsMap.get(c.alertId) ?? [];
+      arr.push(c.competitor);
+      competitorsMap.set(c.alertId, arr);
+    }
+
+    return alertList.map((alert) => ({
       id: alert.id,
       name: alert.name,
       type: alert.type as AlertResponseDto['type'],
-      keywords: keywords.map((k) => k.keyword),
-      competitors: competitors.map((c) => c.competitor),
+      keywords: keywordsMap.get(alert.id) ?? [],
+      competitors: competitorsMap.get(alert.id) ?? [],
       frequency: alert.frequency as AlertResponseDto['frequency'],
       isActive: alert.isActive,
       emailNotify: alert.emailNotify,
       lastCheckedAt: alert.lastCheckedAt?.toISOString() ?? null,
       lastTriggeredAt: alert.lastTriggeredAt?.toISOString() ?? null,
-      triggerCount: parseInt(alert.triggerCount, 10) || 0,
+      triggerCount: alert.triggerCount,
       createdAt: alert.createdAt.toISOString(),
-    };
+    }));
+  }
+
+  private async buildAlertResponseDto(
+    alert: typeof alerts.$inferSelect,
+  ): Promise<AlertResponseDto> {
+    // For single alert, use batch method with array of 1
+    const [result] = await this.buildAlertResponseDtosBatch([alert]);
+    return result;
   }
 
   private async buildResultResponseDto(
@@ -265,7 +295,7 @@ export class AlertsService {
       summary: result.summary,
       source: result.source,
       sourceUrl: result.sourceUrl,
-      relevanceScore: result.relevanceScore ? parseFloat(result.relevanceScore) : null,
+      relevanceScore: result.relevanceScore ? Number(result.relevanceScore) : null,
       matchedKeywords: matchedKeywords.map((k) => k.keyword),
       matchedCompetitor: result.matchedCompetitor,
       isRead: result.isRead,

@@ -35,13 +35,13 @@ function StatCard({ value, label, icon: Icon, delay = 0 }: StatCardProps) {
       transition={{ delay }}
     >
       <Card className="border-border/40">
-        <CardContent className="p-5">
+        <CardContent className="p-3 sm:p-5">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-2xl font-serif font-medium">{value.toLocaleString()}</p>
-              <p className="text-sm text-muted-foreground">{label}</p>
+              <p className="text-xl sm:text-2xl font-serif font-medium">{value.toLocaleString()}</p>
+              <p className="text-[10px] sm:text-sm text-muted-foreground">{label}</p>
             </div>
-            <Icon weight="regular" className="w-6 h-6 text-muted-foreground" />
+            <Icon weight="regular" className="w-5 h-5 sm:w-6 sm:h-6 text-muted-foreground" />
           </div>
         </CardContent>
       </Card>
@@ -158,16 +158,16 @@ export default function UsagePage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
+    <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6 md:space-y-8">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
       >
-        <h1 className="font-serif text-2xl sm:text-3xl font-medium tracking-tight mb-1">
+        <h1 className="font-serif text-xl sm:text-2xl md:text-3xl font-medium tracking-tight mb-0.5 sm:mb-1">
           Usage & Analytics
         </h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-xs sm:text-sm text-muted-foreground">
           Track your activity and usage patterns
         </p>
       </motion.div>
@@ -180,22 +180,22 @@ export default function UsagePage() {
           transition={{ delay: 0.1 }}
         >
           <Card className="border-border/40">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <Gauge weight="regular" className="w-5 h-5 text-muted-foreground" />
-                  <h3 className="font-serif text-lg font-medium">Monthly Quota</h3>
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex items-center justify-between mb-3 sm:mb-4">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <Gauge weight="regular" className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
+                  <h3 className="font-serif text-base sm:text-lg font-medium">Monthly Quota</h3>
                 </div>
-                <Badge variant={usage.remaining <= 5 ? 'destructive' : 'secondary'}>
-                  {usage.remaining} requests left
+                <Badge variant={usage.remaining <= 5 ? 'destructive' : 'secondary'} className="text-[10px] sm:text-xs">
+                  {usage.remaining} left
                 </Badge>
               </div>
               <Progress 
                 value={(usage.used / usage.limit) * 100} 
-                className="h-3 mb-3" 
+                className="h-2 sm:h-3 mb-2 sm:mb-3" 
               />
-              <div className="flex flex-col sm:flex-row sm:justify-between gap-1 text-sm text-muted-foreground">
-                <span>{usage.used.toLocaleString()} / {usage.limit.toLocaleString()} AI requests used</span>
+              <div className="flex flex-col sm:flex-row sm:justify-between gap-0.5 sm:gap-1 text-[10px] sm:text-sm text-muted-foreground">
+                <span>{usage.used.toLocaleString()} / {usage.limit.toLocaleString()} requests</span>
                 <span>Resets {new Date(usage.resetsAt).toLocaleDateString('en-US', {
                   month: 'short',
                   day: 'numeric',
@@ -244,24 +244,24 @@ export default function UsagePage() {
               transition={{ delay: 0.35 }}
             >
               <Card className="border-border/40">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-3 mb-4">
-                    <Robot weight="regular" className="w-5 h-5 text-muted-foreground" />
-                    <h3 className="font-serif text-lg font-medium">Agent Usage</h3>
+                <CardContent className="p-4 sm:p-6">
+                  <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                    <Robot weight="regular" className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
+                    <h3 className="font-serif text-base sm:text-lg font-medium">Agent Usage</h3>
                   </div>
-                  <div className="space-y-3">
+                  <div className="space-y-2 sm:space-y-3">
                     {analytics.agentUsage.map((agent) => {
                       const total = analytics.agentUsage.reduce((sum, a) => sum + a.count, 0);
                       const percentage = total > 0 ? (agent.count / total) * 100 : 0;
                       return (
                         <div key={agent.agent} className="space-y-1">
-                          <div className="flex justify-between text-sm">
+                          <div className="flex justify-between text-xs sm:text-sm">
                             <span className="capitalize font-medium">{agent.agent}</span>
                             <span className="text-muted-foreground">
-                              {agent.count.toLocaleString()} responses ({percentage.toFixed(0)}%)
+                              {agent.count.toLocaleString()} ({percentage.toFixed(0)}%)
                             </span>
                           </div>
-                          <Progress value={percentage} className="h-2" />
+                          <Progress value={percentage} className="h-1.5 sm:h-2" />
                         </div>
                       );
                     })}
@@ -279,16 +279,16 @@ export default function UsagePage() {
               transition={{ delay: 0.4 }}
             >
               <Card className="border-border/40">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-3 mb-4">
-                    <Clock weight="regular" className="w-5 h-5 text-muted-foreground" />
-                    <h3 className="font-serif text-lg font-medium">Recent Activity</h3>
+                <CardContent className="p-4 sm:p-6">
+                  <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                    <Clock weight="regular" className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
+                    <h3 className="font-serif text-base sm:text-lg font-medium">Recent Activity</h3>
                   </div>
                   
                   <ActivityHeatmap activity={analytics.recentActivity} />
                   
                   {analytics.mostActiveDay && (
-                    <p className="text-sm text-muted-foreground mt-4">
+                    <p className="text-[10px] sm:text-sm text-muted-foreground mt-3 sm:mt-4">
                       Most active: {new Date(analytics.mostActiveDay).toLocaleDateString('en-US', { 
                         weekday: 'long', 
                         month: 'short', 

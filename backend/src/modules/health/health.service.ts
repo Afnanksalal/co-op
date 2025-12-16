@@ -50,7 +50,6 @@ export class HealthService {
     services.llm = llmCheck.status;
     details.llm = llmCheck;
 
-    // Check RAG service (includes CLaRA via Python service)
     const ragCheck = await this.checkRagService();
     services.rag = ragCheck.status;
     details.rag = ragCheck;

@@ -368,43 +368,6 @@ The LLM Council is the core innovation - a multi-model cross-critique system tha
 | HuggingFace | microsoft/Phi-3-mini-4k-instruct | Lightweight, fast |
 | HuggingFace | Qwen/Qwen2.5-14B-Instruct-1M | High quality |
 
-#### RAG Specialist (Context Processing Only)
-
-| Provider | Model | Purpose |
-|----------|-------|---------|
-| HuggingFace | apple/CLaRa-7B-Instruct | Semantic document compression, context optimization |
-
-### CLaRA RAG Specialist
-
-Apple's CLaRA-7B-Instruct is a specialized model for RAG context processing. It does NOT participate in council critique - it's specifically for:
-
-- **Semantic Compression**: 16×/128× document compression while preserving key information
-- **Query-Aware Extraction**: Extracts context most relevant to the user's query
-- **Document Analysis**: Classifies documents, extracts entities, topics, and key data
-- **Relevance Scoring**: Scores RAG chunks for optimal context selection
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    CLaRA RAG PROCESSING                         │
-│                                                                 │
-│   RAG Query ──▶ Vector Search ──▶ Raw Chunks                   │
-│                                        │                        │
-│                                        ▼                        │
-│                                  ┌──────────┐                   │
-│                                  │  CLaRA   │                   │
-│                                  │ Compress │                   │
-│                                  └──────────┘                   │
-│                                        │                        │
-│                                        ▼                        │
-│                              Optimized Context                  │
-│                              (30-50% smaller)                   │
-│                                        │                        │
-│                                        ▼                        │
-│                              LLM Council                        │
-│                              (Better context = better answers)  │
-└─────────────────────────────────────────────────────────────────┘
-```
-
 ### Model Health Checks
 
 On startup and every 5 minutes:

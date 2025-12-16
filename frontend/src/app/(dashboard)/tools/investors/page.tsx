@@ -136,21 +136,21 @@ export default function InvestorsPage() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center gap-4"
+        className="flex items-center gap-3 sm:gap-4"
       >
-        <Button variant="ghost" size="icon" onClick={() => router.back()}>
+        <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-9 w-9 sm:h-10 sm:w-10 shrink-0">
           <ArrowLeftIcon />
         </Button>
-        <div className="flex-1">
-          <h1 className="font-serif text-2xl sm:text-3xl font-medium tracking-tight">
+        <div className="flex-1 min-w-0">
+          <h1 className="font-serif text-xl sm:text-2xl md:text-3xl font-medium tracking-tight">
             Investor Database
           </h1>
-          <p className="text-sm text-muted-foreground">
-            {stats ? `${stats.total} investors` : 'Loading...'} · Search and filter by stage, sector, and region
+          <p className="text-xs sm:text-sm text-muted-foreground truncate">
+            {stats ? `${stats.total} investors` : 'Loading...'} · Filter by stage, sector, region
           </p>
         </div>
       </motion.div>
@@ -161,13 +161,13 @@ export default function InvestorsPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="grid grid-cols-2 sm:grid-cols-4 gap-3"
+          className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3"
         >
           {stats.byStage.slice(0, 4).map((s) => (
             <Card key={s.stage} className="border-border/40">
-              <CardContent className="p-4">
-                <p className="text-2xl font-serif font-medium">{s.count}</p>
-                <p className="text-xs text-muted-foreground capitalize">{s.stage.replace('-', ' ')}</p>
+              <CardContent className="p-3 sm:p-4">
+                <p className="text-xl sm:text-2xl font-serif font-medium">{s.count}</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground capitalize">{s.stage.replace('-', ' ')}</p>
               </CardContent>
             </Card>
           ))}
@@ -176,21 +176,21 @@ export default function InvestorsPage() {
 
       {/* Filters */}
       <Card className="border-border/40">
-        <CardContent className="p-4">
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="relative">
+        <CardContent className="p-3 sm:p-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+            <div className="relative col-span-2 lg:col-span-1">
               <Input
-                placeholder="Search investors..."
+                placeholder="Search..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-9"
+                className="pl-9 h-9 sm:h-10 text-sm"
               />
               <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
                 <SearchIcon />
               </div>
             </div>
             <Select value={stageFilter} onValueChange={setStageFilter}>
-              <SelectTrigger>
+              <SelectTrigger className="h-9 sm:h-10 text-sm">
                 <SelectValue placeholder="Stage" />
               </SelectTrigger>
               <SelectContent>
@@ -202,7 +202,7 @@ export default function InvestorsPage() {
               </SelectContent>
             </Select>
             <Select value={sectorFilter} onValueChange={setSectorFilter}>
-              <SelectTrigger>
+              <SelectTrigger className="h-9 sm:h-10 text-sm">
                 <SelectValue placeholder="Sector" />
               </SelectTrigger>
               <SelectContent>
@@ -214,7 +214,7 @@ export default function InvestorsPage() {
               </SelectContent>
             </Select>
             <Select value={regionFilter} onValueChange={setRegionFilter}>
-              <SelectTrigger>
+              <SelectTrigger className="h-9 sm:h-10 text-sm">
                 <SelectValue placeholder="Region" />
               </SelectTrigger>
               <SelectContent>
@@ -257,10 +257,11 @@ export default function InvestorsPage() {
         </div>
       ) : investors.length === 0 ? (
         <Card className="border-border/40">
-          <CardContent className="p-8 text-center">
-            <p className="text-muted-foreground mb-4">No investors match your filters</p>
+          <CardContent className="p-6 sm:p-8 text-center">
+            <p className="text-sm text-muted-foreground mb-4">No investors match your filters</p>
             <Button
               variant="link"
+              size="sm"
               onClick={() => {
                 setSearch('');
                 setStageFilter('all');
@@ -273,7 +274,7 @@ export default function InvestorsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-3">
+        <div className="grid gap-2 sm:gap-3">
           {investors.map((investor, index) => (
             <motion.div
               key={investor.id}
@@ -282,28 +283,28 @@ export default function InvestorsPage() {
               transition={{ delay: index * 0.02 }}
             >
               <Card className="border-border/40 hover:border-border/60 transition-colors">
-                <CardContent className="p-4">
-                  <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+                <CardContent className="p-3 sm:p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <h3 className="font-medium truncate">{investor.name}</h3>
+                      <div className="flex items-center flex-wrap gap-1.5 sm:gap-2 mb-1.5">
+                        <h3 className="font-medium text-sm sm:text-base truncate">{investor.name}</h3>
                         {investor.isFeatured && (
                           <span className="text-yellow-500" title="Featured">
                             <StarIcon />
                           </span>
                         )}
-                        <Badge variant="outline" className={cn('text-xs shrink-0', stageColors[investor.stage])}>
+                        <Badge variant="outline" className={cn('text-[10px] sm:text-xs shrink-0', stageColors[investor.stage])}>
                           {investor.stage.replace('-', ' ')}
                         </Badge>
                       </div>
                       
                       {investor.description && (
-                        <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
+                        <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2 mb-2">
                           {investor.description}
                         </p>
                       )}
                       
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground mb-2">
+                      <div className="flex flex-wrap items-center gap-x-3 sm:gap-x-4 gap-y-1 text-[10px] sm:text-xs text-muted-foreground mb-2">
                         <span className="flex items-center gap-1">
                           <GlobeIcon />
                           {investor.location}
@@ -312,22 +313,22 @@ export default function InvestorsPage() {
                       </div>
                       
                       <div className="flex flex-wrap gap-1">
-                        {(investor.sectors || []).slice(0, 5).map((sector) => (
-                          <Badge key={sector} variant="secondary" className="text-xs">
+                        {(investor.sectors || []).slice(0, 4).map((sector) => (
+                          <Badge key={sector} variant="secondary" className="text-[10px] sm:text-xs">
                             {sector}
                           </Badge>
                         ))}
-                        {(investor.sectors || []).length > 5 && (
-                          <Badge variant="secondary" className="text-xs">
-                            +{(investor.sectors || []).length - 5}
+                        {(investor.sectors || []).length > 4 && (
+                          <Badge variant="secondary" className="text-[10px] sm:text-xs">
+                            +{(investor.sectors || []).length - 4}
                           </Badge>
                         )}
                       </div>
                       
                       {(investor.portfolioCompanies || []).length > 0 && (
-                        <p className="text-xs text-muted-foreground mt-2">
+                        <p className="text-[10px] sm:text-xs text-muted-foreground mt-2 line-clamp-1">
                           Portfolio: {(investor.portfolioCompanies || []).slice(0, 3).join(', ')}
-                          {(investor.portfolioCompanies || []).length > 3 && ` +${(investor.portfolioCompanies || []).length - 3} more`}
+                          {(investor.portfolioCompanies || []).length > 3 && ` +${(investor.portfolioCompanies || []).length - 3}`}
                         </p>
                       )}
                     </div>
@@ -337,7 +338,7 @@ export default function InvestorsPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="shrink-0"
+                          className="shrink-0 h-8 sm:h-9 text-xs sm:text-sm"
                           onClick={() => window.open(investor.website!, '_blank')}
                         >
                           <LinkIcon />
@@ -348,7 +349,7 @@ export default function InvestorsPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="shrink-0"
+                          className="shrink-0 h-8 sm:h-9 text-xs sm:text-sm"
                           onClick={() => window.open(investor.linkedinUrl!, '_blank')}
                         >
                           LinkedIn

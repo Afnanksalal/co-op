@@ -122,38 +122,38 @@ export default function SessionsPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="font-serif text-2xl sm:text-3xl font-medium tracking-tight mb-1">Sessions</h1>
-          <p className="text-sm text-muted-foreground">Your conversation history with AI agents</p>
+    <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="font-serif text-xl sm:text-2xl md:text-3xl font-medium tracking-tight mb-0.5 sm:mb-1">Sessions</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground truncate">Your conversation history</p>
         </div>
-        <Link href="/chat"><Button><Plus weight="bold" className="w-4 h-4" />New Session</Button></Link>
+        <Link href="/chat"><Button size="sm" className="h-9 sm:h-10 shrink-0"><Plus weight="bold" className="w-4 h-4" /><span className="hidden sm:inline ml-1">New</span></Button></Link>
       </motion.div>
 
       <div className="relative">
         <MagnifyingGlass weight="regular" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input placeholder="Search sessions..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+        <Input placeholder="Search sessions..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-9 sm:h-10 text-sm" />
       </div>
 
       {sessions.length === 0 ? (
         <Card className="border-border/40">
-          <CardContent className="p-12 text-center">
-            <ChatCircle weight="light" className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="font-serif text-xl font-medium mb-2">{search ? 'No sessions found' : 'No sessions yet'}</h3>
-            <p className="text-muted-foreground mb-6">{search ? 'Try a different search term' : 'Start a conversation with one of our AI agents'}</p>
-            {!search && <Link href="/chat"><Button>Start Chat</Button></Link>}
+          <CardContent className="p-8 sm:p-12 text-center">
+            <ChatCircle weight="light" className="w-10 h-10 sm:w-12 sm:h-12 text-muted-foreground mx-auto mb-3 sm:mb-4" />
+            <h3 className="font-serif text-lg sm:text-xl font-medium mb-2">{search ? 'No sessions found' : 'No sessions yet'}</h3>
+            <p className="text-xs sm:text-sm text-muted-foreground mb-4 sm:mb-6">{search ? 'Try a different search term' : 'Start a conversation with our AI agents'}</p>
+            {!search && <Link href="/chat"><Button size="sm">Start Chat</Button></Link>}
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {groupOrder.map((group) => {
             const groupSessions = groupedSessions[group];
             if (!groupSessions?.length) return null;
             return (
               <motion.div key={group} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-2">
-                <h2 className="text-sm font-medium text-muted-foreground px-1">{group}</h2>
-                <div className="space-y-3">
+                <h2 className="text-xs sm:text-sm font-medium text-muted-foreground px-1">{group}</h2>
+                <div className="space-y-2 sm:space-y-3">
                   {groupSessions.map((session, index) => (
                     <motion.div key={session.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.03 }}>
                       <Card className={cn(

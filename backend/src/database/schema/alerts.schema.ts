@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, boolean, jsonb, pgEnum } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, boolean, jsonb, pgEnum, integer, decimal } from 'drizzle-orm/pg-core';
 import { users } from './users.schema';
 import { startups } from './startups.schema';
 
@@ -24,7 +24,7 @@ export const alerts = pgTable('alerts', {
   // Tracking
   lastCheckedAt: timestamp('last_checked_at', { withTimezone: true }),
   lastTriggeredAt: timestamp('last_triggered_at', { withTimezone: true }),
-  triggerCount: text('trigger_count').notNull().default('0'),
+  triggerCount: integer('trigger_count').notNull().default(0),
   
   // Metadata
   metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}),
@@ -41,7 +41,7 @@ export const alertResults = pgTable('alert_results', {
   summary: text('summary').notNull(),
   source: text('source'),
   sourceUrl: text('source_url'),
-  relevanceScore: text('relevance_score'),
+  relevanceScore: decimal('relevance_score', { precision: 5, scale: 4 }),
   
   // What triggered this result
   matchedCompetitor: text('matched_competitor'),

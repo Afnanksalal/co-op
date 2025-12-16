@@ -324,8 +324,24 @@ async function seed() {
   console.log('🌱 Seeding investors database...');
 
   try {
+    let added = 0;
+    let skipped = 0;
+
     // Insert all investors with junction table data
     for (const inv of investorData) {
+      // Check if investor already exists by name
+      const existing = await db
+        .select({ id: investors.id })
+        .from(investors)
+        .where(eq(investors.name, inv.name))
+        .limit(1);
+
+      if (existing.length > 0) {
+        console.log(`  ⏭ Skipped ${inv.name} (already exists)`);
+        skipped++;
+        continue;
+      }
+
       // Insert base investor
       const [inserted] = await db
         .insert(investors)
@@ -375,9 +391,10 @@ async function seed() {
       }
 
       console.log(`  ✓ Added ${inv.name}`);
+      added++;
     }
 
-    console.log(`\n✅ Successfully seeded ${investorData.length} investors`);
+    console.log(`\n✅ Seed complete: ${added} added, ${skipped} skipped`);
   } catch (error) {
     console.error('❌ Seed failed:', error);
     await pool.end();
@@ -388,4 +405,5 @@ async function seed() {
   process.exit(0);
 }
 
+import { eq } from 'drizzle-orm';
 seed();

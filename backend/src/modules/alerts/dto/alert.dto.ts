@@ -1,4 +1,4 @@
-import { IsString, IsArray, IsBoolean, IsOptional, IsEnum, MaxLength, ArrayMaxSize } from 'class-validator';
+import { IsString, IsArray, IsBoolean, IsOptional, IsEnum } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export type AlertType = 'competitor' | 'market' | 'news' | 'funding';
@@ -7,7 +7,6 @@ export type AlertFrequency = 'realtime' | 'daily' | 'weekly';
 export class CreateAlertDto {
   @ApiProperty({ description: 'Alert name', example: 'Competitor News' })
   @IsString()
-  @MaxLength(100)
   name: string;
 
   @ApiPropertyOptional({ enum: ['competitor', 'market', 'news', 'funding'], default: 'competitor' })
@@ -18,14 +17,12 @@ export class CreateAlertDto {
   @ApiProperty({ description: 'Keywords to monitor', example: ['AI startup', 'Series A'] })
   @IsArray()
   @IsString({ each: true })
-  @ArrayMaxSize(10)
   keywords: string[];
 
   @ApiPropertyOptional({ description: 'Competitor names to monitor', example: ['Acme Inc', 'TechCorp'] })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  @ArrayMaxSize(10)
   competitors?: string[];
 
   @ApiPropertyOptional({ enum: ['realtime', 'daily', 'weekly'], default: 'daily' })
@@ -43,21 +40,18 @@ export class UpdateAlertDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @MaxLength(100)
   name?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  @ArrayMaxSize(10)
   keywords?: string[];
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  @ArrayMaxSize(10)
   competitors?: string[];
 
   @ApiPropertyOptional({ enum: ['realtime', 'daily', 'weekly'] })

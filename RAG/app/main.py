@@ -4,7 +4,7 @@ from fastapi import FastAPI, HTTPException, Depends, Security
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 from contextlib import asynccontextmanager
-from typing import Optional, List
+from typing import Optional
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -15,41 +15,33 @@ from app.services import (
     cleanup_expired_vectors, 
     delete_file_completely,
     vectorize_file,
-    # CLaRA functions
-    clara_health,
-    query_rag_with_clara,
+    compression_health,
+    query_rag_compressed,
 )
 from app.schemas import (
     Domain, Sector, Region, Jurisdiction, DocumentType,
     RegisterFileRequest, QueryRequest, QueryResponse,
     FileResponse, RegisterResponse, VectorizeResponse,
     CleanupResponse, HealthResponse,
-    # CLaRA schemas
-    ClaraQueryRequest, ClaraQueryResponse, ClaraHealthResponse,
+    CompressionQueryRequest, CompressionQueryResponse, CompressionHealthResponse,
 )
 
-# API Key configuration
 RAG_API_KEY = os.getenv("RAG_API_KEY", "")
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
 async def verify_api_key(api_key: str = Security(api_key_header)):
-    """Verify API key for protected endpoints."""
     if not RAG_API_KEY:
         return True
-    
     if not api_key:
         raise HTTPException(status_code=401, detail="Missing API key")
-    
     if not secrets.compare_digest(api_key, RAG_API_KEY):
         raise HTTPException(status_code=401, detail="Invalid API key")
-    
     return True
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Connect to DB on startup, disconnect on shutdown."""
     await db.connect()
     yield
     await db.disconnect()
@@ -59,8 +51,8 @@ CORS_ORIGINS = os.getenv("CORS_ORIGINS", "").split(",") if os.getenv("CORS_ORIGI
 
 app = FastAPI(
     title="Co-Op RAG Service",
-    description="Lazy-loading RAG with jurisdiction filtering - Supabase Storage + Upstash Vector",
-    version="3.0.0",
+    description="RAG with jurisdiction filtering - Supabase Storage + Upstash Vector",
+    version="3.1.0",
     lifespan=lifespan
 )
 
@@ -75,7 +67,6 @@ app.add_middleware(
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
-    """Health check endpoint with supported filters."""
     return {
         "status": "ok",
         "db": "Neon",
@@ -91,11 +82,6 @@ async def health_check():
 
 @app.post("/rag/register", response_model=RegisterResponse)
 async def register_file(request: RegisterFileRequest, _: bool = Depends(verify_api_key)):
-    """
-    Register a file with jurisdiction metadata.
-    Called by backend after uploading PDF to storage.
-    Vectors are NOT created yet (lazy loading).
-    """
     try:
         jurisdictions = [j.value for j in request.jurisdictions] if request.jurisdictions else ["general"]
         
@@ -115,17 +101,15 @@ async def register_file(request: RegisterFileRequest, _: bool = Depends(verify_a
             return {
                 "success": True,
                 "file_id": request.file_id,
-                "message": f"File registered for {request.domain.value}/{request.sector.value}/{request.region.value if request.region else 'global'}. Vectors will be created on first query."
+                "message": f"File registered for {request.domain.value}/{request.sector.value}"
             }
-        else:
-            raise HTTPException(status_code=500, detail="Failed to register file")
+        raise HTTPException(status_code=500, detail="Failed to register file")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/rag/vectorize/{file_id}", response_model=VectorizeResponse)
 async def force_vectorize(file_id: str, _: bool = Depends(verify_api_key)):
-    """Force vectorization of a specific file."""
     try:
         file_info = await db.get_file(file_id)
         if not file_info:
@@ -147,12 +131,6 @@ async def force_vectorize(file_id: str, _: bool = Depends(verify_api_key)):
 
 @app.post("/rag/query", response_model=QueryResponse)
 async def ask_question(request: QueryRequest, _: bool = Depends(verify_api_key)):
-    """
-    Query the RAG system with jurisdiction filtering.
-    - Filters by domain, sector, region, and jurisdictions
-    - Automatically vectorizes any pending files
-    - Updates access timestamps (for TTL tracking)
-    """
     try:
         return await query_rag(
             query=request.query,
@@ -175,7 +153,6 @@ async def list_files(
     document_type: Optional[DocumentType] = None,
     _: bool = Depends(verify_api_key)
 ):
-    """List all registered files with their vector status and jurisdiction info."""
     try:
         files = await db.list_files(
             domain=domain.value if domain else None,
@@ -209,7 +186,6 @@ async def list_files(
 
 @app.get("/rag/files/{file_id}", response_model=FileResponse)
 async def get_file(file_id: str, _: bool = Depends(verify_api_key)):
-    """Get file metadata by ID including jurisdiction info."""
     try:
         file_info = await db.get_file(file_id)
         if not file_info:
@@ -237,7 +213,6 @@ async def get_file(file_id: str, _: bool = Depends(verify_api_key)):
 
 @app.delete("/rag/files/{file_id}")
 async def remove_file(file_id: str, _: bool = Depends(verify_api_key)):
-    """Delete file metadata and vectors."""
     try:
         result = await delete_file_completely(file_id)
         if not result["success"]:
@@ -251,38 +226,21 @@ async def remove_file(file_id: str, _: bool = Depends(verify_api_key)):
 
 @app.post("/rag/cleanup", response_model=CleanupResponse)
 async def cleanup_vectors(days: int = 30, _: bool = Depends(verify_api_key)):
-    """Remove vectors for files not accessed in X days."""
     try:
-        result = await cleanup_expired_vectors(days)
-        return result
+        return await cleanup_expired_vectors(days)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ===========================================
-# CLaRA Endpoints - Semantic Compression
-# ===========================================
-
-@app.get("/rag/clara/health", response_model=ClaraHealthResponse)
-async def clara_health_check():
-    """Check if CLaRA model is available and ready."""
-    return clara_health()
+@app.get("/rag/compression/health", response_model=CompressionHealthResponse)
+async def compression_health_check():
+    return compression_health()
 
 
-@app.post("/rag/clara/query", response_model=ClaraQueryResponse)
-async def clara_query(request: ClaraQueryRequest, _: bool = Depends(verify_api_key)):
-    """
-    Query RAG with CLaRA semantic compression.
-    
-    CLaRA (apple/CLaRa-7B-Instruct) provides:
-    - Query-aware document compression
-    - Semantic extraction of relevant information
-    - Reduced token usage for LLM context
-    
-    Falls back to standard RAG if CLaRA is unavailable.
-    """
+@app.post("/rag/compression/query", response_model=CompressionQueryResponse)
+async def compressed_query(request: CompressionQueryRequest, _: bool = Depends(verify_api_key)):
     try:
-        result = await query_rag_with_clara(
+        return await query_rag_compressed(
             query=request.query,
             domain=request.domain,
             sector=request.sector,
@@ -291,9 +249,8 @@ async def clara_query(request: ClaraQueryRequest, _: bool = Depends(verify_api_k
             jurisdictions=request.jurisdictions,
             document_type=request.document_type,
         )
-        return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"CLaRA query failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Query failed: {str(e)}")
 
 
 if __name__ == "__main__":

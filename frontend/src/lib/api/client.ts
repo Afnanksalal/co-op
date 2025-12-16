@@ -46,6 +46,9 @@ class ApiError extends Error {
 }
 
 class ApiClient {
+  private readonly maxRetries = 3;
+  private readonly retryDelay = 1000; // 1 second base delay
+
   private async getHeaders(): Promise<HeadersInit> {
     const supabase = createClient();
     const { data: { session } } = await supabase.auth.getSession();
@@ -56,6 +59,15 @@ class ApiClient {
     };
   }
 
+  private async sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  private isRetryable(status: number): boolean {
+    // Retry on network errors (0), server errors (5xx), and rate limits (429)
+    return status === 0 || status === 429 || (status >= 500 && status < 600);
+  }
+
   private async request<T>(
     method: string,
     endpoint: string,
@@ -63,32 +75,63 @@ class ApiClient {
     customHeaders?: HeadersInit
   ): Promise<T> {
     const headers = customHeaders ?? await this.getHeaders();
+    let lastError: ApiError | null = null;
     
-    const res = await fetch(`${API_URL}${endpoint}`, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    
-    if (!res.ok) {
-      const error = await res.json().catch(() => ({ error: 'Request failed' }));
-      
-      // Handle backend error format: { success: false, error: string, details?: string[] }
-      // Also handle NestJS validation errors: { message: string | string[] }
-      let errorMessage = error.error || error.message || `HTTP ${res.status}`;
-      
-      // If there are validation details, include them
-      if (Array.isArray(error.details)) {
-        errorMessage = error.details.join(', ');
-      } else if (Array.isArray(error.message)) {
-        errorMessage = error.message.join(', ');
+    for (let attempt = 0; attempt < this.maxRetries; attempt++) {
+      try {
+        const res = await fetch(`${API_URL}${endpoint}`, {
+          method,
+          headers,
+          body: body ? JSON.stringify(body) : undefined,
+        });
+        
+        if (!res.ok) {
+          const error = await res.json().catch(() => ({ error: 'Request failed' }));
+          
+          // Handle backend error format: { success: false, error: string, details?: string[] }
+          // Also handle NestJS validation errors: { message: string | string[] }
+          let errorMessage = error.error || error.message || `HTTP ${res.status}`;
+          
+          // If there are validation details, include them
+          if (Array.isArray(error.details)) {
+            errorMessage = error.details.join(', ');
+          } else if (Array.isArray(error.message)) {
+            errorMessage = error.message.join(', ');
+          }
+          
+          lastError = new ApiError(errorMessage, res.status, error.code);
+          
+          // Only retry on retryable errors
+          if (this.isRetryable(res.status) && attempt < this.maxRetries - 1) {
+            const delay = this.retryDelay * Math.pow(2, attempt); // Exponential backoff
+            await this.sleep(delay);
+            continue;
+          }
+          
+          throw lastError;
+        }
+        
+        const json: ApiResponse<T> = await res.json();
+        return json.data;
+      } catch (error) {
+        // Handle network errors (fetch throws on network failure)
+        if (error instanceof ApiError) {
+          throw error;
+        }
+        
+        lastError = new ApiError('Network error', 0);
+        
+        if (attempt < this.maxRetries - 1) {
+          const delay = this.retryDelay * Math.pow(2, attempt);
+          await this.sleep(delay);
+          continue;
+        }
+        
+        throw lastError;
       }
-      
-      throw new ApiError(errorMessage, res.status, error.code);
     }
     
-    const json: ApiResponse<T> = await res.json();
-    return json.data;
+    throw lastError ?? new ApiError('Request failed after retries', 0);
   }
 
   async get<T>(endpoint: string): Promise<T> {
@@ -534,7 +577,7 @@ class ApiClient {
    */
   streamAgentTask(
     taskId: string,
-    onEvent: (event: import('./types').StreamEvent) => void,
+    onEvent: (event: import('./types').StreamEvent) => void | Promise<void>,
     onError?: (error: Error) => void,
   ): () => void {
     const connect = async () => {
@@ -548,7 +591,7 @@ class ApiClient {
       
       eventSource.addEventListener('progress', (e) => {
         try {
-          onEvent({ type: 'progress', data: JSON.parse(e.data) });
+          void onEvent({ type: 'progress', data: JSON.parse(e.data) });
         } catch (err) {
           onError?.(err as Error);
         }
@@ -556,7 +599,7 @@ class ApiClient {
       
       eventSource.addEventListener('chunk', (e) => {
         try {
-          onEvent({ type: 'chunk', data: JSON.parse(e.data) });
+          void onEvent({ type: 'chunk', data: JSON.parse(e.data) });
         } catch (err) {
           onError?.(err as Error);
         }
@@ -564,15 +607,16 @@ class ApiClient {
       
       eventSource.addEventListener('thinking', (e) => {
         try {
-          onEvent({ type: 'thinking', data: JSON.parse(e.data) });
+          void onEvent({ type: 'thinking', data: JSON.parse(e.data) });
         } catch (err) {
           onError?.(err as Error);
         }
       });
       
-      eventSource.addEventListener('done', (e) => {
+      eventSource.addEventListener('done', async (e) => {
         try {
-          onEvent({ type: 'done', data: JSON.parse(e.data) });
+          // Await the async handler to ensure message is saved before closing
+          await onEvent({ type: 'done', data: JSON.parse(e.data) });
           eventSource.close();
         } catch (err) {
           onError?.(err as Error);
@@ -583,7 +627,7 @@ class ApiClient {
         try {
           const data = (e as MessageEvent).data;
           if (data) {
-            onEvent({ type: 'error', data: JSON.parse(data) });
+            void onEvent({ type: 'error', data: JSON.parse(data) });
           }
         } catch {
           // Ignore parse errors on error events

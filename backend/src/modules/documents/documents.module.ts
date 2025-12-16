@@ -5,12 +5,7 @@ import { DocumentsService } from './documents.service';
 import { RagModule } from '@/common/rag/rag.module';
 
 /**
- * Documents Module
- * 
- * Handles user-uploaded documents with:
- * - Supabase Storage for file storage
- * - CLaRA-powered document analysis (when available)
- * - Text extraction for chat context
+ * Documents Module - User document uploads and storage
  */
 @Module({
   imports: [

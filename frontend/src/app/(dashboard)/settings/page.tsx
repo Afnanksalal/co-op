@@ -56,10 +56,10 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6 sm:space-y-8">
+    <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="font-serif text-2xl sm:text-3xl font-medium tracking-tight mb-1 sm:mb-2">Settings</h1>
-        <p className="text-sm sm:text-base text-muted-foreground">Manage your account and preferences</p>
+        <h1 className="font-serif text-xl sm:text-2xl md:text-3xl font-medium tracking-tight mb-0.5 sm:mb-1">Settings</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground">Manage your account and preferences</p>
       </motion.div>
 
       {/* Profile */}
@@ -69,19 +69,19 @@ export default function SettingsPage() {
         transition={{ delay: 0.1 }}
       >
         <Card className="border-border/40">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 font-serif text-xl">
-              <User weight="regular" className="w-5 h-5" />
+          <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-4">
+            <CardTitle className="flex items-center gap-2 font-serif text-base sm:text-xl">
+              <User weight="regular" className="w-4 h-4 sm:w-5 sm:h-5" />
               Profile
             </CardTitle>
-            <CardDescription>Your personal information</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">Your personal information</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center text-2xl font-medium">
+          <CardContent className="p-4 sm:p-6 pt-0 space-y-4 sm:space-y-6">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-muted flex items-center justify-center text-xl sm:text-2xl font-medium shrink-0">
                 {user.name?.charAt(0) || 'U'}
               </div>
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 {isEditingName ? (
                   <div className="flex items-center gap-2">
                     <Input
@@ -152,43 +152,43 @@ export default function SettingsPage() {
         transition={{ delay: 0.15 }}
       >
         <Card className="border-border/40">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 font-serif text-xl">
-              <Sun weight="regular" className="w-5 h-5" />
+          <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-4">
+            <CardTitle className="flex items-center gap-2 font-serif text-base sm:text-xl">
+              <Sun weight="regular" className="w-4 h-4 sm:w-5 sm:h-5" />
               Appearance
             </CardTitle>
-            <CardDescription>Customize how Co-Op looks</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">Customize how Co-Op looks</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <Label className="text-sm">Theme</Label>
-              <div className="flex gap-2">
+          <CardContent className="p-4 sm:p-6 pt-0">
+            <div className="space-y-3 sm:space-y-4">
+              <Label className="text-xs sm:text-sm">Theme</Label>
+              <div className="grid grid-cols-3 gap-2">
                 <Button
                   variant={theme === 'light' ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => setTheme('light')}
-                  className="flex-1"
+                  className="h-9 sm:h-10 text-xs sm:text-sm"
                 >
-                  <Sun weight="regular" className="w-4 h-4 mr-2" />
-                  Light
+                  <Sun weight="regular" className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Light</span>
                 </Button>
                 <Button
                   variant={theme === 'dark' ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => setTheme('dark')}
-                  className="flex-1"
+                  className="h-9 sm:h-10 text-xs sm:text-sm"
                 >
-                  <Moon weight="regular" className="w-4 h-4 mr-2" />
-                  Dark
+                  <Moon weight="regular" className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Dark</span>
                 </Button>
                 <Button
                   variant={theme === 'system' ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => setTheme('system')}
-                  className="flex-1"
+                  className="h-9 sm:h-10 text-xs sm:text-sm"
                 >
-                  <Desktop weight="regular" className="w-4 h-4 mr-2" />
-                  System
+                  <Desktop weight="regular" className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">System</span>
                 </Button>
               </div>
             </div>
@@ -204,37 +204,37 @@ export default function SettingsPage() {
           transition={{ delay: 0.2 }}
         >
           <Card className="border-border/40">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 font-serif text-xl">
-                <Buildings weight="regular" className="w-5 h-5" />
+            <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-4">
+              <CardTitle className="flex items-center gap-2 font-serif text-base sm:text-xl">
+                <Buildings weight="regular" className="w-4 h-4 sm:w-5 sm:h-5" />
                 Company
               </CardTitle>
-              <CardDescription>Your startup information</CardDescription>
+              <CardDescription className="text-xs sm:text-sm">Your startup information</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-4 sm:p-6 pt-0">
               <div className="grid grid-cols-2 gap-3 sm:gap-4">
                 <div>
-                  <Label className="text-xs sm:text-sm text-muted-foreground">Company Name</Label>
-                  <p className="text-sm sm:text-base font-medium">{user.startup.companyName}</p>
+                  <Label className="text-[10px] sm:text-xs text-muted-foreground">Company Name</Label>
+                  <p className="text-xs sm:text-sm font-medium truncate">{user.startup.companyName}</p>
                 </div>
                 <div>
-                  <Label className="text-xs sm:text-sm text-muted-foreground">Industry</Label>
-                  <p className="text-sm sm:text-base font-medium capitalize">{user.startup.industry.replace('_', ' ')}</p>
+                  <Label className="text-[10px] sm:text-xs text-muted-foreground">Industry</Label>
+                  <p className="text-xs sm:text-sm font-medium capitalize truncate">{user.startup.industry.replace('_', ' ')}</p>
                 </div>
                 <div>
-                  <Label className="text-xs sm:text-sm text-muted-foreground">Sector</Label>
-                  <Badge variant="outline" className="capitalize text-[10px] sm:text-xs">
+                  <Label className="text-[10px] sm:text-xs text-muted-foreground">Sector</Label>
+                  <Badge variant="outline" className="capitalize text-[9px] sm:text-[10px]">
                     {user.startup.sector}
                   </Badge>
                 </div>
                 <div>
-                  <Label className="text-xs sm:text-sm text-muted-foreground">Stage</Label>
-                  <p className="text-sm sm:text-base font-medium capitalize">{user.startup.stage}</p>
+                  <Label className="text-[10px] sm:text-xs text-muted-foreground">Stage</Label>
+                  <p className="text-xs sm:text-sm font-medium capitalize">{user.startup.stage}</p>
                 </div>
                 {user.startup.fundingStage && (
                   <div>
-                    <Label className="text-xs sm:text-sm text-muted-foreground">Funding Stage</Label>
-                    <p className="text-sm sm:text-base font-medium capitalize">
+                    <Label className="text-[10px] sm:text-xs text-muted-foreground">Funding Stage</Label>
+                    <p className="text-xs sm:text-sm font-medium capitalize">
                       {user.startup.fundingStage.replace('_', ' ')}
                     </p>
                   </div>

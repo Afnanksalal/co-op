@@ -18,7 +18,6 @@
 - [x] Automatic fallback
 - [x] Health checks (5-minute intervals)
 - [x] Models: Llama 3.3 70B, Kimi K2, Gemini 2.5 Flash, DeepSeek R1, Phi-3, Qwen 2.5
-- [x] CLaRA RAG Specialist (apple/CLaRa-7B-Instruct) - NOT for critique, only RAG processing
 
 ### AI Agents
 - [x] Legal agent (RAG)
@@ -70,11 +69,6 @@
 - [x] RAG query caching
 - [x] Retry service with exponential backoff
 - [x] Circuit breaker with LRU cleanup
-- [x] CLaRA RAG Specialist integration
-  - Semantic document compression (16×/128×)
-  - Query-aware context extraction
-  - Document analysis and classification
-  - Relevance scoring for RAG chunks
 - [x] Investor database module (full CRUD + admin management)
 - [x] Competitor alerts module (monitoring + results)
 

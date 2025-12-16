@@ -1,5 +1,6 @@
 import os
 import asyncpg
+from uuid import UUID
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 from typing import Optional, List
@@ -36,7 +37,6 @@ class Database:
         document_type: str = "guide"
     ) -> bool:
         """Register a file from Supabase Storage with jurisdiction metadata."""
-        from uuid import UUID
         async with self.pool.acquire() as conn:
             try:
                 uuid_id = UUID(file_id)
@@ -59,7 +59,6 @@ class Database:
 
     async def get_file(self, file_id: str) -> dict | None:
         """Get file metadata by ID."""
-        from uuid import UUID
         async with self.pool.acquire() as conn:
             try:
                 uuid_id = UUID(file_id)
@@ -179,7 +178,6 @@ class Database:
 
     async def delete_file(self, file_id: str) -> bool:
         """Delete file metadata."""
-        from uuid import UUID
         async with self.pool.acquire() as conn:
             try:
                 uuid_id = UUID(file_id)
@@ -199,7 +197,6 @@ class Database:
         chunk_count: int = 0
     ):
         """Update vector status after indexing."""
-        from uuid import UUID
         async with self.pool.acquire() as conn:
             try:
                 uuid_id = UUID(file_id)
@@ -215,7 +212,6 @@ class Database:
 
     async def touch_file(self, file_id: str):
         """Update last_accessed timestamp when vectors are used."""
-        from uuid import UUID
         async with self.pool.acquire() as conn:
             try:
                 uuid_id = UUID(file_id)
