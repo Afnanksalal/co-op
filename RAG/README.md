@@ -61,6 +61,7 @@ Files not accessed in 30 days → Remove vectors → Status: expired
 | TTL Management | Vectors expire after 30 days |
 | Persistent Storage | PDFs stored in Supabase |
 | Gemini Embeddings | text-embedding-004 (768 dim) |
+| Optional Compression | HuggingFace Inference API (no local models) |
 
 ## Jurisdiction Filtering
 
@@ -124,6 +125,13 @@ SUPABASE_STORAGE_BUCKET="documents"
 
 # API Authentication
 RAG_API_KEY="your-secure-api-key"
+
+# Optional: Context Compression (HuggingFace Inference API)
+# No local model download required - uses cloud API
+COMPRESSION_ENABLED="false"
+COMPRESSION_PROVIDER="huggingface"
+COMPRESSION_MODEL="mistralai/Mistral-7B-Instruct-v0.2"
+HUGGINGFACE_API_KEY="hf_..."
 ```
 
 ## API Endpoints

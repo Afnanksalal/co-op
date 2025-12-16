@@ -192,6 +192,8 @@ Key Features:
 - Session export (Markdown/JSON)
 - PWA with shortcuts and share target
 - Vercel Analytics integration
+- Mobile-first responsive design with consistent UI/UX
+- API client with retry logic and exponential backoff
 
 ### Backend (NestJS 11)
 
@@ -234,12 +236,14 @@ Common Services:
 | `GET /rag/files` | List registered files |
 | `DELETE /rag/files/{id}` | Delete file and vectors |
 | `POST /rag/cleanup` | Remove expired vectors |
+| `GET /health` | Health check with compression status |
 
 Key Features:
 - Lazy vectorization (vectors created on first query)
 - Domain/sector/jurisdiction filtering
 - TTL-based vector cleanup
 - Gemini text-embedding-004 (768 dimensions)
+- Optional context compression via HuggingFace Inference API (no local models)
 
 
 ---
@@ -367,6 +371,8 @@ The LLM Council is the core innovation - a multi-model cross-critique system tha
 | HuggingFace | deepseek-ai/DeepSeek-R1-Distill-Qwen-32B | Reasoning model |
 | HuggingFace | microsoft/Phi-3-mini-4k-instruct | Lightweight, fast |
 | HuggingFace | Qwen/Qwen2.5-14B-Instruct-1M | High quality |
+
+All HuggingFace models use the Inference API (no local model downloads required).
 
 ### Model Health Checks
 

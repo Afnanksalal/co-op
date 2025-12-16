@@ -1,22 +1,25 @@
-# Core
-fastapi>=0.110.0
-uvicorn[standard]>=0.29.0
-python-multipart>=0.0.9
-pydantic>=2.7.0
-pydantic-settings>=2.2.0
+# Co-Op RAG Service Dependencies
+# Last updated: December 2024
+
+# Core Framework
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+python-multipart>=0.0.12
+pydantic>=2.10.0
+pydantic-settings>=2.6.0
 python-dotenv>=1.0.1
 
 # Database & Storage
-asyncpg>=0.29.0
-supabase>=2.3.0
-upstash-vector>=0.4.0
+asyncpg>=0.30.0
+supabase>=2.10.0
+upstash-vector>=0.6.0
 
-# AI & ML
-google-generativeai>=0.4.0
-torch>=2.0.0
-transformers>=4.40.0
-accelerate>=0.30.0
+# AI & ML - Google Embeddings
+google-generativeai>=0.8.0
+
+# HTTP Client - For HuggingFace Inference API
+httpx>=0.28.0
 
 # Document Processing
-pypdf>=4.0.1
-langchain-text-splitters>=0.0.1
+pypdf>=5.1.0
+langchain-text-splitters>=0.3.0

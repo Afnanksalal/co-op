@@ -64,6 +64,13 @@
       "when": 1765883406664,
       "tag": "0008_dark_outlaw_kid",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1765896880268,
+      "tag": "0009_cloudy_caretaker",
+      "breakpoints": true
     }
   ]
 }

@@ -14,6 +14,9 @@
 ### Performance
 - [x] Caching layer for common RAG queries (30-min TTL)
 - [x] Error recovery with automatic retry logic (exponential backoff)
+- [x] Frontend API client retry logic with exponential backoff
+- [x] N+1 query fixes for investors and alerts services
+- [x] HuggingFace Inference API for RAG compression (no local models)
 
 ## Medium Priority - COMPLETED ✓
 
@@ -26,6 +29,8 @@
 - [x] Mobile-optimized chat interface (responsive design)
 - [x] Touch-friendly interactions (larger tap targets)
 - [x] PWA improvements (shortcuts, share target)
+- [x] Consistent mobile UI/UX across all dashboard pages
+- [x] Responsive typography and spacing system
 
 ## Agent Improvements - COMPLETED ✓
 
