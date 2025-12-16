@@ -174,9 +174,10 @@ export class InvestorsService {
     const bySector = new Map<string, number>();
 
     for (const inv of all) {
-      byStage.set(inv.stage, (byStage.get(inv.stage) || 0) + 1);
-      for (const sector of inv.sectors) {
-        bySector.set(sector, (bySector.get(sector) || 0) + 1);
+      byStage.set(inv.stage, (byStage.get(inv.stage) ?? 0) + 1);
+      const sectors = inv.sectors ?? [];
+      for (const sector of sectors) {
+        bySector.set(sector, (bySector.get(sector) ?? 0) + 1);
       }
     }
 
@@ -198,16 +199,16 @@ export class InvestorsService {
       website: investor.website,
       logoUrl: investor.logoUrl,
       stage: investor.stage as InvestorResponseDto['stage'],
-      sectors: investor.sectors,
+      sectors: investor.sectors ?? [],
       checkSizeMin: investor.checkSizeMin,
       checkSizeMax: investor.checkSizeMax,
       location: investor.location,
-      regions: investor.regions,
+      regions: investor.regions ?? [],
       contactEmail: investor.contactEmail,
       linkedinUrl: investor.linkedinUrl,
       twitterUrl: investor.twitterUrl,
-      portfolioCompanies: investor.portfolioCompanies || [],
-      notableExits: investor.notableExits || [],
+      portfolioCompanies: investor.portfolioCompanies ?? [],
+      notableExits: investor.notableExits ?? [],
       isActive: investor.isActive,
       isFeatured: investor.isFeatured,
       createdAt: investor.createdAt.toISOString(),

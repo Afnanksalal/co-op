@@ -81,13 +81,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   // Prevent body scroll when mobile menu is open
   useEffect(() => {
+    const scrollY = window.scrollY;
+    
     if (mobileMenuOpen) {
-      document.body.style.overflow = 'hidden';
+      // Store scroll position and lock body
+      document.documentElement.classList.add('menu-open');
+      document.body.style.top = `-${scrollY}px`;
     } else {
-      document.body.style.overflow = '';
+      // Restore scroll position
+      const storedScrollY = document.body.style.top;
+      document.documentElement.classList.remove('menu-open');
+      document.body.style.top = '';
+      if (storedScrollY) {
+        window.scrollTo(0, parseInt(storedScrollY || '0', 10) * -1);
+      }
     }
+    
     return () => {
-      document.body.style.overflow = '';
+      document.documentElement.classList.remove('menu-open');
+      document.body.style.top = '';
     };
   }, [mobileMenuOpen]);
 
@@ -211,7 +223,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </header>
 
       {/* Mobile Menu Overlay */}
-      <AnimatePresence>
+      <AnimatePresence mode="wait">
         {mobileMenuOpen && (
           <>
             {/* Backdrop */}
@@ -219,8 +231,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="fixed inset-0 z-50 bg-black/50 md:hidden"
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 z-[60] bg-black/60 md:hidden touch-none"
               onClick={() => setMobileMenuOpen(false)}
             />
             
@@ -229,11 +241,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               initial={{ x: '-100%' }}
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
-              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-              className="fixed top-0 left-0 bottom-0 z-50 w-72 bg-background border-r border-border/40 flex flex-col md:hidden"
+              transition={{ duration: 0.2, ease: [0.32, 0.72, 0, 1] }}
+              className="fixed top-0 left-0 bottom-0 z-[70] w-[280px] max-w-[85vw] bg-background border-r border-border/40 flex flex-col md:hidden hw-accelerate"
             >
               {/* Mobile Menu Header */}
-              <div className="h-14 flex items-center justify-between px-4 border-b border-border/40">
+              <div className="h-14 flex items-center justify-between px-4 border-b border-border/40 shrink-0">
                 <Button
                   variant="ghost"
                   size="icon"
@@ -246,12 +258,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
 
               {/* Mobile Navigation */}
-              <nav className="flex-1 overflow-y-auto py-6 px-3 space-y-8">
+              <nav className="flex-1 overflow-y-auto mobile-menu-scroll py-4 px-3 space-y-6">
                 <SidebarContent onItemClick={() => setMobileMenuOpen(false)} />
               </nav>
 
               {/* Mobile User Section */}
-              <div className="p-3 border-t border-border/40">
+              <div className="p-3 border-t border-border/40 shrink-0">
                 <div className="flex items-center gap-3 px-3 py-2">
                   <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0 text-sm font-medium">
                     {user.name?.charAt(0) || 'U'}

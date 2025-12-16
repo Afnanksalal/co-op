@@ -320,6 +320,39 @@
 .stagger-4 { animation-delay: 0.2s; }
 .stagger-5 { animation-delay: 0.25s; }
 
+/* Mobile menu scroll lock */
+html.menu-open,
+html.menu-open body {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+  touch-action: none;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+}
+
+/* Smooth scrolling for mobile menu content */
+.mobile-menu-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+}
+
+/* Prevent pull-to-refresh on mobile */
+@supports (-webkit-touch-callout: none) {
+  body {
+    overscroll-behavior-y: none;
+  }
+}
+
+/* Hardware acceleration for smoother animations */
+.hw-accelerate {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+  will-change: transform;
+}
+
 /* Print styles */
 @media print {
   .no-print {
