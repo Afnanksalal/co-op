@@ -1,9 +1,10 @@
-import { Injectable, Inject, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, BadRequestException, Logger, Optional } from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq, and, desc } from 'drizzle-orm';
 import { v4 as uuid } from 'uuid';
 import { DATABASE_CONNECTION } from '@/database/database.module';
 import { SupabaseStorageService } from '@/common/supabase/supabase-storage.service';
+import { ClaraRagService, DocumentAnalysis } from '@/common/rag/clara-rag.service';
 import * as schema from '@/database/schema';
 import { DocumentResponseDto, DocumentUrlResponseDto, ALLOWED_MIME_TYPES } from './dto/document.dto';
 
@@ -28,6 +29,8 @@ export class DocumentsService {
     @Inject(DATABASE_CONNECTION)
     private readonly db: NodePgDatabase<typeof schema>,
     private readonly storage: SupabaseStorageService,
+    @Optional()
+    private readonly claraService?: ClaraRagService,
   ) {}
 
   /**
@@ -199,7 +202,9 @@ export class DocumentsService {
   }
 
   /**
-   * Extract text content from a document for use in chat context
+   * Extract text content from a document for use in chat context.
+   * If CLaRA is available, provides intelligent document analysis.
+   * 
    * @param id - The document ID
    * @param userId - The user's ID (for ownership verification)
    * @returns Extracted text content or placeholder
@@ -208,9 +213,21 @@ export class DocumentsService {
     const document = await this.findById(id, userId);
     const { content, mimeType } = await this.getContent(id, userId);
 
-    // Text files - return content directly
+    // Text files - return content directly (optionally with CLaRA analysis)
     if (mimeType === 'text/plain' || mimeType === 'text/markdown') {
-      return content.toString('utf-8');
+      const textContent = content.toString('utf-8');
+      
+      // Use CLaRA for intelligent analysis if available
+      if (this.claraService?.isReady() && textContent.length > 200) {
+        const analysis = await this.claraService.analyzeDocument(
+          textContent,
+          document.originalName,
+          mimeType,
+        );
+        return this.formatWithAnalysis(textContent, analysis, document.originalName);
+      }
+      
+      return textContent;
     }
 
     // PDF files - placeholder (would need pdf-parse or similar)
@@ -230,6 +247,58 @@ export class DocumentsService {
     }
 
     return `[Document: ${document.originalName}]`;
+  }
+
+  /**
+   * Analyze a document using CLaRA RAG specialist.
+   * Returns structured analysis including document type, key entities, topics, etc.
+   * 
+   * @param id - The document ID
+   * @param userId - The user's ID (for ownership verification)
+   * @returns Document analysis or null if CLaRA unavailable
+   */
+  async analyzeDocument(id: string, userId: string): Promise<DocumentAnalysis | null> {
+    if (!this.claraService?.isReady()) {
+      return null;
+    }
+
+    const document = await this.findById(id, userId);
+    const { content, mimeType } = await this.getContent(id, userId);
+
+    // Only analyze text-based documents
+    if (mimeType !== 'text/plain' && mimeType !== 'text/markdown') {
+      return null;
+    }
+
+    const textContent = content.toString('utf-8');
+    return this.claraService.analyzeDocument(textContent, document.originalName, mimeType);
+  }
+
+  /**
+   * Format document content with CLaRA analysis metadata
+   */
+  private formatWithAnalysis(
+    content: string,
+    analysis: DocumentAnalysis,
+    filename: string,
+  ): string {
+    const header = [
+      `--- Document: ${filename} ---`,
+      `Type: ${analysis.documentType} | Domain: ${analysis.domain}`,
+      `Summary: ${analysis.summary}`,
+    ];
+
+    if (analysis.keyTopics.length > 0) {
+      header.push(`Topics: ${analysis.keyTopics.join(', ')}`);
+    }
+
+    if (analysis.keyEntities.length > 0) {
+      header.push(`Entities: ${analysis.keyEntities.join(', ')}`);
+    }
+
+    header.push('--- Content ---');
+
+    return `${header.join('\n')}\n\n${content}`;
   }
 
   // Private helper methods

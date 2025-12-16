@@ -90,7 +90,18 @@ export class WebhooksService {
     }
   }
 
+  /** Pilot program: 1 webhook per user */
+  private readonly PILOT_WEBHOOK_LIMIT = 1;
+  /** Pilot program: 10 webhook triggers per day */
+  private readonly PILOT_DAILY_TRIGGER_LIMIT = 10;
+
   async create(userId: string, dto: CreateWebhookDto): Promise<WebhookResponseDto> {
+    // Pilot program: Limit to 1 webhook per user
+    const existingWebhooks = await this.findByUserId(userId);
+    if (existingWebhooks.length >= this.PILOT_WEBHOOK_LIMIT) {
+      throw new BadRequestException('Pilot program allows only 1 webhook per user. Delete your existing webhook to create a new one.');
+    }
+
     // Validate URL for SSRF prevention
     this.validateWebhookUrl(dto.url);
 
@@ -229,6 +240,16 @@ export class WebhooksService {
     return { secret: plainSecret };
   }
 
+  /**
+   * Check if webhook has exceeded daily trigger limit
+   */
+  private async checkDailyTriggerLimit(webhookId: string): Promise<boolean> {
+    const today = new Date().toISOString().split('T')[0];
+    const dailyKey = `${this.WEBHOOK_USAGE_PREFIX}${webhookId}:daily:${today}`;
+    const currentUsage = await this.redis.get<number>(dailyKey) ?? 0;
+    return currentUsage < this.PILOT_DAILY_TRIGGER_LIMIT;
+  }
+
   async trigger(event: string, data: Record<string, unknown>): Promise<void> {
     const webhooks = await this.db.select().from(schema.webhooks).where(eq(schema.webhooks.isActive, true));
 
@@ -243,7 +264,21 @@ export class WebhooksService {
       data,
     };
 
-    await Promise.allSettled(matchingWebhooks.map((webhook) => this.sendWebhook(webhook, payload)));
+    // Check daily limit before sending
+    const webhooksToTrigger = await Promise.all(
+      matchingWebhooks.map(async (webhook) => {
+        const allowed = await this.checkDailyTriggerLimit(webhook.id);
+        return allowed ? webhook : null;
+      })
+    );
+
+    const allowedWebhooks = webhooksToTrigger.filter((w): w is schema.Webhook => w !== null);
+    
+    if (allowedWebhooks.length < matchingWebhooks.length) {
+      this.logger.warn(`Some webhooks skipped due to daily trigger limit (${this.PILOT_DAILY_TRIGGER_LIMIT}/day)`);
+    }
+
+    await Promise.allSettled(allowedWebhooks.map((webhook) => this.sendWebhook(webhook, payload)));
   }
 
   private async sendWebhook(webhook: schema.Webhook, payload: WebhookPayload): Promise<void> {

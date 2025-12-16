@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { User, Buildings, Pencil, Check, X, Sun, Moon, Desktop } from '@phosphor-icons/react';
 import { api } from '@/lib/api/client';
@@ -20,17 +20,6 @@ export default function SettingsPage() {
   const [isEditingName, setIsEditingName] = useState(false);
   const [newName, setNewName] = useState(user?.name || '');
   const [isSaving, setIsSaving] = useState(false);
-
-  // Apply theme to document
-  useEffect(() => {
-    const root = document.documentElement;
-    if (theme === 'system') {
-      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-      root.classList.toggle('dark', systemTheme === 'dark');
-    } else {
-      root.classList.toggle('dark', theme === 'dark');
-    }
-  }, [theme]);
 
   const handleSaveName = async () => {
     if (!newName.trim()) {
@@ -58,7 +47,7 @@ export default function SettingsPage() {
 
   if (isLoading || !user) {
     return (
-      <div className="max-w-3xl space-y-6 sm:space-y-8">
+      <div className="max-w-3xl mx-auto space-y-6 sm:space-y-8">
         <div className="h-8 w-48 bg-muted rounded animate-pulse" />
         <div className="h-64 bg-muted rounded-lg animate-pulse" />
         <div className="h-48 bg-muted rounded-lg animate-pulse" />
@@ -67,7 +56,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="max-w-3xl space-y-6 sm:space-y-8">
+    <div className="max-w-3xl mx-auto space-y-6 sm:space-y-8">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
         <h1 className="font-serif text-2xl sm:text-3xl font-medium tracking-tight mb-1 sm:mb-2">Settings</h1>
         <p className="text-sm sm:text-base text-muted-foreground">Manage your account and preferences</p>

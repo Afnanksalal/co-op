@@ -1,7 +1,8 @@
-import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { CircuitBreakerService } from '@/common/circuit-breaker/circuit-breaker.service';
 import { RagCacheService } from './rag-cache.service';
+import { ClaraRagService } from './clara-rag.service';
 import {
   RagDomain,
   RagSector,
@@ -32,6 +33,9 @@ export class RagService {
     private readonly circuitBreaker: CircuitBreakerService,
     @Inject(forwardRef(() => RagCacheService))
     private readonly cacheService: RagCacheService,
+    @Optional()
+    @Inject(forwardRef(() => ClaraRagService))
+    private readonly claraService?: ClaraRagService,
   ) {
     this.ragBaseUrl = this.configService.get<string>('RAG_SERVICE_URL', '');
     this.ragApiKey = this.configService.get<string>('RAG_API_KEY', '');
@@ -271,12 +275,16 @@ export class RagService {
    * Get relevant context for an agent prompt with jurisdiction filtering.
    * Returns formatted context from RAG - the LLM Council will use this to generate answers.
    * 
+   * If CLaRA is available, context is processed through semantic compression
+   * for better relevance and reduced token usage.
+   * 
    * @param query - The user's question
    * @param domain - legal or finance
    * @param sector - fintech, greentech, healthtech, saas, ecommerce
    * @param country - User's country (will be mapped to region)
    * @param jurisdictions - Specific regulatory frameworks to filter by
    * @param limit - Max number of chunks to return
+   * @param useClara - Whether to use CLaRA for context processing (default: true)
    */
   async getContext(
     query: string,
@@ -285,6 +293,7 @@ export class RagService {
     country?: string,
     jurisdictions?: RagJurisdiction[],
     limit = 5,
+    useClara = true,
   ): Promise<string> {
     // Map country to region
     const region: RagRegion | undefined = country ? getRegionFromCountry(country) : undefined;
@@ -302,7 +311,33 @@ export class RagService {
       return '';
     }
 
-    // Build source list with jurisdiction info
+    // Use CLaRA for intelligent context processing if available
+    if (useClara && this.claraService?.isReady()) {
+      const sources = result.sources.map(s => ({
+        fileId: s.fileId,
+        filename: s.filename,
+        score: s.score,
+        domain: s.domain,
+        sector: s.sector,
+      }));
+
+      const councilContext = await this.claraService.prepareCouncilContext(
+        result.context,
+        query,
+        domain,
+        sources,
+      );
+
+      this.logger.debug(
+        `CLaRA processed context: compressed=${councilContext.compressed}, ` +
+        `ratio=${councilContext.compressionRatio?.toFixed(2) ?? 'N/A'}, ` +
+        `time=${councilContext.processingTimeMs}ms`,
+      );
+
+      return councilContext.context;
+    }
+
+    // Fallback: Build source list with jurisdiction info (no CLaRA)
     const sourceList = result.sources
       .map((s, i) => {
         const regionInfo = s.region ? ` [${s.region.toUpperCase()}]` : '';
@@ -315,6 +350,13 @@ export class RagService {
     const jurisLabel = jurisdictions?.length ? ` | Jurisdictions: ${jurisdictions.join(', ')}` : '';
 
     return `\n\n--- RAG Context (${domain}/${sector}${regionLabel}${jurisLabel}) ---\n${result.context}\n\nSources:\n${sourceList}\n--- End RAG Context ---\n`;
+  }
+
+  /**
+   * Check if CLaRA RAG specialist is available
+   */
+  isClaraAvailable(): boolean {
+    return this.claraService?.isReady() ?? false;
   }
 
   /**

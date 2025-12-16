@@ -131,6 +131,7 @@ export default function ApiKeysPage() {
         <div>
           <h1 className="font-serif text-2xl sm:text-3xl font-medium tracking-tight mb-1 sm:mb-2">API Keys</h1>
           <p className="text-sm sm:text-base text-muted-foreground">Manage your API keys for programmatic access</p>
+          <p className="text-xs text-muted-foreground/70 mt-1">Pilot: 1 key, 3 requests/month</p>
         </div>
         <Dialog open={showDialog} onOpenChange={setShowDialog}>
           <DialogTrigger asChild>

@@ -18,7 +18,14 @@ import {
   Rocket,
   Check,
   X,
+  Sun,
+  Moon,
+  ShieldCheck,
+  Brain,
+  Export,
+  BookmarkSimple,
 } from '@phosphor-icons/react';
+import { useUIStore } from '@/lib/store';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -40,10 +47,19 @@ const opTranslations = [
 ];
 
 const agents = [
-  { icon: Scales, title: 'Legal', description: 'Corporate structure, contracts, compliance' },
-  { icon: ChartLineUp, title: 'Finance', description: 'Financial modeling, metrics, runway' },
-  { icon: UsersThree, title: 'Investor', description: 'VC matching, pitch optimization' },
-  { icon: Globe, title: 'Competitor', description: 'Market analysis, positioning' },
+  { icon: Scales, title: 'Legal', description: 'Corporate structure, contracts, compliance, IP protection' },
+  { icon: ChartLineUp, title: 'Finance', description: 'Financial modeling, metrics, runway, unit economics' },
+  { icon: UsersThree, title: 'Investor', description: 'VC matching, pitch optimization, term sheets' },
+  { icon: Globe, title: 'Competitor', description: 'Market analysis, positioning, competitive intelligence' },
+];
+
+const features = [
+  { icon: Brain, title: 'LLM Council', description: 'Multiple AI models cross-validate every response for accuracy' },
+  { icon: Lightning, title: 'A2A Protocol', description: 'Agent-to-Agent communication for multi-perspective insights' },
+  { icon: ShieldCheck, title: 'Enterprise Security', description: 'AES-256 encryption, rate limiting, audit logging' },
+  { icon: Export, title: 'Export & Share', description: 'Export sessions to Markdown, JSON, or email summaries' },
+  { icon: BookmarkSimple, title: 'Bookmarks', description: 'Save important responses for quick reference' },
+  { icon: Code, title: 'Developer APIs', description: 'REST API, MCP Protocol, and webhook integrations' },
 ];
 
 const pricingPlans = [
@@ -52,14 +68,14 @@ const pricingPlans = [
     price: 'Free',
     description: 'Try Co-Op during our pilot phase',
     features: [
-      { text: '30 AI requests/month', included: true },
+      { text: '3 AI requests/month', included: true },
       { text: 'All 4 AI agents', included: true },
       { text: 'Multi-agent A2A mode', included: true },
-      { text: 'Session history', included: true },
-      { text: 'Basic analytics', included: true },
-      { text: 'Community support', included: true },
+      { text: 'Session history & export', included: true },
+      { text: 'Bookmarks system', included: true },
+      { text: '1 API key (3 calls/month)', included: true },
+      { text: '1 Webhook (10 triggers/day)', included: true },
       { text: 'Priority support', included: false },
-      { text: 'Custom integrations', included: false },
     ],
     cta: 'Start Free',
     href: '/login',
@@ -106,7 +122,7 @@ const pricingPlans = [
 ];
 
 const roadmapItems = [
-  { phase: 'Now', title: 'Pilot Launch', items: ['Single founder per startup', '30 free requests/month', '4 AI agents', 'A2A multi-agent mode'] },
+  { phase: 'Now', title: 'Pilot Launch', items: ['3 free AI requests/month', '4 AI agents + A2A mode', 'Session export & bookmarks', 'API & webhook access'] },
   { phase: 'Q1 2026', title: 'Team Features', items: ['Multiple founders per startup', 'Team collaboration', 'Shared sessions', 'Role-based access'] },
   { phase: 'Q2 2026', title: 'Idea Stage', items: ['Idea validation flow', 'Market research agent', 'Business model canvas', 'Competitor discovery'] },
   { phase: 'Q3 2026', title: 'Enterprise', items: ['SSO integration', 'Custom AI training', 'On-premise deployment', 'SLA guarantees'] },
@@ -115,6 +131,7 @@ const roadmapItems = [
 export default function HomePage() {
   const [currentOpIndex, setCurrentOpIndex] = useState(0);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const { theme, setTheme } = useUIStore();
 
   useEffect(() => {
     const checkSession = async () => {
@@ -126,6 +143,14 @@ export default function HomePage() {
     };
     checkSession();
   }, []);
+
+  const toggleTheme = () => {
+    if (theme === 'dark') {
+      setTheme('light');
+    } else {
+      setTheme('dark');
+    }
+  };
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -151,6 +176,17 @@ export default function HomePage() {
             <a href="#developers" className="text-muted-foreground hover:text-foreground transition-colors">Developers</a>
           </nav>
           <div className="flex items-center gap-2 sm:gap-4">
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-lg hover:bg-muted/50 transition-colors"
+              aria-label="Toggle theme"
+            >
+              {theme === 'dark' ? (
+                <Sun weight="regular" className="w-5 h-5" />
+              ) : (
+                <Moon weight="regular" className="w-5 h-5" />
+              )}
+            </button>
             {isAuthenticated ? (
               <Link href="/dashboard">
                 <Button size="sm">Dashboard</Button>
@@ -260,6 +296,38 @@ export default function HomePage() {
                 <agent.icon weight="light" className="w-8 h-8 mb-4 text-foreground/70" />
                 <h3 className="font-serif text-lg font-medium mb-2">{agent.title}</h3>
                 <p className="text-sm text-muted-foreground">{agent.description}</p>
+              </motion.div>
+            ))}
+          </div>
+        </section>
+
+        {/* Platform Features */}
+        <section className="max-w-6xl mx-auto px-6 py-24 border-t border-border/40">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-16"
+          >
+            <h2 className="font-serif text-3xl md:text-4xl font-medium tracking-tight mb-4">Platform Features</h2>
+            <p className="text-muted-foreground max-w-xl mx-auto">
+              Built for accuracy, security, and developer experience.
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {features.map((feature, index) => (
+              <motion.div
+                key={feature.title}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.1 }}
+                className="p-6 rounded-xl border border-border/40 bg-card/50 hover:border-border transition-colors"
+              >
+                <feature.icon weight="light" className="w-8 h-8 mb-4 text-foreground/70" />
+                <h3 className="font-serif text-lg font-medium mb-2">{feature.title}</h3>
+                <p className="text-sm text-muted-foreground">{feature.description}</p>
               </motion.div>
             ))}
           </div>

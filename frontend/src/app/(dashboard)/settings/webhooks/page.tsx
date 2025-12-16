@@ -158,6 +158,7 @@ export default function WebhooksPage() {
         <div>
           <h1 className="font-serif text-2xl sm:text-3xl font-medium tracking-tight mb-1 sm:mb-2">Webhooks</h1>
           <p className="text-sm sm:text-base text-muted-foreground">Receive real-time notifications for events</p>
+          <p className="text-xs text-muted-foreground/70 mt-1">Pilot: 1 webhook, 10 triggers/day</p>
         </div>
         <Dialog open={showDialog} onOpenChange={setShowDialog}>
           <DialogTrigger asChild>

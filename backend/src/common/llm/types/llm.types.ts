@@ -1,9 +1,13 @@
 export type LlmProvider = 'groq' | 'google' | 'huggingface';
 
+/** Model role in the council */
+export type ModelRole = 'council' | 'rag-specialist';
+
 export interface ModelConfig {
   provider: LlmProvider;
   model: string;
   name: string; // Human-readable name for logging
+  role?: ModelRole; // Default: 'council' - participates in critique. 'rag-specialist' = RAG processing only
 }
 
 export interface ChatMessage {
@@ -104,14 +108,27 @@ export interface ModelHealthCheck {
 // Health check validates on boot - only healthy models used
 export const AVAILABLE_MODELS: ModelConfig[] = [
   // Groq - verified working, fastest inference
-  { provider: 'groq', model: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B Versatile' },
-  { provider: 'groq', model: 'kimi-k2-instruct-0905', name: 'Kimi K2 Instruct' },
+  { provider: 'groq', model: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B Versatile', role: 'council' },
+  { provider: 'groq', model: 'kimi-k2-instruct-0905', name: 'Kimi K2 Instruct', role: 'council' },
 
   // Google AI - Gemini 2.5 Flash (fast, production-ready)
-  { provider: 'google', model: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
+  { provider: 'google', model: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', role: 'council' },
 
   // HuggingFace - multiple models for diversity
-  { provider: 'huggingface', model: 'deepseek-ai/DeepSeek-R1-Distill-Qwen-32B', name: 'DeepSeek R1 32B' },
-  { provider: 'huggingface', model: 'microsoft/Phi-3-mini-4k-instruct', name: 'Phi-3 Mini 4K' },
-  { provider: 'huggingface', model: 'Qwen/Qwen2.5-14B-Instruct-1M', name: 'Qwen 2.5 14B 1M' },
+  { provider: 'huggingface', model: 'deepseek-ai/DeepSeek-R1-Distill-Qwen-32B', name: 'DeepSeek R1 32B', role: 'council' },
+  { provider: 'huggingface', model: 'microsoft/Phi-3-mini-4k-instruct', name: 'Phi-3 Mini 4K', role: 'council' },
+  { provider: 'huggingface', model: 'Qwen/Qwen2.5-14B-Instruct-1M', name: 'Qwen 2.5 14B 1M', role: 'council' },
+
+  // Apple CLaRA - RAG Specialist (NOT for critique)
+  // Semantic document compression (16×/128×), instruction-tuned for QA from compressed representations
+  // Used for: RAG context processing, document understanding, context distribution to council
+  { provider: 'huggingface', model: 'apple/CLaRa-7B-Instruct', name: 'CLaRA 7B RAG Specialist', role: 'rag-specialist' },
 ];
+
+/** Get only council models (for critique/response generation) */
+export const getCouncilModels = (): ModelConfig[] =>
+  AVAILABLE_MODELS.filter(m => m.role !== 'rag-specialist');
+
+/** Get RAG specialist model (CLaRA) */
+export const getRagSpecialistModel = (): ModelConfig | undefined =>
+  AVAILABLE_MODELS.find(m => m.role === 'rag-specialist');

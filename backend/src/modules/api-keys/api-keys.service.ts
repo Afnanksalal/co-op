@@ -53,10 +53,10 @@ export class ApiKeysService {
       throw new BadRequestException('API key name must be 100 characters or less');
     }
 
-    // Limit number of keys per user
+    // Pilot program: Limit to 1 API key per user
     const existingKeys = await this.findByUser(userId);
-    if (existingKeys.length >= 10) {
-      throw new BadRequestException('Maximum of 10 API keys per user');
+    if (existingKeys.length >= 1) {
+      throw new BadRequestException('Pilot program allows only 1 API key per user. Delete your existing key to create a new one.');
     }
 
     const id = randomBytes(8).toString('hex');
@@ -167,6 +167,32 @@ export class ApiKeysService {
     });
 
     this.logger.log(`API key ${keyId} revoked for user ${userId}`);
+  }
+
+  /** Pilot program: 3 API requests per month */
+  private readonly PILOT_MONTHLY_LIMIT = 3;
+
+  /**
+   * Check if user has exceeded their monthly API key usage limit
+   */
+  async checkUsageLimit(rawKey: string): Promise<{ allowed: boolean; remaining: number; limit: number }> {
+    const keyData = await this.redis.get<StoredApiKey>(`${this.API_KEY_PREFIX}${rawKey}`);
+    if (!keyData) {
+      return { allowed: false, remaining: 0, limit: this.PILOT_MONTHLY_LIMIT };
+    }
+
+    const now = new Date();
+    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const monthlyKey = `${this.API_KEY_USAGE_PREFIX}${keyData.id}:monthly:${month}`;
+    
+    const currentUsage = await this.redis.get<number>(monthlyKey) ?? 0;
+    const remaining = Math.max(0, this.PILOT_MONTHLY_LIMIT - currentUsage);
+    
+    return {
+      allowed: currentUsage < this.PILOT_MONTHLY_LIMIT,
+      remaining,
+      limit: this.PILOT_MONTHLY_LIMIT,
+    };
   }
 
   async updateLastUsed(rawKey: string): Promise<void> {

@@ -89,12 +89,13 @@ export default function ChatPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const streamCleanupRef = useRef<(() => void) | null>(null);
 
-  // Initialize session and load existing messages
+  // Initialize session - only load existing session, don't create new one
+  // Session is created on first message send
   useEffect(() => {
     const initSession = async () => {
       if (!user?.startup) return;
       
-      // Prevent duplicate session creation (React StrictMode runs effects twice)
+      // Prevent duplicate initialization (React StrictMode runs effects twice)
       if (sessionInitRef.current) return;
       sessionInitRef.current = true;
 
@@ -149,44 +150,8 @@ export default function ChatPage() {
         return;
       }
 
-      // Check for existing active sessions before creating a new one
-      try {
-        const existingSessions = await api.getSessions();
-        const activeSession = existingSessions.find(s => s.status === 'active');
-        
-        if (activeSession) {
-          // Use the most recent active session
-          setCurrentSession(activeSession);
-          const existingMessages = await api.getSessionMessages(activeSession.id);
-          if (existingMessages.length > 0) {
-            clearMessages();
-            existingMessages.forEach((msg) => {
-              addMessage({
-                id: msg.id,
-                role: msg.role as 'user' | 'assistant',
-                content: msg.content,
-                agent: msg.agent as AgentType | 'multi' | undefined,
-                timestamp: new Date(msg.createdAt),
-              });
-            });
-          }
-          return;
-        }
-      } catch (error) {
-        console.error('Failed to check existing sessions:', error);
-      }
-
-      // Create new session if no active session exists
-      try {
-        const session = await api.createSession({
-          startupId: user.startup.id,
-          metadata: { source: 'web-chat' },
-        });
-        setCurrentSession(session);
-      } catch (error) {
-        console.error('Failed to create session:', error);
-        toast.error('Failed to initialize chat session');
-      }
+      // Don't create a session automatically - wait for first message
+      // This prevents empty "Untitled Session" entries
     };
 
     initSession();
@@ -233,12 +198,28 @@ export default function ChatPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || !currentSession || !user?.startup || isLoading) return;
+    if (!input.trim() || !user?.startup || isLoading) return;
 
     const userMessageId = generateId();
     const assistantMessageId = generateId();
     const prompt = input.trim();
     const isMultiAgent = selectedAgent === null;
+
+    // Create session on first message if none exists
+    let sessionToUse = currentSession;
+    if (!sessionToUse) {
+      try {
+        sessionToUse = await api.createSession({
+          startupId: user.startup.id,
+          metadata: { source: 'web-chat' },
+        });
+        setCurrentSession(sessionToUse);
+      } catch (error) {
+        console.error('Failed to create session:', error);
+        toast.error('Failed to start chat session');
+        return;
+      }
+    }
 
     addMessage({
       id: userMessageId,
@@ -268,22 +249,22 @@ export default function ChatPage() {
         ? {
             agents: ['legal', 'finance', 'investor', 'competitor'],
             prompt,
-            sessionId: currentSession.id,
+            sessionId: sessionToUse.id,
             startupId: user.startup.id,
             documents: documentIds,
           }
         : {
             agentType: selectedAgent,
             prompt,
-            sessionId: currentSession.id,
+            sessionId: sessionToUse.id,
             startupId: user.startup.id,
             documents: documentIds,
           };
 
       const { taskId } = await api.queueAgent(request);
 
-      // Save user message to database
-      await api.addSessionMessage(currentSession.id, {
+      // Save user message to database (title auto-generated from first message)
+      await api.addSessionMessage(sessionToUse.id, {
         role: 'user',
         content: prompt,
       });
@@ -363,8 +344,8 @@ export default function ChatPage() {
             }
             
             // Save assistant response
-            if (finalContent) {
-              api.addSessionMessage(currentSession.id, {
+            if (finalContent && sessionToUse) {
+              api.addSessionMessage(sessionToUse.id, {
                 role: 'assistant',
                 content: finalContent,
                 agent: isMultiAgent ? undefined : selectedAgent ?? undefined,
@@ -685,25 +666,15 @@ export default function ChatPage() {
     return `Ask ${agentConfig[selectedAgent].name} anything...`;
   };
 
-  const handleNewChat = async () => {
+  const handleNewChat = () => {
     if (!user?.startup) return;
     
-    // Clear current messages and session
+    // Clear current messages and session - new session created on first message
     clearMessages();
     setCurrentSession(null);
     setThinkingSteps([]);
-    
-    // Create new session
-    try {
-      const session = await api.createSession({
-        startupId: user.startup.id,
-        metadata: { source: 'web-chat' },
-      });
-      setCurrentSession(session);
-    } catch (error) {
-      console.error('Failed to create new session:', error);
-      toast.error('Failed to start new chat');
-    }
+    setUploadedDocs([]);
+    setFollowUpSuggestions([]);
   };
 
   return (

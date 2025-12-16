@@ -125,7 +125,7 @@ Multiple AI models collaborate and cross-critique each response:
 2. **Critique** - Each model scores ALL other responses (1-10)
 3. **Synthesize** - Best response improved with feedback
 
-### Available Models
+### Council Models
 
 | Provider | Model | Notes |
 |----------|-------|-------|
@@ -135,6 +135,20 @@ Multiple AI models collaborate and cross-critique each response:
 | HuggingFace | deepseek-ai/DeepSeek-R1-Distill-Qwen-32B | Reasoning |
 | HuggingFace | microsoft/Phi-3-mini-4k-instruct | Lightweight |
 | HuggingFace | Qwen/Qwen2.5-14B-Instruct-1M | High quality |
+
+### CLaRA RAG Specialist
+
+Apple's CLaRA-7B-Instruct is used for intelligent RAG context processing (NOT critique):
+
+| Provider | Model | Purpose |
+|----------|-------|---------|
+| HuggingFace | apple/CLaRa-7B-Instruct | Semantic compression, context optimization |
+
+CLaRA provides:
+- **16×/128× semantic compression** - Reduces context size while preserving key info
+- **Query-aware extraction** - Focuses on information relevant to the user's question
+- **Document analysis** - Classifies documents, extracts entities and topics
+- **Relevance scoring** - Prioritizes most relevant RAG chunks
 
 ## AI Agents
 

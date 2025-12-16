@@ -14,6 +14,8 @@ import {
   ModelConfig,
   ModelHealthCheck,
   AVAILABLE_MODELS,
+  getCouncilModels,
+  getRagSpecialistModel,
 } from './types/llm.types';
 import { sanitizeResponse } from './utils/response-sanitizer';
 
@@ -170,10 +172,22 @@ export class LlmCouncilService implements OnModuleInit, OnModuleDestroy {
   }
 
   private detectConfiguredModels(): ModelConfig[] {
-    return AVAILABLE_MODELS.filter(model => {
+    // Only include council models - exclude RAG specialists (CLaRA)
+    // RAG specialists are used for context processing, not critique
+    return getCouncilModels().filter(model => {
       const provider = this.providers.get(model.provider);
       return provider?.isAvailable() ?? false;
     });
+  }
+
+  /**
+   * Check if RAG specialist (CLaRA) is available
+   */
+  isRagSpecialistAvailable(): boolean {
+    const ragModel = getRagSpecialistModel();
+    if (!ragModel) return false;
+    const provider = this.providers.get(ragModel.provider);
+    return provider?.isAvailable() ?? false;
   }
 
   getHealthCheckResults(): ModelHealthCheck[] {
