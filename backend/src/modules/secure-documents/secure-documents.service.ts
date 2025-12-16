@@ -246,15 +246,21 @@ export class SecureDocumentsService {
     );
 
     // Calculate cosine similarity
-    const scored = relevantChunks.map(chunk => {
-      const embedding = JSON.parse(chunk.embedding!) as number[];
-      const score = this.cosineSimilarity(queryEmbedding, embedding);
-      return {
-        documentId: chunk.documentId,
-        chunkIndex: chunk.chunkIndex,
-        score,
-      };
-    });
+    const scored = relevantChunks
+      .map(chunk => {
+        try {
+          const embedding = JSON.parse(chunk.embedding!) as number[];
+          const score = this.cosineSimilarity(queryEmbedding, embedding);
+          return {
+            documentId: chunk.documentId,
+            chunkIndex: chunk.chunkIndex,
+            score,
+          };
+        } catch {
+          return null;
+        }
+      })
+      .filter((s): s is NonNullable<typeof s> => s !== null);
 
     // Sort by score and return top results
     return scored
@@ -359,14 +365,6 @@ export class SecureDocumentsService {
       return { documentsExpired: 0, chunksDeleted: 0 };
     }
 
-    const expiredIds = expiredDocs.map(d => d.id);
-    
-    // Count chunks to be deleted
-    const chunks = await this.db
-      .select({ id: userDocumentChunks.id })
-      .from(userDocumentChunks)
-      .where(eq(userDocumentChunks.userId, expiredDocs[0].userId)); // Simplified
-
     let chunksDeleted = 0;
 
     // Delete chunks and mark documents as expired
@@ -431,19 +429,35 @@ export class SecureDocumentsService {
     if (file.size > MAX_FILE_SIZE) {
       throw new BadRequestException(`File size exceeds maximum of ${MAX_FILE_SIZE / 1024 / 1024}MB`);
     }
-    if (!ALLOWED_MIME_TYPES.includes(file.mimetype as typeof ALLOWED_MIME_TYPES[number])) {
-      throw new BadRequestException('File type not allowed');
+    
+    // Check MIME type first
+    if (ALLOWED_MIME_TYPES.includes(file.mimetype as typeof ALLOWED_MIME_TYPES[number])) {
+      return; // Valid MIME type
     }
+
+    // Fallback: check file extension for common cases where browser sends wrong MIME type
+    const ext = file.originalname.split('.').pop()?.toLowerCase() ?? '';
+    const allowedExtensions = ['pdf', 'doc', 'docx', 'txt', 'md'];
+    
+    if (allowedExtensions.includes(ext)) {
+      return; // Valid extension
+    }
+
+    throw new BadRequestException(
+      `File type "${file.mimetype}" is not allowed. Supported types: PDF, DOC, DOCX, TXT, MD`
+    );
   }
 
   private async extractText(file: Express.Multer.File): Promise<string> {
+    const ext = file.originalname.split('.').pop()?.toLowerCase() ?? '';
+    
     // For text files, return content directly
-    if (file.mimetype === 'text/plain' || file.mimetype === 'text/markdown') {
+    if (file.mimetype === 'text/plain' || file.mimetype === 'text/markdown' || ext === 'txt' || ext === 'md') {
       return file.buffer.toString('utf-8');
     }
 
     // For PDF - would use pdf-parse library
-    if (file.mimetype === 'application/pdf') {
+    if (file.mimetype === 'application/pdf' || ext === 'pdf') {
       // Placeholder - in production, use pdf-parse
       // const pdfParse = require('pdf-parse');
       // const data = await pdfParse(file.buffer);
@@ -452,7 +466,7 @@ export class SecureDocumentsService {
     }
 
     // For Word docs - would use mammoth library
-    if (file.mimetype.includes('word') || file.mimetype.includes('document')) {
+    if (file.mimetype.includes('word') || file.mimetype.includes('document') || ext === 'doc' || ext === 'docx') {
       return `[Word document content from ${file.originalname}]`;
     }
 

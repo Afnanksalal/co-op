@@ -316,17 +316,18 @@ export default function AgentPage() {
         setSessionId(currentSessionId);
       }
 
-      // Upload files and get document IDs
+      // Upload files and get document IDs using secure documents
       const documentIds: string[] = [];
       if (uploadedFiles.length > 0) {
         setIsUploading(true);
         for (const file of uploadedFiles) {
           try {
-            const doc = await api.uploadDocument(file, currentSessionId);
+            const doc = await api.uploadSecureDocument(file, currentSessionId);
             documentIds.push(doc.id);
           } catch (error) {
             console.error('Failed to upload file:', file.name, error);
-            toast.error(`Failed to upload ${file.name}`);
+            const errorMessage = error instanceof Error ? error.message : 'Upload failed';
+            toast.error(`Failed to upload ${file.name}: ${errorMessage}`);
           }
         }
         setIsUploading(false);

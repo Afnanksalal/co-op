@@ -59,5 +59,9 @@ export function encodeCursor(data: Record<string, unknown>): string {
 }
 
 export function decodeCursor(cursor: string): Record<string, unknown> {
-  return JSON.parse(Buffer.from(cursor, 'base64url').toString('utf-8')) as Record<string, unknown>;
+  try {
+    return JSON.parse(Buffer.from(cursor, 'base64url').toString('utf-8')) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
 }

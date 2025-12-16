@@ -34,7 +34,7 @@ import {
 import { api } from '@/lib/api/client';
 import { useUser } from '@/lib/hooks';
 import { useChatStore, useSessionStore } from '@/lib/store';
-import type { AgentType, Session, ChatDocument, StreamEvent } from '@/lib/api/types';
+import type { AgentType, Session, SecureDocument, StreamEvent } from '@/lib/api/types';
 import { cn, generateId, copyToClipboard } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -81,7 +81,7 @@ export default function ChatPage() {
   const [showThinking, setShowThinking] = useState(false);
   const [followUpSuggestions, setFollowUpSuggestions] = useState<string[]>([]);
   const [ratedMessages, setRatedMessages] = useState<Set<string>>(new Set());
-  const [uploadedDocs, setUploadedDocs] = useState<ChatDocument[]>([]);
+  const [uploadedDocs, setUploadedDocs] = useState<SecureDocument[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -645,26 +645,36 @@ export default function ChatPage() {
 
     const file = files[0];
     const maxSize = 10 * 1024 * 1024; // 10MB
-    const allowedTypes = ['application/pdf', 'text/plain', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    // Secure documents only support text-extractable formats
+    const allowedTypes = [
+      'application/pdf',
+      'text/plain',
+      'text/markdown',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ];
+    const allowedExtensions = ['.pdf', '.doc', '.docx', '.txt', '.md'];
 
     if (file.size > maxSize) {
       toast.error('File too large. Maximum size is 10MB.');
       return;
     }
 
-    if (!allowedTypes.includes(file.type) && !file.name.endsWith('.txt') && !file.name.endsWith('.md')) {
-      toast.error('Unsupported file type. Please upload PDF, DOC, DOCX, or TXT files.');
+    const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+    if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(ext)) {
+      toast.error('Unsupported file type. Please upload PDF, DOC, DOCX, TXT, or MD files.');
       return;
     }
 
     setIsUploading(true);
     try {
-      const doc = await api.uploadDocument(file, currentSession?.id);
+      const doc = await api.uploadSecureDocument(file, currentSession?.id);
       setUploadedDocs(prev => [...prev, doc]);
-      toast.success(`${file.name} uploaded`);
+      toast.success(`${file.name} uploaded and processing`);
     } catch (error) {
       console.error('Failed to upload document:', error);
-      toast.error('Failed to upload document');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to upload document';
+      toast.error(errorMessage);
     }
     setIsUploading(false);
     
@@ -676,7 +686,7 @@ export default function ChatPage() {
 
   const handleRemoveDoc = async (docId: string) => {
     try {
-      await api.deleteDocument(docId);
+      await api.deleteSecureDocument(docId);
       setUploadedDocs(prev => prev.filter(d => d.id !== docId));
       toast.success('Document removed');
     } catch (error) {
@@ -696,7 +706,7 @@ export default function ChatPage() {
     const loadDocs = async () => {
       if (!currentSession) return;
       try {
-        const docs = await api.getDocuments(currentSession.id);
+        const docs = await api.getSecureDocuments(currentSession.id);
         setUploadedDocs(docs);
       } catch (error) {
         console.error('Failed to load documents:', error);
@@ -1183,14 +1193,24 @@ export default function ChatPage() {
           <div className="flex flex-wrap gap-2 mb-2">
             {uploadedDocs.map((doc) => {
               const DocIcon = getDocIcon(doc.mimeType);
+              const isProcessing = doc.status === 'processing';
               return (
-                <Badge key={doc.id} variant="secondary" className="text-xs gap-1">
-                  <DocIcon weight="regular" className="w-3.5 h-3.5" />
+                <Badge 
+                  key={doc.id} 
+                  variant={isProcessing ? 'outline' : 'secondary'} 
+                  className={cn('text-xs gap-1', isProcessing && 'animate-pulse')}
+                >
+                  {isProcessing ? (
+                    <CircleNotch weight="bold" className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <DocIcon weight="regular" className="w-3.5 h-3.5" />
+                  )}
                   <span className="max-w-[100px] truncate">{doc.originalName}</span>
                   <button
                     type="button"
                     onClick={() => handleRemoveDoc(doc.id)}
                     className="ml-1 hover:text-destructive"
+                    disabled={isProcessing}
                   >
                     ×
                   </button>

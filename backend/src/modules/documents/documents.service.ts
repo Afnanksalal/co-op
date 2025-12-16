@@ -245,11 +245,22 @@ export class DocumentsService {
       throw new BadRequestException(`File size exceeds maximum of ${maxMB}MB`);
     }
 
-    if (!ALLOWED_MIME_TYPES.includes(file.mimetype as typeof ALLOWED_MIME_TYPES[number])) {
-      throw new BadRequestException(
-        `File type "${file.mimetype}" is not allowed. Supported types: PDF, DOC, DOCX, TXT, MD, PNG, JPG, WebP`
-      );
+    // Check MIME type first
+    if (ALLOWED_MIME_TYPES.includes(file.mimetype as typeof ALLOWED_MIME_TYPES[number])) {
+      return; // Valid MIME type
     }
+
+    // Fallback: check file extension for common cases where browser sends wrong MIME type
+    const ext = this.getFileExtension(file.originalname).toLowerCase();
+    const allowedExtensions = ['pdf', 'doc', 'docx', 'txt', 'md', 'png', 'jpg', 'jpeg', 'webp'];
+    
+    if (allowedExtensions.includes(ext)) {
+      return; // Valid extension
+    }
+
+    throw new BadRequestException(
+      `File type "${file.mimetype}" is not allowed. Supported types: PDF, DOC, DOCX, TXT, MD, PNG, JPG, WebP`
+    );
   }
 
   private getFileExtension(filename: string): string {
