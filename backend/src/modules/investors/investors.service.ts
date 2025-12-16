@@ -1,6 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException } from '@nestjs/common';
+import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq, and, or, ilike, desc, asc, sql } from 'drizzle-orm';
-import { DatabaseService } from '@/database/database.module';
+import { DATABASE_CONNECTION } from '@/database/database.module';
+import * as schema from '@/database/schema';
 import { investors, Investor } from '@/database/schema/investors.schema';
 import {
   CreateInvestorDto,
@@ -11,10 +13,13 @@ import {
 
 @Injectable()
 export class InvestorsService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    @Inject(DATABASE_CONNECTION)
+    private readonly db: NodePgDatabase<typeof schema>,
+  ) {}
 
   async create(dto: CreateInvestorDto): Promise<InvestorResponseDto> {
-    const [investor] = await this.db.drizzle
+    const [investor] = await this.db
       .insert(investors)
       .values({
         name: dto.name,
@@ -68,26 +73,26 @@ export class InvestorsService {
       );
     }
 
-    const results = await this.db.drizzle
+    const results = await this.db
       .select()
       .from(investors)
       .where(and(...conditions))
       .orderBy(desc(investors.isFeatured), asc(investors.name));
 
-    return results.map((i) => this.toResponseDto(i));
+    return results.map((i: Investor) => this.toResponseDto(i));
   }
 
   async findAllAdmin(): Promise<InvestorResponseDto[]> {
-    const results = await this.db.drizzle
+    const results = await this.db
       .select()
       .from(investors)
       .orderBy(desc(investors.createdAt));
 
-    return results.map((i) => this.toResponseDto(i));
+    return results.map((i: Investor) => this.toResponseDto(i));
   }
 
   async findOne(id: string): Promise<InvestorResponseDto> {
-    const [investor] = await this.db.drizzle
+    const [investor] = await this.db
       .select()
       .from(investors)
       .where(eq(investors.id, id));
@@ -100,7 +105,7 @@ export class InvestorsService {
   }
 
   async update(id: string, dto: UpdateInvestorDto): Promise<InvestorResponseDto> {
-    const [existing] = await this.db.drizzle
+    const [existing] = await this.db
       .select()
       .from(investors)
       .where(eq(investors.id, id));
@@ -109,7 +114,7 @@ export class InvestorsService {
       throw new NotFoundException('Investor not found');
     }
 
-    const [updated] = await this.db.drizzle
+    const [updated] = await this.db
       .update(investors)
       .set({
         ...dto,
@@ -122,7 +127,7 @@ export class InvestorsService {
   }
 
   async delete(id: string): Promise<void> {
-    const [existing] = await this.db.drizzle
+    const [existing] = await this.db
       .select()
       .from(investors)
       .where(eq(investors.id, id));
@@ -131,7 +136,7 @@ export class InvestorsService {
       throw new NotFoundException('Investor not found');
     }
 
-    await this.db.drizzle.delete(investors).where(eq(investors.id, id));
+    await this.db.delete(investors).where(eq(investors.id, id));
   }
 
   async bulkCreate(dtos: CreateInvestorDto[]): Promise<{ created: number }> {
@@ -154,7 +159,7 @@ export class InvestorsService {
       isFeatured: dto.isFeatured ?? false,
     }));
 
-    const result = await this.db.drizzle.insert(investors).values(values).returning();
+    const result = await this.db.insert(investors).values(values).returning();
     return { created: result.length };
   }
 
@@ -163,7 +168,7 @@ export class InvestorsService {
     byStage: { stage: string; count: number }[];
     bySector: { sector: string; count: number }[];
   }> {
-    const all = await this.db.drizzle.select().from(investors).where(eq(investors.isActive, true));
+    const all = await this.db.select().from(investors).where(eq(investors.isActive, true));
 
     const byStage = new Map<string, number>();
     const bySector = new Map<string, number>();
