@@ -749,102 +749,105 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="h-[calc(100vh-4rem)] md:h-[calc(100vh-4rem)] flex flex-col max-w-4xl mx-auto px-3 sm:px-4 md:px-0">
-      {/* Agent Selector - Mobile optimized with horizontal scroll */}
-      <div className="flex items-center gap-2 sm:gap-3 py-3 sm:py-4 border-b border-border/40 shrink-0 overflow-x-auto scrollbar-hide -mx-3 sm:-mx-4 md:mx-0 px-3 sm:px-4 md:px-0">
-        {messages.length > 0 && (
-          <>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleNewChat}
-              className="h-9 sm:h-8 px-3 sm:px-2 text-xs text-muted-foreground hover:text-foreground touch-manipulation active:scale-95 shrink-0"
-            >
-              New Chat
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleExportSession('markdown')}
-              className="h-9 sm:h-8 w-9 sm:w-8 p-0 text-muted-foreground hover:text-foreground mr-1 sm:mr-2 touch-manipulation active:scale-95 shrink-0"
-              title="Export as Markdown"
-            >
-              <DownloadSimple weight="regular" className="w-4 h-4" />
-            </Button>
-          </>
-        )}
-        <span className="text-xs sm:text-sm text-muted-foreground mr-1 sm:mr-2 shrink-0">Mode:</span>
-        
-        {/* Multi-Agent (A2A) Option */}
-        <button
-          onClick={() => setSelectedAgent(null)}
-          className={cn(
-            'flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3 py-2 sm:py-1.5 rounded-xl sm:rounded-lg text-xs sm:text-sm transition-all duration-200 shrink-0 touch-manipulation active:scale-95',
-            selectedAgent === null
-              ? 'bg-primary/10 text-foreground font-medium'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+    <div className="h-[calc(100vh-4rem)] flex flex-col max-w-4xl mx-auto">
+      {/* Header - Agent Selector */}
+      <div className="flex flex-col gap-3 pb-3 sm:pb-4 border-b border-border/40 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 overflow-x-auto scrollbar-hide">
+          {messages.length > 0 && (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleNewChat}
+                className="h-8 sm:h-9 px-2 sm:px-3 text-xs text-muted-foreground hover:text-foreground touch-manipulation active:scale-95 shrink-0"
+              >
+                New Chat
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleExportSession('markdown')}
+                className="h-8 w-8 sm:h-9 sm:w-9 text-muted-foreground hover:text-foreground touch-manipulation active:scale-95 shrink-0"
+                title="Export as Markdown"
+              >
+                <DownloadSimple weight="regular" className="w-4 h-4" />
+              </Button>
+              <div className="w-px h-5 bg-border/40 shrink-0" />
+            </>
           )}
-        >
-          <Lightning weight={selectedAgent === null ? 'fill' : 'regular'} className="w-4 h-4" />
-          <span className="sm:inline">All</span>
-        </button>
+          <span className="text-xs sm:text-sm text-muted-foreground shrink-0">Mode:</span>
+          
+          {/* Multi-Agent (A2A) Option */}
+          <button
+            onClick={() => setSelectedAgent(null)}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm transition-all duration-200 shrink-0 touch-manipulation active:scale-95',
+              selectedAgent === null
+                ? 'bg-primary/10 text-foreground font-medium'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+            )}
+          >
+            <Lightning weight={selectedAgent === null ? 'fill' : 'regular'} className="w-4 h-4" />
+            <span>All</span>
+          </button>
 
-        <div className="w-px h-5 sm:h-4 bg-border/40 mx-0.5 sm:mx-1 shrink-0" />
+          <div className="w-px h-5 bg-border/40 shrink-0" />
 
-        {/* Individual Agents */}
-        {(Object.keys(agentConfig) as AgentType[]).map((agent) => {
-          const config = agentConfig[agent];
-          const isSelected = selectedAgent === agent;
-          return (
-            <button
-              key={agent}
-              onClick={() => setSelectedAgent(agent)}
-              className={cn(
-                'flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3 py-2 sm:py-1.5 rounded-xl sm:rounded-lg text-xs sm:text-sm transition-all duration-200 shrink-0 touch-manipulation active:scale-95',
-                isSelected
-                  ? 'bg-primary/10 text-foreground font-medium'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-              )}
-            >
-              <config.icon weight={isSelected ? 'fill' : 'regular'} className="w-4 h-4" />
-              <span className="sm:inline">{config.name.slice(0, 3)}</span>
-              <span className="hidden sm:inline">{config.name.slice(3)}</span>
-            </button>
-          );
-        })}
+          {/* Individual Agents */}
+          {(Object.keys(agentConfig) as AgentType[]).map((agent) => {
+            const config = agentConfig[agent];
+            const isSelected = selectedAgent === agent;
+            return (
+              <button
+                key={agent}
+                onClick={() => setSelectedAgent(agent)}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm transition-all duration-200 shrink-0 touch-manipulation active:scale-95',
+                  isSelected
+                    ? 'bg-primary/10 text-foreground font-medium'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                )}
+              >
+                <config.icon weight={isSelected ? 'fill' : 'regular'} className="w-4 h-4" />
+                <span className="hidden sm:inline">{config.name}</span>
+                <span className="sm:hidden">{config.name.slice(0, 3)}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Messages */}
       <div 
         ref={messagesContainerRef}
-        className="flex-1 overflow-y-auto py-4 sm:py-6 space-y-3 sm:space-y-4 scrollbar-hide -mx-3 sm:-mx-4 md:mx-0 px-3 sm:px-4 md:px-0"
+        className="flex-1 overflow-y-auto py-4 sm:py-6 space-y-3 sm:space-y-4 scrollbar-hide"
       >
         {messages.length === 0 ? (
           <div className="h-full flex items-center justify-center px-2">
-            <div className="text-center max-w-md mx-auto">
+            <div className="text-center max-w-md">
               {selectedAgent === null ? (
                 <>
-                  <Lightning weight="light" className="w-12 sm:w-14 h-12 sm:h-14 text-muted-foreground mx-auto mb-4 sm:mb-6" />
+                  <Lightning weight="light" className="w-10 sm:w-12 h-10 sm:h-12 text-muted-foreground mx-auto mb-4 sm:mb-6 opacity-50" />
                   <h2 className="font-serif text-xl sm:text-2xl font-medium mb-2 sm:mb-3">Multi-Agent Mode</h2>
-                  <p className="text-muted-foreground text-sm sm:text-sm mb-6 sm:mb-8 px-4 sm:px-0 leading-relaxed">
+                  <p className="text-muted-foreground text-xs sm:text-sm mb-6 sm:mb-8 leading-relaxed">
                     All 4 agents collaborate to answer your question. They critique each other and synthesize the best response.
                   </p>
                 </>
               ) : (
                 <>
-                  <Sparkle weight="light" className="w-12 sm:w-14 h-12 sm:h-14 text-muted-foreground mx-auto mb-4 sm:mb-6" />
+                  <Sparkle weight="light" className="w-10 sm:w-12 h-10 sm:h-12 text-muted-foreground mx-auto mb-4 sm:mb-6 opacity-50" />
                   <h2 className="font-serif text-xl sm:text-2xl font-medium mb-2 sm:mb-3">Start a conversation</h2>
-                  <p className="text-muted-foreground text-sm sm:text-sm mb-6 sm:mb-8 px-4 sm:px-0 leading-relaxed">
+                  <p className="text-muted-foreground text-xs sm:text-sm mb-6 sm:mb-8 leading-relaxed">
                     Ask {agentConfig[selectedAgent].name} agent any question.
                   </p>
                 </>
               )}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 px-2 sm:px-0">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                 {suggestions.map((suggestion) => (
                   <button
                     key={suggestion}
                     onClick={() => setInput(suggestion)}
-                    className="text-left text-sm sm:text-sm p-4 sm:p-4 rounded-xl sm:rounded-lg border border-border/40 hover:border-border hover:bg-muted/30 transition-all duration-200 touch-manipulation active:scale-[0.98] active:bg-muted/40"
+                    className="text-left text-xs sm:text-sm p-3 sm:p-4 rounded-lg border border-border/40 hover:border-border hover:bg-muted/30 transition-all duration-200 touch-manipulation active:scale-[0.98]"
                   >
                     {suggestion}
                   </button>
@@ -1102,27 +1105,27 @@ export default function ChatPage() {
 
       {/* Follow-up Suggestions */}
       {followUpSuggestions.length > 0 && messages.length > 0 && !isLoading && (
-        <div className="pb-2 sm:pb-2 shrink-0 -mx-3 sm:-mx-4 md:mx-0 px-3 sm:px-4 md:px-0">
-          <div className="flex items-center gap-2 mb-2 sm:mb-2">
+        <div className="pb-2 shrink-0">
+          <div className="flex items-center gap-2 mb-2">
             <span className="text-xs text-muted-foreground">Follow-up:</span>
             {lastUserPrompt && (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={handleRegenerate}
-                className="h-8 sm:h-6 px-2.5 sm:px-2 text-xs text-muted-foreground hover:text-foreground touch-manipulation active:scale-95"
+                className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground touch-manipulation active:scale-95"
               >
-                <ArrowClockwise weight="regular" className="w-3.5 h-3.5 sm:w-3 sm:h-3 mr-1" />
+                <ArrowClockwise weight="regular" className="w-3 h-3 mr-1" />
                 Regenerate
               </Button>
             )}
           </div>
-          <div className="flex flex-wrap gap-2 sm:gap-2">
+          <div className="flex flex-wrap gap-2">
             {followUpSuggestions.map((suggestion, i) => (
               <button
                 key={i}
                 onClick={() => setInput(suggestion)}
-                className="text-xs px-3.5 sm:px-3 py-2 sm:py-1.5 rounded-full border border-border/40 hover:border-border hover:bg-muted/30 transition-all touch-manipulation active:scale-[0.98] active:bg-muted/40"
+                className="text-xs px-3 py-1.5 rounded-full border border-border/40 hover:border-border hover:bg-muted/30 transition-all touch-manipulation active:scale-[0.98]"
               >
                 {suggestion}
               </button>
@@ -1131,36 +1134,33 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* Input - Mobile optimized sticky footer */}
-      <div className="pt-3 sm:pt-4 border-t border-border/40 shrink-0 bg-background pb-safe">
+      {/* Input - fixed at bottom with padding */}
+      <div className="pt-3 sm:pt-4 pb-3 sm:pb-4 border-t border-border/40 shrink-0">
         {/* Uploaded Documents */}
         {uploadedDocs.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-3 px-1">
+          <div className="flex flex-wrap gap-2 mb-2">
             {uploadedDocs.map((doc) => {
               const DocIcon = getDocIcon(doc.mimeType);
               return (
-                <div
-                  key={doc.id}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-muted/50 border border-border/40 text-xs touch-manipulation"
-                >
-                  <DocIcon weight="regular" className="w-4 h-4 text-muted-foreground" />
-                  <span className="max-w-[100px] sm:max-w-[120px] truncate">{doc.originalName}</span>
+                <Badge key={doc.id} variant="secondary" className="text-xs gap-1">
+                  <DocIcon weight="regular" className="w-3.5 h-3.5" />
+                  <span className="max-w-[100px] truncate">{doc.originalName}</span>
                   <button
                     type="button"
                     onClick={() => handleRemoveDoc(doc.id)}
-                    className="text-muted-foreground hover:text-foreground transition-colors p-1 -mr-1 touch-manipulation"
+                    className="ml-1 hover:text-destructive"
                   >
-                    <X weight="bold" className="w-4 h-4" />
+                    ×
                   </button>
-                </div>
+                </Badge>
               );
             })}
           </div>
         )}
         
         <form onSubmit={handleSubmit}>
-          <div className="relative flex items-end gap-2 sm:gap-3">
-            {/* File upload button - larger touch target on mobile */}
+          <div className="relative flex items-end gap-2">
+            {/* File upload button */}
             <input
               ref={fileInputRef}
               type="file"
@@ -1168,53 +1168,47 @@ export default function ChatPage() {
               onChange={handleFileChange}
               className="hidden"
             />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={handleFileSelect}
-              disabled={isLoading || isUploading}
-              className="h-11 w-11 sm:h-10 sm:w-10 shrink-0 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-full touch-manipulation active:scale-95 transition-transform"
-              title="Attach document"
-            >
-              {isUploading ? (
-                <CircleNotch weight="bold" className="w-5 h-5 animate-spin" />
-              ) : (
-                <Paperclip weight="regular" className="w-5 h-5" />
-              )}
-            </Button>
+            <label className="cursor-pointer shrink-0">
+              <div 
+                onClick={handleFileSelect}
+                className={cn(
+                  "h-8 w-8 sm:h-9 sm:w-9 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground flex items-center justify-center transition-colors",
+                  (isLoading || isUploading) && "opacity-50 pointer-events-none"
+                )}
+              >
+                {isUploading ? (
+                  <CircleNotch weight="bold" className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Paperclip weight="regular" className="w-4 h-4 text-muted-foreground" />
+                )}
+              </div>
+            </label>
             
-            <div className="flex-1 relative">
+            <div className="relative flex-1">
               <Textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={getPlaceholder()}
-                className="min-h-[48px] sm:min-h-[48px] max-h-[100px] sm:max-h-[150px] pr-2 resize-none text-base sm:text-sm py-3 px-4 rounded-2xl border-border/60 focus:border-primary/50 touch-manipulation"
+                className="min-h-[48px] sm:min-h-[56px] max-h-[120px] sm:max-h-[150px] pr-12 sm:pr-14 resize-none text-sm"
                 disabled={isLoading}
-                rows={1}
               />
+              <Button
+                type="submit"
+                size="icon"
+                className="absolute right-2 bottom-2 h-8 w-8 sm:h-9 sm:w-9"
+                disabled={!input.trim() || isLoading}
+              >
+                {isLoading ? (
+                  <CircleNotch weight="bold" className="w-4 h-4 animate-spin" />
+                ) : (
+                  <PaperPlaneTilt weight="fill" className="w-4 h-4" />
+                )}
+              </Button>
             </div>
-            
-            <Button
-              type="submit"
-              size="icon"
-              className="h-11 w-11 sm:h-10 sm:w-10 shrink-0 rounded-full touch-manipulation active:scale-95 transition-transform"
-              disabled={!input.trim() || isLoading}
-            >
-              {isLoading ? (
-                <CircleNotch weight="bold" className="w-5 h-5 animate-spin" />
-              ) : (
-                <PaperPlaneTilt weight="fill" className="w-5 h-5" />
-              )}
-            </Button>
           </div>
-          {/* Mobile hint - show on mobile too but shorter */}
-          <p className="text-[10px] sm:text-xs text-muted-foreground mt-2 text-center">
-            <span className="sm:hidden">Tap to send · Attach files for context</span>
-            <span className="hidden sm:inline">
-              {selectedAgent === null ? 'Multi-agent A2A mode · ' : ''}Press Enter to send · Shift+Enter for new line · Attach PDFs for context
-            </span>
+          <p className="text-[10px] sm:text-xs text-muted-foreground mt-2 text-center hidden sm:block">
+            {selectedAgent === null ? 'Multi-agent A2A mode · ' : ''}Press Enter to send · Shift+Enter for new line
           </p>
         </form>
       </div>

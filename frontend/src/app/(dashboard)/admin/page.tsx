@@ -438,18 +438,18 @@ export default function AdminPage() {
       </motion.div>
 
       <Tabs defaultValue="rag" className="space-y-4 sm:space-y-6">
-        <TabsList className="w-full sm:w-auto flex-wrap h-auto gap-1 p-1">
-          <TabsTrigger value="rag" className="gap-1.5 text-xs sm:text-sm px-2 sm:px-3">
+        <TabsList className="grid w-full grid-cols-3 h-10 sm:h-11 p-1 bg-muted/50">
+          <TabsTrigger value="rag" className="gap-1.5 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm">
             <FileText weight="regular" className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span className="hidden xs:inline">RAG</span>
+            <span>RAG</span>
           </TabsTrigger>
-          <TabsTrigger value="mcp" className="gap-1.5 text-xs sm:text-sm px-2 sm:px-3">
+          <TabsTrigger value="mcp" className="gap-1.5 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm">
             <HardDrives weight="regular" className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span className="hidden xs:inline">MCP</span>
+            <span>MCP</span>
           </TabsTrigger>
-          <TabsTrigger value="investors" className="gap-1.5 text-xs sm:text-sm px-2 sm:px-3">
+          <TabsTrigger value="investors" className="gap-1.5 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm">
             <Buildings weight="regular" className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span className="hidden xs:inline">Investors</span>
+            <span>Investors</span>
           </TabsTrigger>
         </TabsList>
 
@@ -765,8 +765,7 @@ export default function AdminPage() {
             <Card className="border-border/40">
               <CardContent className="p-6 sm:p-8 text-center">
                 <Buildings weight="light" className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-                <p className="text-sm text-muted-foreground mb-3">{investorSearch ? 'No matches' : 'No investors yet'}</p>
-                {!investorSearch && <Button onClick={openCreateInvestor} size="sm"><Plus weight="bold" className="w-4 h-4" />Add Investor</Button>}
+                <p className="text-sm text-muted-foreground">{investorSearch ? 'No matches found' : 'No investors yet. Click Add above to create one.'}</p>
               </CardContent>
             </Card>
           ) : (
@@ -914,15 +913,15 @@ export default function AdminPage() {
                     ))}
                   </div>
                 </div>
-                <div className="flex items-center justify-between pt-2">
-                  <div className="flex items-center gap-2">
+                <div className="flex items-center gap-6 pt-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
                     <Switch checked={investorForm.isActive} onCheckedChange={(v) => setInvestorForm((p) => ({ ...p, isActive: v }))} />
-                    <Label className="text-xs">Active</Label>
-                  </div>
-                  <div className="flex items-center gap-2">
+                    <span className="text-xs">Active</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
                     <Switch checked={investorForm.isFeatured} onCheckedChange={(v) => setInvestorForm((p) => ({ ...p, isFeatured: v }))} />
-                    <Label className="text-xs">Featured</Label>
-                  </div>
+                    <span className="text-xs">Featured</span>
+                  </label>
                 </div>
               </div>
               <DialogFooter>
