@@ -14,7 +14,7 @@ import {
   Pulse,
   Lightning,
   Gauge,
-} from '@phosphor-icons/react/dist/ssr';
+} from '@phosphor-icons/react';
 import { api } from '@/lib/api/client';
 import { useUser } from '@/lib/hooks';
 import type { Session, DashboardStats, UsageStats } from '@/lib/api/types';
@@ -265,7 +265,9 @@ export default function DashboardPage() {
                     <div className="flex items-center gap-4">
                       <ChatCircle weight="light" className="w-5 h-5 text-muted-foreground" />
                       <div>
-                        <p className="text-sm font-medium">Session</p>
+                        <p className="text-sm font-medium truncate max-w-[200px] sm:max-w-[300px]">
+                          {session.title || 'Untitled Session'}
+                        </p>
                         <p className="text-xs text-muted-foreground">
                           {formatRelativeTime(session.createdAt)}
                         </p>

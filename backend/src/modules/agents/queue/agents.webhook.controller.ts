@@ -5,6 +5,7 @@ import { OrchestratorService } from '../orchestrator/orchestrator.service';
 import { AgentsQueueService } from './agents.queue.service';
 import { AgentsService } from '../agents.service';
 import { WebhooksService } from '@/modules/webhooks/webhooks.service';
+import { StreamingService } from '@/common/streaming/streaming.service';
 import { AgentType, AgentInput } from '../types/agent.types';
 
 interface QStashWebhookBody {
@@ -31,6 +32,7 @@ export class AgentsWebhookController {
     private readonly queueService: AgentsQueueService,
     private readonly agentsService: AgentsService,
     private readonly webhooksService: WebhooksService,
+    private readonly streamingService: StreamingService,
   ) {
     const currentSigningKey = this.configService.get<string>('QSTASH_CURRENT_SIGNING_KEY');
     const nextSigningKey = this.configService.get<string>('QSTASH_NEXT_SIGNING_KEY');
@@ -102,14 +104,18 @@ export class AgentsWebhookController {
       let results;
       const councilSteps: string[] = [];
       
-      // Progress callback to capture realtime thinking steps
+      // Progress callback to capture realtime thinking steps and emit SSE events
       const onProgress = async (step: string): Promise<void> => {
         councilSteps.push(step);
         // Keep only last 20 steps to avoid memory issues
         if (councilSteps.length > 20) {
           councilSteps.shift();
         }
-        // Update status with latest steps (fire and forget)
+        
+        // Emit SSE thinking event
+        await this.streamingService.emitThinking(taskId, step);
+        
+        // Update status with latest steps
         void this.queueService.updateTaskStatus(taskId, 'active', 50, undefined, undefined, {
           phase: 'gathering',
           startedAt,
@@ -121,6 +127,9 @@ export class AgentsWebhookController {
       if (isMultiAgent && agents) {
         // Multi-agent A2A mode with progress callbacks
         this.logger.log(`Processing multi-agent job: ${taskId} - ${agents.join(', ')}`);
+        
+        // Emit SSE progress event
+        await this.streamingService.emitProgress(taskId, 15, 'gathering', 'Gathering responses from all agents...');
         
         // Update progress as we go
         await this.queueService.updateTaskStatus(taskId, 'active', 15, undefined, undefined, {
@@ -146,6 +155,9 @@ export class AgentsWebhookController {
         // Single agent mode
         this.logger.log(`Processing agent job: ${taskId} - ${agentType}`);
         
+        // Emit SSE progress event
+        await this.streamingService.emitProgress(taskId, 20, 'gathering', `${agentType.charAt(0).toUpperCase() + agentType.slice(1)} agent analyzing...`);
+        
         await this.queueService.updateTaskStatus(taskId, 'active', 20, undefined, undefined, {
           phase: 'gathering',
           currentAgent: agentType,
@@ -163,6 +175,13 @@ export class AgentsWebhookController {
         throw new Error('No agent type or agents array provided');
       }
 
+      // Emit SSE done event with results
+      await this.streamingService.emitDone(taskId, {
+        success: true,
+        results,
+        completedAt: new Date().toISOString(),
+      });
+      
       // Update status to completed with results
       await this.queueService.updateTaskStatus(taskId, 'completed', 100, {
         success: true,
@@ -198,6 +217,9 @@ export class AgentsWebhookController {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Task ${taskId} failed: ${errorMessage}`);
 
+      // Emit SSE error event
+      await this.streamingService.emitError(taskId, errorMessage);
+      
       // Update status to failed
       await this.queueService.updateTaskStatus(taskId, 'failed', 0, undefined, errorMessage);
 

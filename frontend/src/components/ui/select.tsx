@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import * as SelectPrimitive from '@radix-ui/react-select';
-import { Check, CaretDown, CaretUp } from '@phosphor-icons/react/dist/ssr';
+import { Check, CaretDown, CaretUp } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
 
 const Select = SelectPrimitive.Root;

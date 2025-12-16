@@ -6,8 +6,9 @@
   "display": "standalone",
   "background_color": "#0a0a0a",
   "theme_color": "#0a0a0a",
-  "orientation": "portrait-primary",
+  "orientation": "any",
   "scope": "/",
+  "id": "/",
   "icons": [
     {
       "src": "/icon-192.png",
@@ -22,7 +23,30 @@
       "purpose": "any maskable"
     }
   ],
-  "categories": ["business", "productivity"],
+  "categories": ["business", "productivity", "finance"],
   "screenshots": [],
-  "prefer_related_applications": false
+  "prefer_related_applications": false,
+  "shortcuts": [
+    {
+      "name": "New Chat",
+      "short_name": "Chat",
+      "description": "Start a new conversation with AI agents",
+      "url": "/chat",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Sessions",
+      "short_name": "Sessions",
+      "description": "View your conversation history",
+      "url": "/sessions",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
+  "share_target": {
+    "action": "/chat",
+    "method": "GET",
+    "params": {
+      "text": "prompt"
+    }
+  }
 }

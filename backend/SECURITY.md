@@ -35,39 +35,89 @@ If you discover a security vulnerability, please report it responsibly.
 | Feature | Implementation |
 |---------|----------------|
 | User Auth | Supabase JWT (RS256) |
-| Service Auth | API keys with timing-safe comparison |
+| Service Auth | API keys with SHA-256 hashing + timing-safe comparison |
 | Admin Auth | Role-based with database lookup |
+| Token Verification | Server-side JWT validation |
 
 ### API Security
 
 | Feature | Implementation |
 |---------|----------------|
-| Rate Limiting | Per-user throttling |
-| Input Validation | class-validator with strict DTOs |
+| Rate Limiting | Per-user throttling with configurable presets |
+| Input Validation | class-validator with strict DTOs, whitelist mode |
 | CORS | Configurable origins |
-| Headers | Helmet security headers |
-| SSRF Protection | Webhook URL validation |
+| Headers | Helmet.js security headers |
+| SSRF Protection | Webhook URL validation (no private IPs) |
 
 ### Data Security
 
 | Feature | Implementation |
 |---------|----------------|
 | Database | Parameterized queries (Drizzle ORM) |
+| Encryption | AES-256-GCM for sensitive data at rest |
 | Secrets | Environment variables only |
-| API Keys | Hashed storage, timing-safe comparison |
-| Audit | IP tracking, event logging |
+| API Keys | SHA-256 hashed storage, timing-safe comparison |
+| Audit | IP tracking, user agent, full event logging |
+
+### Encryption Details
+
+```
+Algorithm: AES-256-GCM
+Key Derivation: SHA-256 from ENCRYPTION_KEY env var
+IV: 96-bit random per encryption
+Auth Tag: 128-bit for integrity verification
+Format: iv:authTag:ciphertext (hex encoded)
+```
+
+Used for:
+- Webhook secrets
+- API tokens
+- Sensitive configuration
+
+### Rate Limiting Presets
+
+| Preset | Limit | Window | Use Case |
+|--------|-------|--------|----------|
+| STANDARD | 100 | 60s | General API |
+| STRICT | 10 | 60s | Sensitive operations |
+| CREATE | 5 | 60s | Resource creation |
+| READ | 200 | 60s | Read operations |
+| BURST | 30 | 10s | Burst protection |
+
+
+### Resilience
+
+| Feature | Implementation |
+|---------|----------------|
+| Circuit Breaker | Opossum with configurable thresholds |
+| Retry Logic | Exponential backoff with jitter |
+| Health Checks | Endpoint monitoring |
+| Graceful Shutdown | NestJS shutdown hooks |
 
 ---
 
 ## Security Checklist
 
-- [ ] `NODE_ENV=production`
-- [ ] `CORS_ORIGINS` set to specific domains
-- [ ] `MASTER_API_KEY` set to strong value
-- [ ] Database uses SSL connection
-- [ ] Rate limiting enabled
-- [ ] Audit logging enabled
-- [ ] Dependencies audited (`npm audit`)
+### Production Deployment
+
+- [x] `NODE_ENV=production`
+- [x] `CORS_ORIGINS` set to specific domains
+- [x] `MASTER_API_KEY` set to strong value (32+ chars)
+- [x] `ENCRYPTION_KEY` set for data encryption
+- [x] Database uses SSL connection (`?sslmode=require`)
+- [x] Rate limiting enabled
+- [x] Audit logging enabled
+- [x] Dependencies audited (`npm audit`)
+- [x] Helmet.js security headers enabled
+- [x] Input validation in whitelist mode
+
+### Environment Variables Security
+
+```bash
+# Generate secure keys
+openssl rand -hex 32  # For MASTER_API_KEY
+openssl rand -hex 32  # For ENCRYPTION_KEY
+```
 
 ---
 
@@ -77,15 +127,54 @@ If you discover a security vulnerability, please report it responsibly.
 
 Mitigations:
 - System prompts not exposed to users
-- User input clearly delineated
-- Output validated before storage
+- User input clearly delineated in prompts
+- Output validated and sanitized before storage
+- Response sanitization service
 
 ### Webhook Security
 
 Mitigations:
-- URL validation (no private IPs)
-- HMAC signature verification
+- URL validation (no private IPs, localhost, etc.)
+- HMAC-SHA256 signature verification
+- Encrypted secret storage (AES-256-GCM)
 - Timeout and retry limits
+- Audit logging of all deliveries
+
+### API Key Security
+
+Mitigations:
+- Keys hashed with SHA-256 before storage
+- Timing-safe comparison to prevent timing attacks
+- Keys never logged or exposed in responses
+- Revocation support
+
+### Document Upload Security
+
+Mitigations:
+- File size limits (10MB max)
+- MIME type validation
+- Secure storage in Supabase Storage
+- Signed URLs for access (1-hour expiry)
+- User ownership verification
+
+---
+
+## Audit Logging
+
+All sensitive operations are logged:
+
+| Event | Data Captured |
+|-------|---------------|
+| User Actions | userId, action, resource, timestamp |
+| API Key Usage | keyId, endpoint, timestamp |
+| Webhook Delivery | webhookId, status, response |
+| Admin Operations | adminId, action, changes |
+
+Logs include:
+- IP address
+- User agent
+- Old/new values for changes
+- Request metadata
 
 ---
 

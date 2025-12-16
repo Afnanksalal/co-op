@@ -115,4 +115,19 @@ export class RedisService implements OnModuleDestroy {
     }
     await pipeline.exec();
   }
+
+  /**
+   * Publish message to a channel (for SSE streaming)
+   * Note: Upstash Redis REST API supports publish
+   */
+  async publish(channel: string, message: string): Promise<number> {
+    return this.client.publish(channel, message);
+  }
+
+  /**
+   * Get the raw Redis client for advanced operations
+   */
+  getClient(): Redis {
+    return this.client;
+  }
 }

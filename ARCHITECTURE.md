@@ -6,11 +6,12 @@ This document provides a comprehensive overview of the Co-Op platform architectu
 
 - [System Overview](#system-overview)
 - [High-Level Architecture](#high-level-architecture)
+- [Security Architecture](#security-architecture)
 - [Service Components](#service-components)
 - [Data Flow](#data-flow)
 - [LLM Council Architecture](#llm-council-architecture)
 - [Agent System](#agent-system)
-- [Authentication & Security](#authentication--security)
+- [New Features](#new-features)
 - [Database Schema](#database-schema)
 - [API Design](#api-design)
 - [Deployment Architecture](#deployment-architecture)
@@ -30,10 +31,12 @@ Co-Op is a multi-service AI advisory platform consisting of three main component
 
 ### Core Principles
 
-1. **Transparency** - Open source, documented architecture
+1. **Security First** - AES-256 encryption, rate limiting, audit logging
 2. **Accuracy** - Multi-model cross-critique reduces hallucinations
-3. **Self-Hostable** - Can be deployed on your own infrastructure
-4. **Modular** - Each service can be scaled independently
+3. **Scalability** - Serverless infrastructure, circuit breakers, caching
+4. **Self-Hostable** - Can be deployed on your own infrastructure
+5. **Modular** - Each service can be scaled independently
+
 
 ---
 
@@ -47,6 +50,10 @@ Co-Op is a multi-service AI advisory platform consisting of three main component
 │  │   Landing   │  │  Dashboard  │  │    Chat     │  │  Settings   │        │
 │  │    Page     │  │             │  │  Interface  │  │             │        │
 │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘        │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
+│  │  Sessions   │  │  Bookmarks  │  │   Usage     │  │   Admin     │        │
+│  │   History   │  │             │  │  Analytics  │  │   Panel     │        │
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘        │
 │                                                                             │
 │                         Next.js 15 (Vercel)                                 │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -57,8 +64,12 @@ Co-Op is a multi-service AI advisory platform consisting of three main component
 │                              API GATEWAY                                    │
 │                                                                             │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
-│  │   Auth      │  │   Rate      │  │   CORS      │  │  Validation │        │
-│  │   Guard     │  │   Limiting  │  │   Headers   │  │   Pipes     │        │
+│  │   Auth      │  │   Rate      │  │  Circuit    │  │  Validation │        │
+│  │   Guard     │  │   Limiting  │  │  Breaker    │  │   Pipes     │        │
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘        │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
+│  │ Encryption  │  │   Audit     │  │   Retry     │  │   Helmet    │        │
+│  │  Service    │  │   Logging   │  │   Service   │  │   Headers   │        │
 │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘        │
 │                                                                             │
 │                         NestJS 11 (Render)                                  │
@@ -79,31 +90,80 @@ Co-Op is a multi-service AI advisory platform consisting of three main component
 │ Legal Fin Inv Comp │  │  │HuggingFace│  │  │  │(Auth+S3)│ │  (Queue)  │  │
 │                     │  │  └───────────┘  │  │  └─────────┘ └───────────┘  │
 └─────────────────────┘  └─────────────────┘  └─────────────────────────────┘
-          │
-          ├─── RAG Query ───▶ ┌─────────────────────────────────────────────┐
-          │                   │            RAG SERVICE                      │
-          │                   │                                             │
-          │                   │  ┌─────────────┐  ┌─────────────────────┐   │
-          │                   │  │   FastAPI   │  │   Upstash Vector    │   │
-          │                   │  │   Server    │──│   (768 dimensions)  │   │
-          │                   │  └─────────────┘  └─────────────────────┘   │
-          │                   │         │                                   │
-          │                   │         ▼                                   │
-          │                   │  ┌─────────────────────┐                    │
-          │                   │  │  Supabase Storage   │                    │
-          │                   │  │   (PDF Documents)   │                    │
-          │                   │  └─────────────────────┘                    │
-          │                   │                                             │
-          │                   │         FastAPI (Koyeb)                     │
-          │                   └─────────────────────────────────────────────┘
-          │
-          │                   ┌─────────────────────────────────────────────┐
-          └─── Web Research ──▶│  Gemini Search Grounding (Primary)         │
-                              │         │                                   │
-                              │         ▼ (on failure)                      │
-                              │  ScrapingBee SERP API (Fallback)            │
-                              └─────────────────────────────────────────────┘
 ```
+
+
+---
+
+## Security Architecture
+
+### Authentication & Authorization
+
+```
+┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐
+│  User    │────▶│ Supabase │────▶│ Frontend │────▶│ Backend  │
+│  Login   │     │   Auth   │     │ Callback │     │  Guard   │
+└──────────┘     └──────────┘     └──────────┘     └──────────┘
+     │                │                │                │
+     │   OAuth Flow   │                │                │
+     │   (Google)     │                │                │
+     │                │                │                │
+     │                ▼                │                │
+     │         ┌──────────┐            │                │
+     │         │  JWT     │────────────┘                │
+     │         │  Token   │                             │
+     │         └──────────┘                             │
+     │                                                  │
+     │                                    ┌─────────────┘
+     │                                    ▼
+     │                              ┌──────────┐
+     │                              │ Verify   │
+     │                              │ Token    │
+     │                              │ + Sync   │
+     │                              │ User DB  │
+     │                              └──────────┘
+```
+
+### Security Layers
+
+| Layer | Implementation | Purpose |
+|-------|----------------|---------|
+| **Authentication** | Supabase JWT verification | Verify user identity |
+| **Authorization** | Role-based (user, admin) | Control access levels |
+| **Rate Limiting** | Redis-backed per-user throttling | Prevent abuse |
+| **API Keys** | SHA-256 hashed, timing-safe comparison | Service authentication |
+| **Encryption** | AES-256-GCM for sensitive data | Protect data at rest |
+| **Input Validation** | class-validator DTOs, whitelist mode | Prevent injection |
+| **SQL Injection** | Drizzle ORM parameterized queries | Database security |
+| **CORS** | Configurable allowed origins | Cross-origin protection |
+| **Security Headers** | Helmet.js middleware | HTTP security headers |
+| **Audit Logging** | Full audit trail | Compliance & forensics |
+
+### Encryption Service
+
+```typescript
+// AES-256-GCM encryption for sensitive data
+// Format: iv:authTag:ciphertext (all hex encoded)
+
+encrypt(plaintext: string): string
+decrypt(ciphertext: string): string
+isEncrypted(value: string): boolean
+```
+
+Used for:
+- Webhook secrets
+- API tokens
+- Sensitive configuration
+
+### Rate Limiting Presets
+
+| Preset | Limit | Window | Use Case |
+|--------|-------|--------|----------|
+| STANDARD | 100 | 60s | General API |
+| STRICT | 10 | 60s | Sensitive operations |
+| CREATE | 5 | 60s | Resource creation |
+| READ | 200 | 60s | Read operations |
+| BURST | 30 | 10s | Burst protection |
 
 
 ---
@@ -115,43 +175,54 @@ Co-Op is a multi-service AI advisory platform consisting of three main component
 | Component | Purpose |
 |-----------|---------|
 | `app/page.tsx` | Landing page with feature showcase |
-| `app/login/page.tsx` | OAuth authentication (Google/GitHub) |
+| `app/login/page.tsx` | OAuth authentication (Google) |
 | `app/onboarding/page.tsx` | Multi-step startup profile setup |
 | `app/(dashboard)/` | Protected dashboard routes |
+| `app/(dashboard)/chat/` | Multi-agent chat with SSE streaming |
+| `app/(dashboard)/sessions/` | Session history with pin/export |
+| `app/(dashboard)/bookmarks/` | Saved responses management |
+| `app/(dashboard)/usage/` | Personal analytics dashboard |
 | `lib/api/client.ts` | Type-safe API client with auth |
 | `lib/supabase/` | Supabase auth client |
 
 Key Features:
 - Server-side rendering with App Router
-- Supabase Auth integration
-- Responsive design with Tailwind CSS
-- Real-time task status polling
+- True SSE streaming with fallback polling
+- Document upload for chat context
+- Session export (Markdown/JSON)
+- PWA with shortcuts and share target
+- Vercel Analytics integration
 
 ### Backend (NestJS 11)
 
 | Module | Purpose |
 |--------|---------|
-| `agents/` | Domain-specific AI agents (Legal, Finance, Investor, Competitor) |
-| `sessions/` | Chat session management with message history |
+| `agents/` | Domain-specific AI agents + SSE streaming |
+| `sessions/` | Chat sessions with export & email |
 | `users/` | User management and onboarding |
-| `startups/` | Startup profile CRUD |
+| `bookmarks/` | Saved responses CRUD |
+| `documents/` | Chat document upload (Supabase Storage) |
+| `analytics/` | User & admin analytics |
 | `api-keys/` | API key generation and validation |
 | `webhooks/` | Webhook management and delivery |
 | `admin/` | Admin operations (embeddings, analytics) |
-| `analytics/` | Event tracking and dashboard stats |
-| `mcp/` | Model Context Protocol server management |
+| `mcp/` | Model Context Protocol server |
 | `notion/` | Notion integration for exports |
 
 Common Services:
+
 | Service | Purpose |
 |---------|---------|
 | `llm-council.service.ts` | Multi-model cross-critique orchestration |
 | `llm-router.service.ts` | Provider routing with fallback |
-| `rag.service.ts` | RAG service client |
-| `research.service.ts` | Web research via Gemini grounding |
-| `redis.service.ts` | Caching and rate limiting |
+| `streaming.service.ts` | SSE event publishing with Redis buffer |
+| `rag-cache.service.ts` | RAG query caching (30-min TTL) |
+| `retry.service.ts` | Exponential backoff with jitter |
+| `email.service.ts` | SendGrid transactional emails |
+| `encryption.service.ts` | AES-256-GCM encryption |
 | `circuit-breaker.service.ts` | Fault tolerance for external services |
-| `supabase.service.ts` | Auth token verification |
+| `audit.service.ts` | Audit logging for compliance |
+| `redis.service.ts` | Caching and rate limiting |
 
 ### RAG Service (FastAPI)
 
@@ -166,50 +237,71 @@ Common Services:
 
 Key Features:
 - Lazy vectorization (vectors created on first query)
-- Domain/sector filtering for targeted search
+- Domain/sector/jurisdiction filtering
 - TTL-based vector cleanup
 - Gemini text-embedding-004 (768 dimensions)
+
 
 ---
 
 ## Data Flow
 
-### User Query Flow
+### User Query Flow with SSE Streaming
 
 ```
 ┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐
 │  User    │────▶│ Frontend │────▶│ Backend  │────▶│  Agent   │
 │  Query   │     │  (Next)  │     │ (NestJS) │     │ Service  │
 └──────────┘     └──────────┘     └──────────┘     └──────────┘
-                                        │                │
-                                        │                ▼
-                                        │         ┌──────────┐
-                                        │         │   RAG    │
-                                        │         │ Service  │
-                                        │         └──────────┘
-                                        │                │
-                                        ▼                ▼
-                                  ┌──────────┐    ┌──────────┐
-                                  │   LLM    │◀───│ Context  │
-                                  │ Council  │    │ (Chunks) │
-                                  └──────────┘    └──────────┘
-                                        │
-                                        ▼
-                                  ┌──────────┐
-                                  │  Final   │
-                                  │ Response │
-                                  └──────────┘
+                      │                │                │
+                      │                │                ▼
+                      │                │         ┌──────────┐
+                      │                │         │   RAG    │
+                      │                │         │ (cached) │
+                      │                │         └──────────┘
+                      │                │                │
+                      │                ▼                ▼
+                      │          ┌──────────┐    ┌──────────┐
+                      │          │   LLM    │◀───│ Context  │
+                      │          │ Council  │    │ (Chunks) │
+                      │          └──────────┘    └──────────┘
+                      │                │
+                      │    SSE Stream  │
+                      │◀───────────────┘
+                      │   (progress, thinking, chunks, done)
+                      ▼
+                ┌──────────┐
+                │  Final   │
+                │ Response │
+                └──────────┘
 ```
+
+### SSE Event Types
+
+| Event | Purpose | Data |
+|-------|---------|------|
+| `connected` | Connection established | taskId, timestamp |
+| `progress` | Processing update | phase, progress %, message |
+| `thinking` | AI reasoning step | step description, agent |
+| `chunk` | Content streaming | content text, agent |
+| `done` | Task complete | final result |
+| `error` | Task failed | error message |
 
 ### Detailed Query Processing
 
-1. **Frontend** sends authenticated request to `/agents/run` or `/agents/queue`
-2. **Backend** validates auth, loads startup context
-3. **Agent Service** determines if single-agent or multi-agent (A2A) mode
-4. **RAG Service** retrieves relevant document context
-5. **Research Service** fetches real-time web data (if needed)
-6. **LLM Council** runs cross-critique workflow
-7. **Response** synthesized and returned to user
+1. **Frontend** sends authenticated request to `/agents/queue`
+2. **Backend** validates auth, loads startup context, creates task
+3. **QStash** queues the task for async processing
+4. **Frontend** connects to SSE endpoint `/agents/stream/:taskId`
+5. **Agent Service** determines single-agent or multi-agent (A2A) mode
+6. **RAG Cache** checks for cached results (30-min TTL)
+7. **RAG Service** retrieves relevant document context (if cache miss)
+8. **Research Service** fetches real-time web data (if needed)
+9. **LLM Council** runs cross-critique workflow, emitting thinking steps
+10. **Streaming Service** publishes events to Redis buffer
+11. **SSE Controller** sends events to connected clients
+12. **Response** synthesized and returned to user
+
 
 ---
 
@@ -239,7 +331,7 @@ The LLM Council is the core innovation - a multi-model cross-critique system tha
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         PHASE 2: CROSS-CRITIQUE                             │
 │                                                                             │
-│   Each model critiques OTHER models' responses (not their own)              │
+│   Each model critiques ALL other models' responses (full cross-critique)    │
 │                                                                             │
 │   Model A critiques: B, C, D    →  Scores + Feedback                        │
 │   Model B critiques: A, C, D    →  Scores + Feedback                        │
@@ -263,57 +355,134 @@ The LLM Council is the core innovation - a multi-model cross-critique system tha
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Model Health Checks
-
-On startup and every 5 minutes:
-1. Test each configured model with minimal prompt
-2. Mark models as: `healthy`, `unavailable`, `deprecated`, `error`
-3. Only healthy models participate in council
-4. Minimum 2 models required for cross-critique
-
 ### Supported Models
 
 | Provider | Model | Purpose |
 |----------|-------|---------|
 | Groq | llama-3.3-70b-versatile | Fast inference, general tasks |
-| Groq | llama-3.3-70b-specdec | Speculative decoding |
-| Google | gemini-2.5-flash | Balanced speed/quality |
+| Groq | kimi-k2-instruct-0905 | Advanced reasoning |
+| Google | gemini-2.5-flash | Balanced speed/quality, web research |
 | HuggingFace | deepseek-ai/DeepSeek-R1-Distill-Qwen-32B | Reasoning model |
 | HuggingFace | microsoft/Phi-3-mini-4k-instruct | Lightweight, fast |
-| HuggingFace | Qwen/Qwen2.5-72B-Instruct | Large, high quality |
+| HuggingFace | Qwen/Qwen2.5-14B-Instruct-1M | High quality |
 
-### Web Research with Fallback
+### Model Health Checks
 
-The Research Service provides real-time web data with automatic fallback:
+On startup and every 5 minutes:
+1. Test each configured model with minimal prompt
+2. Mark models as: `healthy`, `unavailable`, `deprecated`, `error`
+3. ALL healthy models participate in council (no limiting)
+4. Minimum 2 models required for cross-critique
+
+
+---
+
+## New Features
+
+### Session Export & Email
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    RESEARCH SERVICE                             │
+│                    SESSION EXPORT SERVICE                       │
 │                                                                 │
-│   Query ──▶ Gemini 2.0 Flash ──▶ Google Search Grounding       │
+│   Session ──▶ Export Format Selection                          │
 │                    │                                            │
-│                    │ (if fails)                                 │
-│                    ▼                                            │
-│              ScrapingBee ──▶ Google SERP Fallback              │
-│                    │                                            │
-│                    ▼                                            │
-│              Structured Results                                 │
-│              - Web Results                                      │
-│              - Company Info                                     │
-│              - Investor Info                                    │
-│              - Market Data                                      │
+│              ┌─────┴─────┐                                      │
+│              ▼           ▼                                      │
+│         Markdown       JSON                                     │
+│         (formatted)    (structured)                             │
+│                                                                 │
+│   Email ──▶ SendGrid ──▶ Formatted HTML Summary                │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**Primary**: Google Gemini with Search Grounding (gemini-2.0-flash)
-- Real-time web search integrated into LLM
-- Grounded responses with source citations
-- Structured data extraction
+### Document Upload (Supabase Storage)
 
-**Fallback**: ScrapingBee Google SERP API
-- Activates when Gemini grounding fails
-- Returns organic search results
-- Maintains service availability
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    DOCUMENT UPLOAD FLOW                         │
+│                                                                 │
+│   File ──▶ Validation ──▶ Supabase Storage ──▶ DB Metadata     │
+│              │                                                  │
+│              ├── Size check (max 10MB)                         │
+│              ├── Type check (PDF, DOC, DOCX, TXT, MD, images)  │
+│              └── Cleanup on failure                            │
+│                                                                 │
+│   Text Extraction:                                              │
+│   - TXT/MD: Direct content                                     │
+│   - PDF: Placeholder (pdf-parse integration ready)             │
+│   - Images: Description-based                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Bookmarks System
+
+| Feature | Description |
+|---------|-------------|
+| Create | Save any AI response with title, tags |
+| Search | Full-text search across title and content |
+| Tags | Organize bookmarks with custom tags |
+| Session Link | Optional link back to source session |
+
+### User Analytics Dashboard
+
+| Metric | Description |
+|--------|-------------|
+| Total Sessions | All-time session count |
+| Active Sessions | Currently active sessions |
+| Total Messages | All-time message count |
+| Agent Usage | Breakdown by agent type |
+| Sessions This Month | Current month activity |
+| Messages This Month | Current month messages |
+| Avg Messages/Session | Engagement metric |
+| Most Active Day | Peak activity day |
+| Recent Activity | 7-day activity heatmap |
+
+### RAG Query Caching
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    RAG CACHE SERVICE                            │
+│                                                                 │
+│   Query ──▶ Generate Cache Key (MD5 hash of normalized query)  │
+│                    │                                            │
+│              ┌─────┴─────┐                                      │
+│              ▼           ▼                                      │
+│         Cache Hit    Cache Miss                                 │
+│         (return)     (query RAG, cache result)                 │
+│                                                                 │
+│   TTL: 30 minutes (default)                                    │
+│        60 minutes (popular queries with >5 accesses)           │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Retry Service
+
+```typescript
+// Exponential backoff with jitter
+const options = {
+  maxAttempts: 3,
+  initialDelayMs: 1000,
+  maxDelayMs: 10000,
+  backoffMultiplier: 2,
+  retryableErrors: ['timeout', 'rate limit', '503', ...],
+};
+
+// Decorator support
+@WithRetry({ maxAttempts: 3 })
+async fetchData() { ... }
+```
+
+### PWA Improvements
+
+| Feature | Implementation |
+|---------|----------------|
+| Shortcuts | New Chat, Sessions |
+| Share Target | Share text directly to chat |
+| Orientation | Any (portrait/landscape) |
+| Categories | business, productivity, finance |
+
 
 ---
 
@@ -321,12 +490,12 @@ The Research Service provides real-time web data with automatic fallback:
 
 ### Agent Types
 
-| Agent | Domain | Expertise |
-|-------|--------|-----------|
-| **Legal** | Startup law | Incorporation, IP, contracts, compliance |
-| **Finance** | Financial planning | Fundraising, runway, unit economics |
-| **Investor** | Fundraising | Pitch strategy, investor targeting, term sheets |
-| **Competitor** | Market analysis | Competitive landscape, positioning, differentiation |
+| Agent | Domain | Expertise | Data Source |
+|-------|--------|-----------|-------------|
+| **Legal** | Startup law | Incorporation, IP, contracts, compliance | RAG |
+| **Finance** | Financial planning | Fundraising, runway, unit economics | RAG |
+| **Investor** | Fundraising | Pitch strategy, investor targeting, term sheets | Web Research |
+| **Competitor** | Market analysis | Competitive landscape, positioning | Web Research |
 
 ### Agent Execution Flow
 
@@ -351,89 +520,30 @@ The Research Service provides real-time web data with automatic fallback:
 │              ▼     ▼     ▼          ▼     ▼     ▼        ▼      │
 │           Legal Finance Investor  Each agent    Final    │      │
 │           Agent  Agent   Agent    critiques    Response  │      │
-│                                   others                 │      │
+│                                   ALL others             │      │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Agent Input Context
-
-Each agent receives:
-```typescript
-{
-  context: {
-    sessionId: string,
-    userId: string,
-    startupId: string,
-    metadata: {
-      companyName, tagline, description, website,
-      industry, sector, businessModel, revenueModel,
-      stage, foundedYear, teamSize, cofounderCount,
-      country, city, operatingRegions,
-      fundingStage, totalRaised, monthlyRevenue,
-      targetCustomer, problemSolved, competitiveAdvantage
-    }
-  },
-  prompt: string,        // User's question
-  documents?: string[]   // Optional document references
-}
-```
-
----
-
-## Authentication & Security
-
-### Auth Flow
+### Web Research with Fallback
 
 ```
-┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐
-│  User    │────▶│ Supabase │────▶│ Frontend │────▶│ Backend  │
-│  Login   │     │   Auth   │     │ Callback │     │  Guard   │
-└──────────┘     └──────────┘     └──────────┘     └──────────┘
-     │                │                │                │
-     │   OAuth Flow   │                │                │
-     │   (Google/     │                │                │
-     │    GitHub)     │                │                │
-     │                │                │                │
-     │                ▼                │                │
-     │         ┌──────────┐            │                │
-     │         │  JWT     │────────────┘                │
-     │         │  Token   │                             │
-     │         └──────────┘                             │
-     │                                                  │
-     │                                    ┌─────────────┘
-     │                                    ▼
-     │                              ┌──────────┐
-     │                              │ Verify   │
-     │                              │ Token    │
-     │                              │ + Sync   │
-     │                              │ User DB  │
-     │                              └──────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                    RESEARCH SERVICE                             │
+│                                                                 │
+│   Query ──▶ Gemini 2.5 Flash ──▶ Google Search Grounding       │
+│                    │                                            │
+│                    │ (if fails)                                 │
+│                    ▼                                            │
+│              ScrapingBee ──▶ Google SERP Fallback              │
+│                    │                                            │
+│                    ▼                                            │
+│              Structured Results                                 │
+│              - Web Results                                      │
+│              - Company Info                                     │
+│              - Investor Info                                    │
+│              - Market Data                                      │
+└─────────────────────────────────────────────────────────────────┘
 ```
-
-### Security Layers
-
-| Layer | Implementation |
-|-------|----------------|
-| **Authentication** | Supabase JWT verification |
-| **Authorization** | Role-based (user, admin) |
-| **Rate Limiting** | Per-user throttling via Redis |
-| **API Keys** | SHA-256 hashed, scoped permissions |
-| **CORS** | Configured allowed origins |
-| **Input Validation** | class-validator DTOs |
-| **SQL Injection** | Drizzle ORM parameterized queries |
-
-### API Key Authentication
-
-For programmatic access:
-```
-Authorization: Bearer coop_sk_xxxx
-```
-
-API keys are:
-- Hashed with SHA-256 before storage
-- Scoped to specific permissions
-- Revocable by user
-- Rate limited separately
 
 ---
 
@@ -448,59 +558,43 @@ API keys are:
 │ id (PK)         │──┐    │ id (PK)         │◀──┐   │ id (PK)         │
 │ email           │  │    │ companyName     │   │   │ userId (FK)     │
 │ name            │  │    │ founderName     │   │   │ startupId (FK)  │
-│ role            │  │    │ industry        │   │   │ status          │
-│ startupId (FK)  │──┼───▶│ sector          │   │   │ metadata        │
-│ onboardingDone  │  │    │ stage           │   │   │ createdAt       │
-│ createdAt       │  │    │ fundingStage    │   │   └────────┬────────┘
-└─────────────────┘  │    │ ...             │   │            │
-                     │    └─────────────────┘   │            │
-                     │                          │            ▼
-┌─────────────────┐  │    ┌─────────────────┐   │   ┌─────────────────┐
-│   admin_users   │  │    │    api_keys     │   │   │session_messages │
-├─────────────────┤  │    ├─────────────────┤   │   ├─────────────────┤
-│ id (PK)         │  │    │ id (PK)         │   │   │ id (PK)         │
-│ userId (FK)     │──┘    │ userId (FK)     │───┘   │ sessionId (FK)  │
-│ permissions     │       │ keyHash         │       │ role            │
-│ createdAt       │       │ name            │       │ content         │
-└─────────────────┘       │ permissions     │       │ agent           │
-                          │ lastUsedAt      │       │ metadata        │
-                          └─────────────────┘       │ createdAt       │
-                                                    └─────────────────┘
+│ role            │  │    │ industry        │   │   │ title           │
+│ startupId (FK)  │──┼───▶│ sector          │   │   │ status          │
+│ onboardingDone  │  │    │ stage           │   │   │ isPinned        │
+│ createdAt       │  │    │ fundingStage    │   │   │ metadata        │
+└─────────────────┘  │    │ ...             │   │   │ createdAt       │
+                     │    └─────────────────┘   │   └────────┬────────┘
+                     │                          │            │
+┌─────────────────┐  │    ┌─────────────────┐   │            ▼
+│   bookmarks     │  │    │    api_keys     │   │   ┌─────────────────┐
+├─────────────────┤  │    ├─────────────────┤   │   │session_messages │
+│ id (PK)         │  │    │ id (PK)         │   │   ├─────────────────┤
+│ userId (FK)     │──┘    │ userId (FK)     │───┘   │ id (PK)         │
+│ sessionId (FK)  │       │ keyHash         │       │ sessionId (FK)  │
+│ messageId       │       │ name            │       │ role            │
+│ title           │       │ permissions     │       │ content         │
+│ content         │       │ lastUsedAt      │       │ agent           │
+│ agent           │       └─────────────────┘       │ metadata        │
+│ tags            │                                 │ createdAt       │
+│ createdAt       │                                 └─────────────────┘
+└─────────────────┘
 
 ┌─────────────────┐       ┌─────────────────┐       ┌─────────────────┐
-│    webhooks     │       │   audit_logs    │       │   log_events    │
+│   documents     │       │   audit_logs    │       │    webhooks     │
 ├─────────────────┤       ├─────────────────┤       ├─────────────────┤
 │ id (PK)         │       │ id (PK)         │       │ id (PK)         │
 │ userId (FK)     │       │ userId (FK)     │       │ userId (FK)     │
-│ url             │       │ action          │       │ eventType       │
-│ events          │       │ resource        │       │ metadata        │
-│ secret          │       │ resourceId      │       │ createdAt       │
-│ isActive        │       │ metadata        │       └─────────────────┘
+│ sessionId (FK)  │       │ action          │       │ url             │
+│ filename        │       │ resource        │       │ events          │
+│ originalName    │       │ resourceId      │       │ secret (enc)    │
+│ mimeType        │       │ oldValue        │       │ isActive        │
+│ size            │       │ newValue        │       │ createdAt       │
+│ storagePath     │       │ ipAddress       │       └─────────────────┘
+│ description     │       │ metadata        │
 │ createdAt       │       │ createdAt       │
 └─────────────────┘       └─────────────────┘
-
-┌─────────────────┐
-│   rag_files     │  (In RAG service DB)
-├─────────────────┤
-│ id (PK)         │
-│ filename        │
-│ storagePath     │
-│ domain          │
-│ sector          │
-│ vectorStatus    │
-│ chunkCount      │
-│ lastAccessed    │
-│ createdAt       │
-└─────────────────┘
 ```
 
-### Key Indexes
-
-- `users_deleted_at_idx` - Soft delete filtering
-- `users_startup_id_idx` - User-startup lookup
-- `startups_industry_idx` - Industry filtering
-- `startups_stage_idx` - Stage filtering
-- `sessions_user_id_idx` - User sessions lookup
 
 ---
 
@@ -523,6 +617,7 @@ Success:
 {
   "success": true,
   "data": { ... },
+  "message": "Optional message",
   "meta": { "timestamp": "..." }
 }
 ```
@@ -539,16 +634,20 @@ Error:
 
 ### Key Endpoints
 
-| Endpoint | Auth | Purpose |
-|----------|------|---------|
-| `POST /agents/run` | JWT | Synchronous agent execution |
-| `POST /agents/queue` | JWT | Async agent execution (QStash) |
-| `GET /agents/tasks/:id` | JWT | Get task status |
-| `POST /sessions` | JWT | Create chat session |
-| `GET /sessions/:id/messages` | JWT | Get session messages |
-| `POST /users/me/onboarding` | JWT | Complete onboarding |
-| `POST /admin/embeddings/upload` | Admin | Upload RAG document |
-| `GET /analytics/dashboard` | Admin | Dashboard statistics |
+| Endpoint | Auth | Rate Limit | Purpose |
+|----------|------|------------|---------|
+| `POST /agents/queue` | JWT | STANDARD | Async agent execution |
+| `GET /agents/stream/:id` | JWT | READ | SSE stream for task |
+| `GET /agents/tasks/:id` | JWT | READ | Get task status |
+| `POST /sessions` | JWT | CREATE | Create chat session |
+| `PATCH /sessions/:id/pin` | JWT | STANDARD | Pin/unpin session |
+| `POST /sessions/:id/export` | JWT | STANDARD | Export session |
+| `POST /sessions/:id/email` | JWT | STRICT | Email session summary |
+| `GET /analytics/me` | JWT | READ | Personal analytics |
+| `GET /analytics/me/history` | JWT | READ | Activity history |
+| `POST /bookmarks` | JWT | CREATE | Create bookmark |
+| `POST /documents/upload` | JWT | CREATE | Upload document |
+| `POST /admin/embeddings/upload` | Admin | CREATE | Upload RAG document |
 
 ---
 
@@ -574,7 +673,7 @@ Error:
 │                     │  │                 │  │                 │
 │  - Edge Functions   │  │  - Auto-scale   │  │  - Auto-scale   │
 │  - CDN              │  │  - Health check │  │  - Health check │
-│  - Preview deploys  │  │  - Zero-downtime│  │                 │
+│  - Analytics        │  │  - Zero-downtime│  │                 │
 └─────────────────────┘  └─────────────────┘  └─────────────────┘
           │                      │                    │
           └──────────────────────┼────────────────────┘
@@ -585,31 +684,28 @@ Error:
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
 │  │    Neon     │  │   Upstash   │  │  Supabase   │  │   QStash    │        │
 │  │  Postgres   │  │    Redis    │  │  Auth + S3  │  │   Queue     │        │
+│  │ (serverless)│  │ (serverless)│  │             │  │ (serverless)│        │
 │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘        │
 │                                                                             │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                         │
-│  │  Upstash    │  │    Groq     │  │   Google    │                         │
-│  │   Vector    │  │     API     │  │   AI API    │                         │
-│  └─────────────┘  └─────────────┘  └─────────────┘                         │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
+│  │  Upstash    │  │    Groq     │  │   Google    │  │  SendGrid   │        │
+│  │   Vector    │  │     API     │  │   AI API    │  │   Email     │        │
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘        │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Environment Variables
-
-| Service | Key Variables |
-|---------|---------------|
-| Frontend | `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_SUPABASE_*` |
-| Backend | `DATABASE_URL`, `REDIS_URL`, `GROQ_API_KEY`, `GOOGLE_AI_API_KEY` |
-| RAG | `SUPABASE_*`, `UPSTASH_VECTOR_*`, `GOOGLE_AI_API_KEY` |
-
 ### Scaling Considerations
 
-- **Frontend**: Edge-deployed, auto-scales with Vercel
-- **Backend**: Horizontal scaling on Render (multiple instances)
-- **RAG**: Stateless, scales independently
-- **Database**: Neon serverless auto-scales
-- **Redis**: Upstash serverless, pay-per-request
-- **Vector DB**: Upstash Vector, auto-scales
+| Component | Strategy |
+|-----------|----------|
+| Frontend | Edge-deployed, auto-scales with Vercel |
+| Backend | Horizontal scaling on Render (stateless) |
+| RAG | Stateless, scales independently |
+| Database | Neon serverless auto-scales |
+| Redis | Upstash serverless, pay-per-request |
+| Vector DB | Upstash Vector, auto-scales |
+| Queue | QStash serverless, auto-scales |
+
 
 ---
 
@@ -627,17 +723,29 @@ Error:
 - Provides confidence scores based on agreement
 - Improves response quality through synthesis
 
-### Why Lazy RAG Vectorization?
+### Why True SSE Streaming?
 
-**Problem**: Pre-vectorizing all documents is expensive and slow.
+**Problem**: Long-running LLM operations (30+ seconds) need real-time feedback.
 
-**Solution**: Vectors are created on first query for a domain/sector.
+**Solution**: Server-Sent Events with Redis-backed event buffering.
 
 **Benefits**:
-- Faster document uploads
-- Lower storage costs (only vectorize what's used)
-- TTL-based cleanup removes unused vectors
-- Re-vectorization on demand
+- Real-time progress updates
+- Thinking steps visible to users
+- Late subscriber support via buffer
+- Fallback to polling if SSE fails
+
+### Why RAG Query Caching?
+
+**Problem**: RAG queries are expensive and often repeated.
+
+**Solution**: MD5-based cache keys with 30-minute TTL.
+
+**Benefits**:
+- Reduced latency for repeated queries
+- Lower API costs
+- Popularity-based TTL extension
+- Automatic cache invalidation
 
 ### Why Separate RAG Service?
 
@@ -663,17 +771,29 @@ Error:
 - Webhook-based completion notification
 - Works with serverless deployments
 
-### Why Drizzle ORM?
+### Why AES-256-GCM Encryption?
 
-**Problem**: Need type-safe database access without heavy ORM overhead.
+**Problem**: Sensitive data (webhook secrets, tokens) needs protection at rest.
 
-**Solution**: Drizzle provides TypeScript-first, lightweight ORM.
+**Solution**: AES-256-GCM with random IV and authentication tag.
 
 **Benefits**:
-- Full TypeScript inference
-- SQL-like query builder
-- Minimal runtime overhead
-- Easy migrations
+- Industry-standard encryption
+- Authenticated encryption prevents tampering
+- Graceful fallback for legacy plaintext data
+- Key derivation from environment variable
+
+### Why Circuit Breaker Pattern?
+
+**Problem**: External service failures can cascade.
+
+**Solution**: Opossum circuit breaker with configurable thresholds.
+
+**Benefits**:
+- Prevents cascade failures
+- Fast failure when service is down
+- Automatic recovery when service returns
+- Memory-efficient with LRU cleanup
 
 ---
 
@@ -684,113 +804,3 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup and guidelines.
 ## License
 
 MIT License - see [LICENSE](./LICENSE) for details.
-
-
----
-
-## Code Quality Review
-
-This section documents potential issues, improvements, and best practices identified during code review.
-
-### Issues Found & Fixed
-
-#### 1. Mobile Responsiveness ✅
-The frontend has good mobile responsiveness:
-- Dashboard layout has mobile hamburger menu with slide-out navigation
-- All pages use responsive grid layouts (`grid-cols-1 sm:grid-cols-2 lg:grid-cols-4`)
-- Text sizes scale appropriately (`text-sm sm:text-base`)
-- Padding/margins adjust for mobile (`p-4 sm:p-6 md:p-8`)
-- Chat page has mobile-optimized input and message display
-
-#### 2. Error Handling ✅
-- Backend has comprehensive `HttpExceptionFilter` for consistent error responses
-- Frontend `ApiClient` properly handles error responses and validation errors
-- Circuit breaker pattern implemented for external service calls (RAG, LLM providers)
-
-#### 3. Security ✅
-- SSRF prevention in webhooks service (blocks localhost, private IPs)
-- HTTPS required for webhooks in production
-- API keys hashed with SHA-256
-- Rate limiting per user via Redis
-- Input validation with class-validator DTOs
-
-### Potential Improvements
-
-#### Frontend
-
-1. **Chat Page Memory Leak Prevention**
-   - The `useEffect` for session initialization has proper cleanup
-   - Consider adding AbortController for fetch requests on unmount
-
-2. **Session Storage Cleanup**
-   - `continueSession` in sessionStorage is properly cleaned up after use
-
-3. **Loading States**
-   - All pages have proper loading skeletons
-   - Consider adding error boundaries for better error UX
-
-#### Backend
-
-1. **Database Connection Pooling**
-   - Drizzle with node-postgres handles connection pooling
-   - Consider monitoring pool exhaustion in high-traffic scenarios
-
-2. **LLM Council Timeout Handling**
-   - Individual model calls have timeouts
-   - Consider adding overall council timeout to prevent long-running requests
-
-3. **Webhook Retry Logic**
-   - Exponential backoff implemented (1s, 5s, 15s)
-   - Consider adding dead letter queue for failed webhooks
-
-4. **Cache Invalidation**
-   - User cache properly invalidated on updates
-   - Consider cache warming for frequently accessed data
-
-### Performance Considerations
-
-1. **RAG Service**
-   - Lazy vectorization reduces initial load time
-   - TTL-based cleanup prevents vector storage bloat
-   - Consider batch vectorization for large document uploads
-
-2. **LLM Council**
-   - Parallel model calls for generation phase
-   - Health checks every 5 minutes prevent using unhealthy models
-   - Consider caching common queries
-
-3. **Frontend**
-   - Next.js App Router with server components
-   - Client-side state management with Zustand
-   - Consider implementing SWR/React Query for data fetching
-
-### Testing Recommendations
-
-1. **Unit Tests**
-   - Add tests for LLM Council critique parsing
-   - Add tests for webhook signature verification
-   - Add tests for API key hashing/validation
-
-2. **Integration Tests**
-   - Test agent orchestration flow
-   - Test session message persistence
-   - Test webhook delivery
-
-3. **E2E Tests**
-   - Test onboarding flow (both user types)
-   - Test chat conversation flow
-   - Test admin operations
-
-### Monitoring Recommendations
-
-1. **Metrics to Track**
-   - LLM model response times and error rates
-   - RAG query latency and hit rates
-   - Webhook delivery success rates
-   - API endpoint response times
-
-2. **Alerts to Configure**
-   - LLM model health check failures
-   - Database connection pool exhaustion
-   - High error rates on critical endpoints
-   - Webhook delivery failures

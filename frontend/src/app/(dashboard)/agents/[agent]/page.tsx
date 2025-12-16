@@ -16,7 +16,7 @@ import {
   Copy,
   Check,
   NotionLogo,
-} from '@phosphor-icons/react/dist/ssr';
+} from '@phosphor-icons/react';
 import { api } from '@/lib/api/client';
 import { useUser } from '@/lib/hooks';
 import type { AgentType, AgentPhaseResult } from '@/lib/api/types';

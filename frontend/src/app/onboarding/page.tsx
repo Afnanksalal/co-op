@@ -14,7 +14,7 @@ import {
   Check,
   Lightbulb,
   Rocket,
-} from '@phosphor-icons/react/dist/ssr';
+} from '@phosphor-icons/react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { api } from '@/lib/api/client';

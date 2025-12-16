@@ -19,11 +19,22 @@ import {
   NotionLogo,
   Lightning,
   Brain,
-} from '@phosphor-icons/react/dist/ssr';
+  ArrowClockwise,
+  ThumbsUp,
+  ThumbsDown,
+  BookmarkSimple,
+  DownloadSimple,
+  Paperclip,
+  File,
+  X,
+  FilePdf,
+  FileDoc,
+  FileText,
+} from '@phosphor-icons/react';
 import { api } from '@/lib/api/client';
 import { useUser } from '@/lib/hooks';
 import { useChatStore, useSessionStore } from '@/lib/store';
-import type { AgentType, Session } from '@/lib/api/types';
+import type { AgentType, Session, ChatDocument, StreamEvent } from '@/lib/api/types';
 import { cn, generateId, copyToClipboard } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -52,10 +63,13 @@ export default function ChatPage() {
     messages,
     selectedAgent,
     isLoading,
+    lastUserPrompt,
     addMessage,
     updateMessage,
+    removeMessage,
     setSelectedAgent,
     setLoading,
+    setLastUserPrompt,
     clearMessages,
   } = useChatStore();
 
@@ -65,9 +79,15 @@ export default function ChatPage() {
   const [isExporting, setIsExporting] = useState<string | null>(null);
   const [thinkingSteps, setThinkingSteps] = useState<string[]>([]);
   const [showThinking, setShowThinking] = useState(false);
+  const [followUpSuggestions, setFollowUpSuggestions] = useState<string[]>([]);
+  const [ratedMessages, setRatedMessages] = useState<Set<string>>(new Set());
+  const [uploadedDocs, setUploadedDocs] = useState<ChatDocument[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const sessionInitRef = useRef(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const streamCleanupRef = useRef<(() => void) | null>(null);
 
   // Initialize session and load existing messages
   useEffect(() => {
@@ -242,21 +262,22 @@ export default function ChatPage() {
     setShowThinking(false);
 
     try {
-      // Build request based on mode
+      // Build request with document IDs
+      const documentIds = uploadedDocs.map(d => d.id);
       const request = isMultiAgent
         ? {
             agents: ['legal', 'finance', 'investor', 'competitor'],
             prompt,
             sessionId: currentSession.id,
             startupId: user.startup.id,
-            documents: [],
+            documents: documentIds,
           }
         : {
             agentType: selectedAgent,
             prompt,
             sessionId: currentSession.id,
             startupId: user.startup.id,
-            documents: [],
+            documents: documentIds,
           };
 
       const { taskId } = await api.queueAgent(request);
@@ -267,11 +288,149 @@ export default function ChatPage() {
         content: prompt,
       });
 
-      let completed = false;
       let finalContent = '';
+      const collectedThinkingSteps: string[] = [];
+
+      // Use SSE streaming for real-time updates
+      const handleStreamEvent = (event: StreamEvent) => {
+        switch (event.type) {
+          case 'progress': {
+            const { phase, progress, content } = event.data;
+            let progressText = content || '';
+            
+            if (!progressText && phase) {
+              switch (phase) {
+                case 'gathering':
+                  progressText = isMultiAgent
+                    ? `Gathering expert responses... ${progress || 0}%`
+                    : `Analyzing your question... ${progress || 0}%`;
+                  break;
+                case 'critiquing':
+                  progressText = `Cross-critiquing responses for accuracy... ${progress || 0}%`;
+                  break;
+                case 'synthesizing':
+                  progressText = `Synthesizing final response... ${progress || 0}%`;
+                  break;
+                default:
+                  progressText = `Processing... ${progress || 0}%`;
+              }
+            }
+            
+            updateMessage(assistantMessageId, { content: progressText });
+            break;
+          }
+          
+          case 'thinking': {
+            const { step, agent } = event.data;
+            if (step) {
+              const stepText = agent ? `[${agent}] ${step}` : step;
+              collectedThinkingSteps.push(stepText);
+              setThinkingSteps([...collectedThinkingSteps]);
+              
+              // Auto-expand on first thinking step
+              if (collectedThinkingSteps.length === 1) {
+                setShowThinking(true);
+              }
+            }
+            break;
+          }
+          
+          case 'chunk': {
+            // For streaming content chunks
+            const { content } = event.data;
+            if (content) {
+              finalContent += content;
+              updateMessage(assistantMessageId, { content: finalContent });
+            }
+            break;
+          }
+          
+          case 'done': {
+            const { result } = event.data;
+            if (result && typeof result === 'object') {
+              const taskResult = result as { results?: Array<{ phase: string; output: { content: string; confidence: number; sources: string[] } }> };
+              const finalResult = taskResult.results?.find((r) => r.phase === 'final');
+              if (finalResult) {
+                finalContent = finalResult.output.content;
+                updateMessage(assistantMessageId, {
+                  content: finalContent,
+                  confidence: finalResult.output.confidence,
+                  sources: finalResult.output.sources,
+                  isStreaming: false,
+                  thinkingSteps: collectedThinkingSteps,
+                });
+              }
+            }
+            
+            // Save assistant response
+            if (finalContent) {
+              api.addSessionMessage(currentSession.id, {
+                role: 'assistant',
+                content: finalContent,
+                agent: isMultiAgent ? undefined : selectedAgent ?? undefined,
+              }).catch(console.error);
+              
+              setFollowUpSuggestions(generateFollowUpSuggestions(prompt, finalContent));
+            }
+            
+            setLastUserPrompt(prompt);
+            setLoading(false);
+            streamCleanupRef.current = null;
+            break;
+          }
+          
+          case 'error': {
+            const { error } = event.data;
+            updateMessage(assistantMessageId, {
+              content: error || 'Sorry, I encountered an error. Please try again.',
+              isStreaming: false,
+            });
+            toast.error(error || 'Failed to get response');
+            setLoading(false);
+            streamCleanupRef.current = null;
+            break;
+          }
+        }
+      };
+
+      // Start SSE stream
+      const cleanup = api.streamAgentTask(
+        taskId,
+        handleStreamEvent,
+        (error) => {
+          console.error('Stream error:', error);
+          // Fallback to polling if SSE fails
+          fallbackToPoll(taskId, assistantMessageId, isMultiAgent, prompt, collectedThinkingSteps);
+        }
+      );
       
-      while (!completed) {
-        await new Promise((resolve) => setTimeout(resolve, 800));
+      streamCleanupRef.current = cleanup;
+
+    } catch (error) {
+      console.error('Failed to get response:', error);
+      updateMessage(assistantMessageId, {
+        content: 'Sorry, I encountered an error. Please try again.',
+        isStreaming: false,
+      });
+      toast.error('Failed to get response');
+      setLoading(false);
+    }
+  };
+
+  // Fallback polling if SSE connection fails
+  const fallbackToPoll = async (
+    taskId: string,
+    assistantMessageId: string,
+    isMultiAgent: boolean,
+    prompt: string,
+    collectedSteps: string[]
+  ) => {
+    let completed = false;
+    let finalContent = '';
+    
+    while (!completed) {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      try {
         const status = await api.getTaskStatus(taskId);
 
         if (status.status === 'completed' && status.result) {
@@ -283,76 +442,233 @@ export default function ChatPage() {
               confidence: finalResult.output.confidence,
               sources: finalResult.output.sources,
               isStreaming: false,
-              thinkingSteps: [...thinkingSteps],
+              thinkingSteps: collectedSteps,
             });
           }
           completed = true;
         } else if (status.status === 'failed') {
           throw new Error(status.error || 'Task failed');
         } else {
-          // Show detailed progress with thinking steps
           const detail = status.progressDetail;
-          let progressText = '';
+          let progressText = isMultiAgent
+            ? `Consulting all agents... ${status.progress}%`
+            : `Thinking... ${status.progress}%`;
           
-          if (detail) {
-            const eta = detail.estimatedTimeRemaining 
-              ? ` (~${detail.estimatedTimeRemaining}s remaining)` 
-              : '';
-            
-            switch (detail.phase) {
-              case 'gathering':
-                progressText = isMultiAgent
-                  ? `Gathering expert responses (${detail.agentsCompleted ?? 0}/${detail.totalAgents ?? 4} agents)${eta}`
-                  : `${detail.currentAgent?.charAt(0).toUpperCase()}${detail.currentAgent?.slice(1) ?? 'Agent'} analyzing your question${eta}`;
-                break;
-              case 'critiquing':
-                progressText = `Cross-critiquing responses for accuracy${eta}`;
-                break;
-              case 'synthesizing':
-                progressText = `Synthesizing final response${eta}`;
-                break;
-              default:
-                progressText = detail.message ?? `Processing... ${status.progress}%`;
-            }
-            
-            // Add thinking steps from council progress
-            if (detail.councilSteps && detail.councilSteps.length > 0) {
-              setThinkingSteps(detail.councilSteps);
-              // Auto-expand thinking steps when they first appear
-              if (detail.councilSteps.length === 1) {
-                setShowThinking(true);
-              }
-            }
-          } else {
-            progressText = isMultiAgent
-              ? `Consulting all agents... ${status.progress}%`
-              : `Thinking... ${status.progress}%`;
+          if (detail?.message) {
+            progressText = detail.message;
           }
           
-          updateMessage(assistantMessageId, {
-            content: progressText,
-          });
+          if (detail?.councilSteps) {
+            collectedSteps.push(...detail.councilSteps.filter(s => !collectedSteps.includes(s)));
+            setThinkingSteps([...collectedSteps]);
+          }
+          
+          updateMessage(assistantMessageId, { content: progressText });
         }
-      }
-
-      // Save assistant response to database
-      if (finalContent) {
-        await api.addSessionMessage(currentSession.id, {
-          role: 'assistant',
-          content: finalContent,
-          agent: isMultiAgent ? undefined : selectedAgent,
+      } catch (error) {
+        console.error('Poll error:', error);
+        updateMessage(assistantMessageId, {
+          content: 'Sorry, I encountered an error. Please try again.',
+          isStreaming: false,
         });
+        toast.error('Failed to get response');
+        completed = true;
       }
-    } catch (error) {
-      console.error('Failed to get response:', error);
-      updateMessage(assistantMessageId, {
-        content: 'Sorry, I encountered an error. Please try again.',
-        isStreaming: false,
-      });
-      toast.error('Failed to get response');
     }
 
+    if (finalContent && currentSession) {
+      await api.addSessionMessage(currentSession.id, {
+        role: 'assistant',
+        content: finalContent,
+        agent: isMultiAgent ? undefined : selectedAgent ?? undefined,
+      });
+      setFollowUpSuggestions(generateFollowUpSuggestions(prompt, finalContent));
+    }
+    
+    setLastUserPrompt(prompt);
     setLoading(false);
+  };
+  
+  // Generate contextual follow-up suggestions
+  const generateFollowUpSuggestions = (query: string, response: string): string[] => {
+    const suggestions: string[] = [];
+    const lowerQuery = query.toLowerCase();
+    const lowerResponse = response.toLowerCase();
+    
+    // Legal follow-ups
+    if (lowerQuery.includes('legal') || lowerQuery.includes('contract') || lowerQuery.includes('compliance')) {
+      suggestions.push('What are the key risks I should be aware of?');
+      suggestions.push('Can you provide a checklist for compliance?');
+    }
+    
+    // Finance follow-ups
+    if (lowerQuery.includes('financ') || lowerQuery.includes('runway') || lowerQuery.includes('revenue')) {
+      suggestions.push('How can I extend my runway?');
+      suggestions.push('What metrics should I track?');
+    }
+    
+    // Investor follow-ups
+    if (lowerQuery.includes('investor') || lowerQuery.includes('fundrais') || lowerQuery.includes('pitch')) {
+      suggestions.push('What should I include in my pitch deck?');
+      suggestions.push('How do I approach these investors?');
+    }
+    
+    // Competitor follow-ups
+    if (lowerQuery.includes('competitor') || lowerQuery.includes('market') || lowerQuery.includes('position')) {
+      suggestions.push('How can I differentiate from competitors?');
+      suggestions.push('What market trends should I watch?');
+    }
+    
+    // Generic follow-ups if none matched
+    if (suggestions.length === 0) {
+      suggestions.push('Can you elaborate on this?');
+      suggestions.push('What are the next steps?');
+      suggestions.push('What are the potential risks?');
+    }
+    
+    return suggestions.slice(0, 3);
+  };
+  
+  // Regenerate the last response
+  const handleRegenerate = async () => {
+    if (!lastUserPrompt || !currentSession || !user?.startup || isLoading) return;
+    
+    // Remove the last assistant message
+    const lastAssistantMsg = [...messages].reverse().find(m => m.role === 'assistant');
+    if (lastAssistantMsg) {
+      removeMessage(lastAssistantMsg.id);
+    }
+    
+    // Resubmit with the same prompt
+    setInput(lastUserPrompt);
+    // Trigger submit on next tick
+    setTimeout(() => {
+      const form = document.querySelector('form');
+      if (form) form.requestSubmit();
+    }, 0);
+  };
+  
+  // Rate a response
+  const handleRate = (messageId: string, isPositive: boolean) => {
+    setRatedMessages(prev => new Set(prev).add(messageId));
+    toast.success(isPositive ? 'Thanks for the feedback!' : 'We\'ll work on improving');
+  };
+
+  // Bookmark a response
+  const handleBookmark = async (messageId: string, content: string, agent?: string) => {
+    try {
+      const title = content.slice(0, 50) + (content.length > 50 ? '...' : '');
+      await api.createBookmark({
+        title,
+        content,
+        sessionId: currentSession?.id,
+        messageId,
+        agent,
+      });
+      toast.success('Response saved to bookmarks');
+    } catch (error) {
+      console.error('Failed to bookmark:', error);
+      toast.error('Failed to save bookmark');
+    }
+  };
+
+  // Document upload handlers
+  const handleFileSelect = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    const allowedTypes = ['application/pdf', 'text/plain', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+
+    if (file.size > maxSize) {
+      toast.error('File too large. Maximum size is 10MB.');
+      return;
+    }
+
+    if (!allowedTypes.includes(file.type) && !file.name.endsWith('.txt') && !file.name.endsWith('.md')) {
+      toast.error('Unsupported file type. Please upload PDF, DOC, DOCX, or TXT files.');
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const doc = await api.uploadDocument(file, currentSession?.id);
+      setUploadedDocs(prev => [...prev, doc]);
+      toast.success(`${file.name} uploaded`);
+    } catch (error) {
+      console.error('Failed to upload document:', error);
+      toast.error('Failed to upload document');
+    }
+    setIsUploading(false);
+    
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveDoc = async (docId: string) => {
+    try {
+      await api.deleteDocument(docId);
+      setUploadedDocs(prev => prev.filter(d => d.id !== docId));
+      toast.success('Document removed');
+    } catch (error) {
+      console.error('Failed to remove document:', error);
+      toast.error('Failed to remove document');
+    }
+  };
+
+  const getDocIcon = (mimeType: string) => {
+    if (mimeType === 'application/pdf') return FilePdf;
+    if (mimeType.includes('word') || mimeType.includes('document')) return FileDoc;
+    return FileText;
+  };
+
+  // Load session documents
+  useEffect(() => {
+    const loadDocs = async () => {
+      if (!currentSession) return;
+      try {
+        const docs = await api.getDocuments(currentSession.id);
+        setUploadedDocs(docs);
+      } catch (error) {
+        console.error('Failed to load documents:', error);
+      }
+    };
+    loadDocs();
+  }, [currentSession?.id]);
+
+  // Cleanup SSE on unmount
+  useEffect(() => {
+    return () => {
+      if (streamCleanupRef.current) {
+        streamCleanupRef.current();
+      }
+    };
+  }, []);
+
+  // Export current session
+  const handleExportSession = async (format: 'markdown' | 'json') => {
+    if (!currentSession) return;
+    try {
+      const result = await api.exportSession(currentSession.id, { format });
+      const blob = new Blob([result.content], { type: result.mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = result.filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Session exported');
+    } catch (error) {
+      console.error('Failed to export:', error);
+      toast.error('Failed to export session');
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -395,14 +711,25 @@ export default function ChatPage() {
       {/* Agent Selector */}
       <div className="flex items-center gap-1 sm:gap-2 pb-3 sm:pb-4 border-b border-border/40 shrink-0 overflow-x-auto">
         {messages.length > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleNewChat}
-            className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground mr-2"
-          >
-            New Chat
-          </Button>
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleNewChat}
+              className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+            >
+              New Chat
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleExportSession('markdown')}
+              className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground mr-2"
+              title="Export as Markdown"
+            >
+              <DownloadSimple weight="regular" className="w-4 h-4" />
+            </Button>
+          </>
         )}
         <span className="text-xs sm:text-sm text-muted-foreground mr-1 sm:mr-2 shrink-0">Mode:</span>
         
@@ -610,6 +937,27 @@ export default function ChatPage() {
                             )}
                           </button>
                           <div className="flex-1" />
+                          {/* Rating buttons */}
+                          {!ratedMessages.has(message.id) && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRate(message.id, true)}
+                                className="h-7 px-2 text-muted-foreground hover:text-green-500"
+                              >
+                                <ThumbsUp weight="regular" className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRate(message.id, false)}
+                                className="h-7 px-2 text-muted-foreground hover:text-red-500"
+                              >
+                                <ThumbsDown weight="regular" className="w-3.5 h-3.5" />
+                              </Button>
+                            </>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"
@@ -621,6 +969,15 @@ export default function ChatPage() {
                             ) : (
                               <Copy weight="regular" className="w-3.5 h-3.5" />
                             )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleBookmark(message.id, message.content, message.agent === 'multi' ? 'multi-agent' : message.agent)}
+                            className="h-7 px-2 text-muted-foreground hover:text-foreground"
+                            title="Save to bookmarks"
+                          >
+                            <BookmarkSimple weight="regular" className="w-3.5 h-3.5" />
                           </Button>
                           {message.agent && (
                             <Button
@@ -697,8 +1054,64 @@ export default function ChatPage() {
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Follow-up Suggestions */}
+      {followUpSuggestions.length > 0 && messages.length > 0 && !isLoading && (
+        <div className="pb-2 shrink-0">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs text-muted-foreground">Follow-up:</span>
+            {lastUserPrompt && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleRegenerate}
+                className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <ArrowClockwise weight="regular" className="w-3 h-3 mr-1" />
+                Regenerate
+              </Button>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {followUpSuggestions.map((suggestion, i) => (
+              <button
+                key={i}
+                onClick={() => setInput(suggestion)}
+                className="text-xs px-3 py-1.5 rounded-full border border-border/40 hover:border-border hover:bg-muted/30 transition-all"
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Input */}
       <div className="pt-3 sm:pt-4 border-t border-border/40 shrink-0">
+        {/* Uploaded Documents */}
+        {uploadedDocs.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-3">
+            {uploadedDocs.map((doc) => {
+              const DocIcon = getDocIcon(doc.mimeType);
+              return (
+                <div
+                  key={doc.id}
+                  className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted/50 border border-border/40 text-xs"
+                >
+                  <DocIcon weight="regular" className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="max-w-[120px] truncate">{doc.originalName}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveDoc(doc.id)}
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <X weight="bold" className="w-3 h-3" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        
         <form onSubmit={handleSubmit}>
           <div className="relative">
             <Textarea
@@ -706,9 +1119,34 @@ export default function ChatPage() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={getPlaceholder()}
-              className="min-h-[48px] sm:min-h-[56px] max-h-[120px] sm:max-h-[150px] pr-12 sm:pr-14 resize-none text-sm"
+              className="min-h-[48px] sm:min-h-[56px] max-h-[120px] sm:max-h-[150px] pl-10 pr-12 sm:pr-14 resize-none text-sm"
               disabled={isLoading}
             />
+            
+            {/* File upload button */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.doc,.docx,.txt,.md"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={handleFileSelect}
+              disabled={isLoading || isUploading}
+              className="absolute left-1 bottom-2 h-8 w-8 text-muted-foreground hover:text-foreground"
+              title="Attach document"
+            >
+              {isUploading ? (
+                <CircleNotch weight="bold" className="w-4 h-4 animate-spin" />
+              ) : (
+                <Paperclip weight="regular" className="w-4 h-4" />
+              )}
+            </Button>
+            
             <Button
               type="submit"
               size="icon"
@@ -723,7 +1161,7 @@ export default function ChatPage() {
             </Button>
           </div>
           <p className="text-[10px] sm:text-xs text-muted-foreground mt-2 text-center hidden sm:block">
-            {selectedAgent === null ? 'Multi-agent A2A mode · ' : ''}Press Enter to send · Shift+Enter for new line
+            {selectedAgent === null ? 'Multi-agent A2A mode · ' : ''}Press Enter to send · Shift+Enter for new line · Attach PDFs for context
           </p>
         </form>
       </div>

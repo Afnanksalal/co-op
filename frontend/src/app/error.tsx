@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import Link from 'next/link';
-import { Warning, ArrowLeft } from '@phosphor-icons/react/dist/ssr';
+import { Warning, ArrowLeft } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 
 export default function Error({

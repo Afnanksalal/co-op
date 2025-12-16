@@ -58,6 +58,11 @@ export const envSchema = z.object({
 
   // Logging
   LOG_LEVEL: z.enum(['error', 'warn', 'log', 'debug', 'verbose']).default('log'),
+
+  // SendGrid Email
+  SENDGRID_API_KEY: z.string().optional(),
+  SENDGRID_FROM_EMAIL: z.string().default('noreply@co-op.ai'),
+  SENDGRID_FROM_NAME: z.string().default('Co-Op AI'),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;

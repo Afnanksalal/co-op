@@ -1,6 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { CircuitBreakerService } from '@/common/circuit-breaker/circuit-breaker.service';
+import { RagCacheService } from './rag-cache.service';
 import {
   RagDomain,
   RagSector,
@@ -29,6 +30,8 @@ export class RagService {
   constructor(
     private readonly configService: ConfigService,
     private readonly circuitBreaker: CircuitBreakerService,
+    @Inject(forwardRef(() => RagCacheService))
+    private readonly cacheService: RagCacheService,
   ) {
     this.ragBaseUrl = this.configService.get<string>('RAG_SERVICE_URL', '');
     this.ragApiKey = this.configService.get<string>('RAG_API_KEY', '');
@@ -139,6 +142,7 @@ export class RagService {
   /**
    * Query RAG with domain, sector, and jurisdiction filtering.
    * Returns context (document chunks) - NO LLM generation.
+   * Results are cached for 30 minutes to reduce latency.
    */
   async query(request: QueryRequest): Promise<QueryResponse> {
     if (!this.isConfigured) {
@@ -153,6 +157,13 @@ export class RagService {
         chunksFound: 0,
         error: 'RAG service not configured',
       };
+    }
+
+    // Check cache first
+    const cached = await this.cacheService.get(request);
+    if (cached) {
+      this.logger.debug('RAG query cache hit');
+      return cached;
     }
 
     const queryFn = async (): Promise<QueryResponse> => {
@@ -222,7 +233,7 @@ export class RagService {
     };
 
     try {
-      return await this.circuitBreaker.execute('rag-query', queryFn, () => ({
+      const result = await this.circuitBreaker.execute('rag-query', queryFn, () => ({
         context: '',
         sources: [],
         domain: request.domain,
@@ -233,6 +244,13 @@ export class RagService {
         chunksFound: 0,
         error: 'RAG service temporarily unavailable',
       }));
+
+      // Cache successful results
+      if (result.chunksFound > 0 && !result.error) {
+        await this.cacheService.set(request, result);
+      }
+
+      return result;
     } catch (error) {
       this.logger.error('RAG query failed', error);
       return {

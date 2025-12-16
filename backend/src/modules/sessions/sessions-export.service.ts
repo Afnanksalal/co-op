@@ -1,0 +1,148 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { SessionsService } from './sessions.service';
+import { ExportFormat, ExportResponseDto } from './dto/export-session.dto';
+
+@Injectable()
+export class SessionsExportService {
+  private readonly logger = new Logger(SessionsExportService.name);
+
+  constructor(private readonly sessionsService: SessionsService) {}
+
+  async exportSession(
+    sessionId: string,
+    userId: string,
+    format: ExportFormat,
+    customTitle?: string,
+  ): Promise<ExportResponseDto> {
+    const { session, messages } = await this.sessionsService.getSessionHistory(sessionId, userId);
+    const title = customTitle || session.title || `Session ${session.id.slice(0, 8)}`;
+    const date = new Date(session.createdAt).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+
+    switch (format) {
+      case 'markdown':
+        return this.exportMarkdown(title, date, session, messages);
+      case 'json':
+        return this.exportJson(title, session, messages);
+      case 'pdf':
+        // PDF export returns markdown that frontend can convert
+        return this.exportMarkdown(title, date, session, messages, true);
+      default:
+        return this.exportMarkdown(title, date, session, messages);
+    }
+  }
+
+  private exportMarkdown(
+    title: string,
+    date: string,
+    session: { id: string; status: string; createdAt: Date },
+    messages: { role: string; content: string; agent: string | null; createdAt: Date }[],
+    forPdf = false,
+  ): ExportResponseDto {
+    const lines: string[] = [];
+    
+    lines.push(`# ${title}`);
+    lines.push('');
+    lines.push(`**Date:** ${date}`);
+    lines.push(`**Status:** ${session.status}`);
+    lines.push(`**Session ID:** ${session.id}`);
+    lines.push('');
+    lines.push('---');
+    lines.push('');
+    lines.push('## Conversation');
+    lines.push('');
+
+    for (const msg of messages) {
+      const time = new Date(msg.createdAt).toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      const role = msg.role === 'user' ? '👤 You' : msg.agent ? `🤖 ${msg.agent.charAt(0).toUpperCase() + msg.agent.slice(1)} Agent` : '🤖 Assistant';
+      
+      lines.push(`### ${role} (${time})`);
+      lines.push('');
+      lines.push(msg.content);
+      lines.push('');
+    }
+
+    lines.push('---');
+    lines.push('');
+    lines.push(`*Exported from Co-Op on ${new Date().toLocaleDateString()}*`);
+
+    return {
+      content: lines.join('\n'),
+      filename: `${title.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${date.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.md`,
+      mimeType: forPdf ? 'text/markdown' : 'text/markdown',
+    };
+  }
+
+  private exportJson(
+    title: string,
+    session: { id: string; status: string; createdAt: Date; updatedAt: Date },
+    messages: { id: string; role: string; content: string; agent: string | null; createdAt: Date }[],
+  ): ExportResponseDto {
+    const data = {
+      title,
+      session: {
+        id: session.id,
+        status: session.status,
+        createdAt: session.createdAt,
+        updatedAt: session.updatedAt,
+      },
+      messages: messages.map((m) => ({
+        id: m.id,
+        role: m.role,
+        agent: m.agent,
+        content: m.content,
+        createdAt: m.createdAt,
+      })),
+      exportedAt: new Date().toISOString(),
+    };
+
+    return {
+      content: JSON.stringify(data, null, 2),
+      filename: `session-${session.id.slice(0, 8)}.json`,
+      mimeType: 'application/json',
+    };
+  }
+
+  generateSessionSummary(
+    session: { title?: string; status: string; createdAt: Date },
+    messages: { role: string; content: string; agent: string | null }[],
+  ): string {
+    const title = session.title || 'Chat Session';
+    const date = new Date(session.createdAt).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+    
+    const userMessages = messages.filter((m) => m.role === 'user');
+    const assistantMessages = messages.filter((m) => m.role === 'assistant');
+    const agents = [...new Set(assistantMessages.map((m) => m.agent).filter(Boolean))];
+
+    let summary = `# ${title}\n\n`;
+    summary += `**Date:** ${date}\n`;
+    summary += `**Messages:** ${messages.length} (${userMessages.length} from you, ${assistantMessages.length} from AI)\n`;
+    if (agents.length > 0) {
+      summary += `**Agents Used:** ${agents.join(', ')}\n`;
+    }
+    summary += '\n---\n\n';
+    summary += '## Key Topics Discussed\n\n';
+
+    // Extract first few user questions as topics
+    const topics = userMessages.slice(0, 5).map((m) => {
+      const preview = m.content.slice(0, 100).replace(/\n/g, ' ');
+      return `- ${preview}${m.content.length > 100 ? '...' : ''}`;
+    });
+    summary += topics.join('\n');
+
+    summary += '\n\n---\n\n';
+    summary += `*This summary was generated by Co-Op on ${new Date().toLocaleDateString()}*`;
+
+    return summary;
+  }
+}

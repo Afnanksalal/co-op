@@ -15,7 +15,7 @@ import {
   MagnifyingGlass,
   Broom,
   Globe,
-} from '@phosphor-icons/react/dist/ssr';
+} from '@phosphor-icons/react';
 import { api } from '@/lib/api/client';
 import { useRequireAdmin } from '@/lib/hooks';
 import type {

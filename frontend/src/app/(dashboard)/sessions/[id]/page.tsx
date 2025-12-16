@@ -10,12 +10,17 @@ import {
   Clock,
   StopCircle,
   ChatCircle,
-} from '@phosphor-icons/react/dist/ssr';
+  DownloadSimple,
+  EnvelopeSimple,
+  CircleNotch,
+  X,
+} from '@phosphor-icons/react';
 import { api } from '@/lib/api/client';
 import type { Session, Message } from '@/lib/api/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { formatRelativeTime, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -27,6 +32,9 @@ export default function SessionDetailPage() {
   const [session, setSession] = useState<Session | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [emailAddress, setEmailAddress] = useState('');
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -62,6 +70,41 @@ export default function SessionDetailPage() {
     // Store session in sessionStorage for the chat page to pick up
     sessionStorage.setItem('continueSession', JSON.stringify(session));
     router.push('/chat');
+  };
+
+  const handleExport = async (format: 'markdown' | 'json') => {
+    if (!session) return;
+    try {
+      const result = await api.exportSession(session.id, { format });
+      const blob = new Blob([result.content], { type: result.mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = result.filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Session exported');
+    } catch (error) {
+      console.error('Failed to export:', error);
+      toast.error('Failed to export session');
+    }
+  };
+
+  const handleSendEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!session || !emailAddress.trim()) return;
+
+    setIsSendingEmail(true);
+    try {
+      await api.emailSession(session.id, { email: emailAddress.trim() });
+      toast.success('Session summary sent to your email');
+      setShowEmailModal(false);
+      setEmailAddress('');
+    } catch (error) {
+      console.error('Failed to send email:', error);
+      toast.error('Failed to send email');
+    }
+    setIsSendingEmail(false);
   };
 
   if (isLoading) {
@@ -114,6 +157,14 @@ export default function SessionDetailPage() {
           >
             {session.status}
           </Badge>
+          <Button variant="outline" onClick={() => handleExport('markdown')} size="sm" className="h-8 sm:h-9">
+            <DownloadSimple weight="bold" className="w-4 h-4" />
+            <span className="hidden sm:inline">Export</span>
+          </Button>
+          <Button variant="outline" onClick={() => setShowEmailModal(true)} size="sm" className="h-8 sm:h-9">
+            <EnvelopeSimple weight="bold" className="w-4 h-4" />
+            <span className="hidden sm:inline">Email</span>
+          </Button>
           {session.status === 'active' && (
             <>
               <Button onClick={handleContinueChat} size="sm" className="h-8 sm:h-9">
@@ -194,6 +245,63 @@ export default function SessionDetailPage() {
           ))
         )}
       </motion.div>
+
+      {/* Email Modal */}
+      {showEmailModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-card border border-border rounded-lg shadow-lg w-full max-w-md mx-4 p-6"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-serif text-lg font-medium">Email Session Summary</h3>
+              <button
+                onClick={() => setShowEmailModal(false)}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X weight="bold" className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              Send a formatted summary of this session to your email.
+            </p>
+            <form onSubmit={handleSendEmail}>
+              <Input
+                type="email"
+                placeholder="Enter email address"
+                value={emailAddress}
+                onChange={(e) => setEmailAddress(e.target.value)}
+                className="mb-4"
+                required
+              />
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowEmailModal(false)}
+                  disabled={isSendingEmail}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={!emailAddress.trim() || isSendingEmail}>
+                  {isSendingEmail ? (
+                    <>
+                      <CircleNotch weight="bold" className="w-4 h-4 animate-spin mr-2" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <EnvelopeSimple weight="bold" className="w-4 h-4 mr-2" />
+                      Send Email
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

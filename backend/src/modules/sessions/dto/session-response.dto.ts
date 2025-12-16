@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class SessionResponseDto {
   @ApiProperty()
@@ -10,8 +10,14 @@ export class SessionResponseDto {
   @ApiProperty()
   startupId: string;
 
+  @ApiPropertyOptional({ description: 'Session title (auto-generated or user-set)' })
+  title?: string;
+
   @ApiProperty()
   status: string;
+
+  @ApiProperty({ description: 'Whether session is pinned/favorited' })
+  isPinned: boolean;
 
   @ApiProperty()
   metadata: Record<string, unknown>;
@@ -21,4 +27,9 @@ export class SessionResponseDto {
 
   @ApiProperty()
   updatedAt: Date;
+}
+
+export class UpdateSessionTitleDto {
+  @ApiProperty({ description: 'New session title', maxLength: 255 })
+  title: string;
 }

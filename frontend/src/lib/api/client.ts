@@ -160,8 +160,17 @@ class ApiClient {
     return this.post<Session>('/sessions', data);
   }
 
-  async getSessions(): Promise<Session[]> {
-    return this.get<Session[]>('/sessions');
+  async getSessions(search?: string): Promise<Session[]> {
+    const query = search ? `?search=${encodeURIComponent(search)}` : '';
+    return this.get<Session[]>(`/sessions${query}`);
+  }
+
+  async updateSessionTitle(id: string, title: string): Promise<Session> {
+    return this.patch<Session>(`/sessions/${id}/title`, { title });
+  }
+
+  async toggleSessionPin(id: string): Promise<Session> {
+    return this.patch<Session>(`/sessions/${id}/pin`, {});
   }
 
   async getSession(id: string): Promise<Session> {
@@ -237,6 +246,19 @@ class ApiClient {
     };
     
     return () => eventSource.close();
+  }
+
+  // ============================================
+  // USER ANALYTICS ENDPOINTS
+  // ============================================
+
+  async getMyAnalytics(): Promise<import('./types').UserAnalytics> {
+    return this.get<import('./types').UserAnalytics>('/analytics/me');
+  }
+
+  async getMyActivityHistory(days?: number): Promise<import('./types').UserActivityHistory[]> {
+    const query = days ? `?days=${days}` : '';
+    return this.get<import('./types').UserActivityHistory[]>(`/analytics/me/history${query}`);
   }
 
   // ============================================
@@ -459,6 +481,148 @@ class ApiClient {
 
   async callMcpTool(data: import('./types').CallMcpToolRequest): Promise<import('./types').McpToolResult> {
     return this.post<import('./types').McpToolResult>('/mcp/execute', data);
+  }
+
+  // ============================================
+  // EXPORT ENDPOINTS
+  // ============================================
+
+  async exportSession(sessionId: string, data: import('./types').ExportSessionRequest): Promise<import('./types').ExportResponse> {
+    return this.post<import('./types').ExportResponse>(`/sessions/${sessionId}/export`, data);
+  }
+
+  async emailSession(sessionId: string, data: import('./types').EmailSessionRequest): Promise<{ sent: boolean }> {
+    return this.post<{ sent: boolean }>(`/sessions/${sessionId}/email`, data);
+  }
+
+  // ============================================
+  // DOCUMENTS ENDPOINTS
+  // ============================================
+
+  async uploadDocument(file: File, sessionId?: string, description?: string): Promise<import('./types').ChatDocument> {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (sessionId) formData.append('sessionId', sessionId);
+    if (description) formData.append('description', description);
+    return this.upload<import('./types').ChatDocument>('/documents/upload', formData);
+  }
+
+  async getDocuments(sessionId?: string): Promise<import('./types').ChatDocument[]> {
+    const query = sessionId ? `?sessionId=${sessionId}` : '';
+    return this.get<import('./types').ChatDocument[]>(`/documents${query}`);
+  }
+
+  async getDocumentUrl(id: string): Promise<import('./types').DocumentUrlResponse> {
+    return this.get<import('./types').DocumentUrlResponse>(`/documents/${id}/url`);
+  }
+
+  async getDocumentText(id: string): Promise<{ content: string }> {
+    return this.get<{ content: string }>(`/documents/${id}/text`);
+  }
+
+  async deleteDocument(id: string): Promise<void> {
+    await this.delete(`/documents/${id}`);
+  }
+
+  // ============================================
+  // STREAMING ENDPOINTS
+  // ============================================
+
+  /**
+   * Connect to SSE stream for real-time agent updates
+   * Note: EventSource doesn't support custom headers, so auth is handled via cookies/session
+   */
+  streamAgentTask(
+    taskId: string,
+    onEvent: (event: import('./types').StreamEvent) => void,
+    onError?: (error: Error) => void,
+  ): () => void {
+    const connect = async () => {
+      const url = `${API_URL}/agents/stream/${taskId}`;
+      
+      const eventSource = new EventSource(url);
+      
+      eventSource.addEventListener('connected', () => {
+        // Connection established
+      });
+      
+      eventSource.addEventListener('progress', (e) => {
+        try {
+          onEvent({ type: 'progress', data: JSON.parse(e.data) });
+        } catch (err) {
+          onError?.(err as Error);
+        }
+      });
+      
+      eventSource.addEventListener('chunk', (e) => {
+        try {
+          onEvent({ type: 'chunk', data: JSON.parse(e.data) });
+        } catch (err) {
+          onError?.(err as Error);
+        }
+      });
+      
+      eventSource.addEventListener('thinking', (e) => {
+        try {
+          onEvent({ type: 'thinking', data: JSON.parse(e.data) });
+        } catch (err) {
+          onError?.(err as Error);
+        }
+      });
+      
+      eventSource.addEventListener('done', (e) => {
+        try {
+          onEvent({ type: 'done', data: JSON.parse(e.data) });
+          eventSource.close();
+        } catch (err) {
+          onError?.(err as Error);
+        }
+      });
+      
+      eventSource.addEventListener('error', (e) => {
+        try {
+          const data = (e as MessageEvent).data;
+          if (data) {
+            onEvent({ type: 'error', data: JSON.parse(data) });
+          }
+        } catch {
+          // Ignore parse errors on error events
+        }
+      });
+      
+      eventSource.onerror = () => {
+        onError?.(new Error('SSE connection failed'));
+        eventSource.close();
+      };
+      
+      return () => eventSource.close();
+    };
+    
+    let cleanup: (() => void) | undefined;
+    connect().then(c => { cleanup = c; }).catch(onError);
+    
+    return () => cleanup?.();
+  }
+
+  // ============================================
+  // BOOKMARKS ENDPOINTS
+  // ============================================
+
+  async getBookmarks(search?: string): Promise<import('./types').Bookmark[]> {
+    const query = search ? `?search=${encodeURIComponent(search)}` : '';
+    return this.get<import('./types').Bookmark[]>(`/bookmarks${query}`);
+  }
+
+  async createBookmark(data: import('./types').CreateBookmarkRequest): Promise<import('./types').Bookmark> {
+    return this.post<import('./types').Bookmark>('/bookmarks', data);
+  }
+
+  async updateBookmark(id: string, data: import('./types').UpdateBookmarkRequest): Promise<import('./types').Bookmark> {
+    return this.patch<import('./types').Bookmark>(`/bookmarks/${id}`, data);
+  }
+
+  async deleteBookmark(id: string): Promise<void> {
+    await this.delete(`/bookmarks/${id}`);
   }
 }
 

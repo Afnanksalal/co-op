@@ -39,12 +39,43 @@ Co-Op is an open-source AI advisory platform that provides startup founders with
 |---------|-------------|
 | **LLM Council** | 2-5 AI models cross-critique every response |
 | **4 Expert Agents** | Legal, Finance, Investor, Competitor |
-| **Real-time Research** | Live web search for investor/competitor data |
-| **RAG Knowledge Base** | Sector-specific document search |
+| **Real-time Streaming** | True SSE streaming with fallback polling |
+| **RAG Knowledge Base** | Sector-specific document search with caching |
 | **MCP Protocol** | Use agents in Claude, Cursor, Kiro |
 | **A2A Protocol** | Multi-agent collaboration mode |
+| **Session Export** | Markdown/JSON export + email summaries |
+| **Document Upload** | PDF, DOC, TXT context for chat |
+| **Bookmarks** | Save and organize AI responses |
+| **Usage Analytics** | Personal usage dashboard |
+| **PWA Support** | Installable with shortcuts |
 | **Self-Hostable** | Deploy on your own infrastructure |
 
+---
+
+## Security & Scalability
+
+| Security Feature | Implementation |
+|------------------|----------------|
+| **Authentication** | Supabase JWT with token verification |
+| **Authorization** | Role-based access (user, admin) |
+| **Rate Limiting** | Per-user throttling via Redis with configurable presets |
+| **API Keys** | SHA-256 hashed, timing-safe comparison |
+| **Encryption** | AES-256-GCM for sensitive data at rest |
+| **Input Validation** | class-validator DTOs, whitelist mode |
+| **SQL Injection** | Drizzle ORM parameterized queries |
+| **CORS** | Configurable allowed origins |
+| **Security Headers** | Helmet.js middleware |
+| **Audit Logging** | Full audit trail for sensitive operations |
+
+| Scalability Feature | Implementation |
+|---------------------|----------------|
+| **Serverless DB** | Neon PostgreSQL auto-scales |
+| **Serverless Cache** | Upstash Redis pay-per-request |
+| **Async Processing** | QStash message queue with webhooks |
+| **Circuit Breaker** | Opossum for fault tolerance |
+| **Retry Logic** | Exponential backoff with jitter |
+| **RAG Caching** | 30-min TTL, popularity-based extension |
+| **Horizontal Scaling** | Stateless services, Redis-backed state |
 
 ---
 
@@ -65,7 +96,7 @@ Co-Op is an open-source AI advisory platform that provides startup founders with
 ┌─────────────────────────────────────────────────────────────────────┐
 │                           FRONTEND                                  │
 │                    Next.js 15 (Vercel)                              │
-│         Dashboard • Chat • Onboarding • Settings                    │
+│    Dashboard • Chat • Sessions • Bookmarks • Usage • Settings       │
 └─────────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
@@ -78,8 +109,12 @@ Co-Op is an open-source AI advisory platform that provides startup founders with
 │  │                         │                                     │  │
 │  │                         ▼                                     │  │
 │  │                    LLM Council                                │  │
-│  │     [Llama 3.3] [Gemini 2.5] [DeepSeek R1]                   │  │
+│  │     [Llama 3.3] [Gemini 2.5] [DeepSeek R1] [Kimi K2]         │  │
 │  │              Mandatory Cross-Critique                         │  │
+│  └───────────────────────────────────────────────────────────────┘  │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │  Security: Auth Guard • Rate Limiting • Encryption • Audit   │  │
+│  │  Resilience: Circuit Breaker • Retry Service • Health Checks │  │
 │  └───────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────┘
            │                    │                    │
@@ -89,7 +124,7 @@ Co-Op is an open-source AI advisory platform that provides startup founders with
 │ FastAPI (Koyeb) │  │ Gemini Search   │  │  PostgreSQL (Neon)      │
 │ Upstash Vector  │  │   Grounding     │  │  Redis (Upstash)        │
 │ Gemini Embed    │  │ + ScrapingBee   │  │  Supabase (Auth+Storage)│
-│                 │  │   (fallback)    │  │                         │
+│ Query Caching   │  │   (fallback)    │  │  QStash (Queue)         │
 └─────────────────┘  └─────────────────┘  └─────────────────────────┘
 ```
 
@@ -101,15 +136,15 @@ Co-Op is an open-source AI advisory platform that provides startup founders with
 co-op/
 ├── Backend/                 # NestJS API server
 │   ├── src/
-│   │   ├── modules/         # Feature modules
-│   │   ├── common/          # Shared services (LLM, RAG, cache)
-│   │   └── database/        # Drizzle ORM schemas
+│   │   ├── modules/         # Feature modules (agents, sessions, users, etc.)
+│   │   ├── common/          # Shared services (LLM, RAG, cache, email, streaming)
+│   │   └── database/        # Drizzle ORM schemas & migrations
 │   └── README.md
 │
 ├── Frontend/                # Next.js web application
 │   ├── src/
 │   │   ├── app/             # App Router pages
-│   │   ├── components/      # UI components
+│   │   ├── components/      # UI components (Radix + custom)
 │   │   └── lib/             # API client, hooks, stores
 │   └── README.md
 │
@@ -117,7 +152,8 @@ co-op/
 │   ├── app/                 # FastAPI application
 │   └── README.md
 │
-├── CONTRIBUTING.md
+├── ARCHITECTURE.md          # Detailed architecture documentation
+├── CONTRIBUTING.md          # Contribution guidelines
 └── README.md
 ```
 
@@ -129,9 +165,9 @@ co-op/
 
 - Node.js 20+
 - Python 3.11+ (for RAG service)
-- PostgreSQL database
-- Redis instance
-- Supabase project
+- PostgreSQL database (Neon recommended)
+- Redis instance (Upstash recommended)
+- Supabase project (Auth + Storage)
 - At least 2 LLM API keys
 
 ### 1. Clone Repository
@@ -146,7 +182,7 @@ cd co-op
 ```bash
 cd Backend
 cp .env.example .env
-# Configure environment variables
+# Configure environment variables (see .env.example for documentation)
 
 npm install
 npm run db:push
@@ -191,13 +227,13 @@ uvicorn app.main:app --reload --port 8000
 
 | Component | Provider | Purpose |
 |-----------|----------|---------|
-| Database | [Neon](https://neon.tech) | PostgreSQL |
-| Cache/Queue | [Upstash](https://upstash.com) | Redis + QStash |
-| Vectors | [Upstash](https://upstash.com) | Vector search |
-| Auth/Storage | [Supabase](https://supabase.com) | Authentication + files |
-| LLM | [Groq](https://console.groq.com) | Llama 3.3 70B (Versatile + SpecDec) |
+| Database | [Neon](https://neon.tech) | Serverless PostgreSQL |
+| Cache/Queue | [Upstash](https://upstash.com) | Redis + QStash + Vector |
+| Auth/Storage | [Supabase](https://supabase.com) | Authentication + file storage |
+| LLM | [Groq](https://console.groq.com) | Llama 3.3 70B, Kimi K2 |
 | LLM | [Google AI](https://aistudio.google.com) | Gemini 2.5 Flash |
 | LLM | [HuggingFace](https://huggingface.co) | DeepSeek R1, Phi-3, Qwen 2.5 |
+| Email | [SendGrid](https://sendgrid.com) | Transactional emails |
 | Research | [ScrapingBee](https://scrapingbee.com) | Web search fallback |
 
 All services have free tiers available.
@@ -210,15 +246,19 @@ All services have free tiers available.
 - Next.js 15 (App Router)
 - TypeScript 5
 - Tailwind CSS 3.4
-- Radix UI
-- Zustand
-- Framer Motion
+- Radix UI + shadcn/ui
+- Zustand (state management)
+- Framer Motion (animations)
+- Phosphor Icons
+- Vercel Analytics
 
 ### Backend
 - NestJS 11
 - TypeScript 5
 - Drizzle ORM
 - Upstash QStash
+- SendGrid (email)
+- Opossum (circuit breaker)
 
 ### RAG Service
 - FastAPI
@@ -247,8 +287,15 @@ curl -H "X-API-Key: coop_xxxxx" \
 |----------|--------|-------------|
 | `/users/me/onboarding` | POST | Complete startup profile |
 | `/sessions` | POST | Create advisory session |
+| `/sessions/:id/export` | POST | Export session (MD/JSON) |
+| `/sessions/:id/email` | POST | Email session summary |
+| `/sessions/:id/pin` | PATCH | Pin/unpin session |
 | `/agents/run` | POST | Run agent (sync) |
 | `/agents/queue` | POST | Queue agent (async) |
+| `/agents/stream/:taskId` | GET | SSE stream for task |
+| `/analytics/me` | GET | Personal usage analytics |
+| `/bookmarks` | GET/POST | Manage bookmarks |
+| `/documents/upload` | POST | Upload chat document |
 | `/mcp-server/discover` | GET | List MCP tools |
 | `/mcp-server/execute` | POST | Execute MCP tool |
 
@@ -256,11 +303,39 @@ See [Backend README](./Backend/README.md) for complete API documentation.
 
 ---
 
+## Features Completed
+
+### High Priority ✓
+- [x] Session export (Markdown/JSON download)
+- [x] Email session summaries (SendGrid)
+- [x] Document upload in chat (PDF, DOC, TXT)
+- [x] Saved responses/bookmarks system
+- [x] True SSE streaming with fallback polling
+- [x] RAG query caching (30-min TTL)
+- [x] Error recovery with automatic retry
+
+### Medium Priority ✓
+- [x] User analytics dashboard (/usage)
+- [x] Personal usage history and trends
+- [x] Pin/favorite sessions
+- [x] Mobile-responsive design
+- [x] PWA improvements (shortcuts, share target)
+
+### Coming Soon
+- [ ] Jurisdiction selector for legal agent
+- [ ] Built-in financial calculators
+- [ ] Searchable investor database
+- [ ] Real-time competitor alerts
+- [ ] Team workspaces
+- [ ] Stripe integration
+
+---
+
 ## Roadmap
 
 | Phase | Timeline | Features |
 |-------|----------|----------|
-| **Now** | Pilot | Single founder, 30 free requests, 4 agents, A2A mode |
+| **Now** | Pilot | Single founder, 3 free requests/month, 4 agents, A2A mode |
 | **Q1 2026** | Teams | Multiple founders, collaboration, shared sessions |
 | **Q2 2026** | Idea Stage | Idea validation flow, market research agent |
 | **Q3 2026** | Enterprise | SSO, custom AI training, on-premise deployment |

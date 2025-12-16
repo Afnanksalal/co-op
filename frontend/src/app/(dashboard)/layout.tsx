@@ -23,8 +23,9 @@ import {
   Code,
   List,
   X,
-} from '@phosphor-icons/react/dist/ssr';
-import { useUser, useRequireAuth } from '@/lib/hooks';
+  BookmarkSimple,
+} from '@phosphor-icons/react';
+import { useUser, useRequireAuth, useGlobalShortcuts } from '@/lib/hooks';
 import { useUIStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -34,6 +35,8 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: House },
   { name: 'Chat', href: '/chat', icon: ChatCircle },
   { name: 'Sessions', href: '/sessions', icon: ClockCounterClockwise },
+  { name: 'Bookmarks', href: '/bookmarks', icon: BookmarkSimple },
+  { name: 'Usage', href: '/usage', icon: ChartBar },
 ];
 
 const agents = [
@@ -57,6 +60,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { signOut, isAdmin } = useUser();
   const { sidebarCollapsed, toggleSidebar } = useUIStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Global keyboard shortcuts
+  useGlobalShortcuts();
 
   // Close mobile menu on route change
   useEffect(() => {

@@ -18,7 +18,7 @@ import {
   Rocket,
   Check,
   X,
-} from '@phosphor-icons/react/dist/ssr';
+} from '@phosphor-icons/react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

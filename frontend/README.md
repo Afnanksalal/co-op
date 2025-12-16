@@ -46,17 +46,17 @@ src/
 │   ├── (dashboard)/            # Authenticated routes
 │   │   ├── admin/              # Admin panel
 │   │   ├── agents/[agent]/     # Individual agents
-│   │   ├── analytics/          # Analytics dashboard
+│   │   ├── analytics/          # Admin analytics
+│   │   ├── bookmarks/          # Saved responses
 │   │   ├── chat/               # Multi-agent chat
 │   │   ├── dashboard/          # Main dashboard
 │   │   ├── developers/         # API documentation
 │   │   ├── sessions/           # Session history
+│   │   ├── usage/              # Personal analytics
 │   │   └── settings/           # User settings
 │   ├── auth/callback/          # OAuth callback
 │   ├── login/                  # Login page
 │   ├── onboarding/             # Onboarding flow
-│   ├── privacy/                # Privacy policy
-│   ├── terms/                  # Terms of service
 │   └── page.tsx                # Landing page
 │
 ├── components/ui/              # Reusable UI components
@@ -81,7 +81,7 @@ src/
 - Key metrics
 
 ### AI Agents
-Four specialized agents with real-time streaming:
+Four specialized agents with real-time SSE streaming:
 
 | Agent | Purpose | Data Source |
 |-------|---------|-------------|
@@ -92,16 +92,37 @@ Four specialized agents with real-time streaming:
 
 ### Chat Interface
 - Multi-agent conversations (A2A mode)
-- Real-time streaming responses
+- True SSE streaming with fallback polling
+- Document upload for context (PDF, DOC, TXT)
 - Session persistence
+- Thinking steps visualization
 - Notion export
-- Message history
+- Bookmark responses
 
-### Onboarding
-- User type selection (Existing Startup / Idea Stage)
-- Simplified flow for idea stage
-- Full profile for existing founders
-- Exit option to return to homepage
+### Sessions
+- Session history with search
+- Pin/favorite important sessions
+- Export to Markdown/JSON
+- Email session summaries
+- Continue previous conversations
+
+### Bookmarks
+- Save AI responses
+- Search across bookmarks
+- Tag organization
+- Quick copy to clipboard
+
+### Usage Analytics
+- Personal usage dashboard
+- Session and message counts
+- Agent usage breakdown
+- Activity heatmap
+- Monthly quota tracking
+
+### PWA Support
+- Installable app
+- Shortcuts (New Chat, Sessions)
+- Share target for text
 
 ### Settings
 - Profile editing
@@ -111,7 +132,7 @@ Four specialized agents with real-time streaming:
 ### Admin Panel
 - RAG document management
 - PDF upload and vectorization
-- Analytics dashboard
+- Platform analytics
 
 ## Scripts
 
@@ -154,11 +175,12 @@ CMD ["npm", "start"]
 | Framework | Next.js 15 (App Router) |
 | Language | TypeScript 5 |
 | Styling | Tailwind CSS 3.4 |
-| Components | Radix UI |
+| Components | Radix UI + shadcn/ui |
 | State | Zustand |
 | Auth | Supabase Auth |
 | Animations | Framer Motion |
 | Icons | Phosphor Icons |
+| Analytics | Vercel Analytics |
 
 ## API Client
 
@@ -171,9 +193,11 @@ await api.completeOnboarding(data);
 
 // Sessions
 const session = await api.createSession({ startupId });
-const messages = await api.getSessionMessages(sessionId);
+await api.toggleSessionPin(sessionId);
+await api.exportSession(sessionId, { format: 'markdown' });
+await api.emailSession(sessionId, { email: 'user@example.com' });
 
-// Agents
+// Agents with SSE streaming
 const { taskId } = await api.queueAgent({
   agentType: 'legal',
   prompt: 'What legal structure should I use?',
@@ -181,7 +205,28 @@ const { taskId } = await api.queueAgent({
   startupId,
   documents: [],
 });
-const status = await api.getTaskStatus(taskId);
+
+// Connect to SSE stream
+api.streamAgentTask(taskId, (event) => {
+  switch (event.type) {
+    case 'progress': // Processing update
+    case 'thinking': // AI reasoning step
+    case 'chunk':    // Content streaming
+    case 'done':     // Task complete
+    case 'error':    // Task failed
+  }
+});
+
+// Bookmarks
+await api.createBookmark({ title, content, tags });
+const bookmarks = await api.getBookmarks(search);
+
+// Documents
+await api.uploadDocument(file, sessionId);
+const docs = await api.getDocuments(sessionId);
+
+// Analytics
+const analytics = await api.getMyAnalytics();
 ```
 
 ## License

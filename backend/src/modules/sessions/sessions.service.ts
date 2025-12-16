@@ -1,6 +1,6 @@
 import { Injectable, Inject, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { eq, desc, and, isNull, lt, asc } from 'drizzle-orm';
+import { eq, desc, and, isNull, lt, asc, ilike, or, sql } from 'drizzle-orm';
 import { DATABASE_CONNECTION } from '@/database/database.module';
 import { RedisService } from '@/common/redis/redis.service';
 import { UsersService } from '@/modules/users/users.service';
@@ -78,14 +78,74 @@ export class SessionsService {
     return this.toResponse(session);
   }
 
-  async findByUserId(userId: string): Promise<SessionResponseDto[]> {
-    const sessions = await this.db
+  async findByUserId(userId: string, search?: string): Promise<SessionResponseDto[]> {
+    let query = this.db
       .select()
       .from(schema.sessions)
       .where(and(eq(schema.sessions.userId, userId), isNull(schema.sessions.deletedAt)))
       .orderBy(desc(schema.sessions.createdAt));
 
+    if (search && search.trim()) {
+      const searchTerm = `%${search.trim().toLowerCase()}%`;
+      query = this.db
+        .select()
+        .from(schema.sessions)
+        .where(and(
+          eq(schema.sessions.userId, userId),
+          isNull(schema.sessions.deletedAt),
+          ilike(schema.sessions.title, searchTerm),
+        ))
+        .orderBy(desc(schema.sessions.createdAt));
+    }
+
+    const sessions = await query;
     return sessions.map(s => this.toResponse(s));
+  }
+
+  async updateTitle(id: string, userId: string, title: string): Promise<SessionResponseDto> {
+    // Verify ownership
+    await this.findById(id, userId);
+
+    // Validate title
+    const cleanTitle = title.trim().slice(0, 255);
+    if (!cleanTitle) {
+      throw new ForbiddenException('Title cannot be empty');
+    }
+
+    const [updated] = await this.db
+      .update(schema.sessions)
+      .set({ title: cleanTitle, updatedAt: new Date() })
+      .where(and(eq(schema.sessions.id, id), isNull(schema.sessions.deletedAt)))
+      .returning();
+
+    await this.redis.del(`${this.SESSION_PREFIX}${id}`);
+
+    return this.toResponse(updated);
+  }
+
+  /**
+   * Auto-generate a title from the first user message
+   */
+  generateTitleFromMessage(content: string): string {
+    // Take first 50 chars, clean up, add ellipsis if truncated
+    const cleaned = content
+      .replace(/\n/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    if (cleaned.length <= 50) {
+      return cleaned;
+    }
+    
+    // Find a good break point (word boundary)
+    const truncated = cleaned.slice(0, 50);
+    const lastSpace = truncated.lastIndexOf(' ');
+    
+    if (lastSpace > 30) {
+      return truncated.slice(0, lastSpace) + '...';
+    }
+    
+    return truncated + '...';
   }
 
   async end(id: string, userId: string): Promise<void> {
@@ -203,11 +263,22 @@ export class SessionsService {
       })
       .returning();
 
-    // Update session activity
+    // Auto-generate title from first user message if session has no title
+    const updateData: { updatedAt: Date; title?: string } = { updatedAt: new Date() };
+    
+    if (!session.title && dto.role === 'user') {
+      updateData.title = this.generateTitleFromMessage(dto.content);
+    }
+
     await this.db
       .update(schema.sessions)
-      .set({ updatedAt: new Date() })
+      .set(updateData)
       .where(eq(schema.sessions.id, sessionId));
+
+    // Invalidate cache if title was updated
+    if (updateData.title) {
+      await this.redis.del(`${this.SESSION_PREFIX}${sessionId}`);
+    }
 
     return this.toMessageResponse(message);
   }
@@ -236,12 +307,29 @@ export class SessionsService {
     return { session, messages };
   }
 
+  async togglePin(id: string, userId: string): Promise<SessionResponseDto> {
+    // Verify ownership
+    const session = await this.findById(id, userId);
+
+    const [updated] = await this.db
+      .update(schema.sessions)
+      .set({ isPinned: !session.isPinned, updatedAt: new Date() })
+      .where(and(eq(schema.sessions.id, id), isNull(schema.sessions.deletedAt)))
+      .returning();
+
+    await this.redis.del(`${this.SESSION_PREFIX}${id}`);
+
+    return this.toResponse(updated);
+  }
+
   private toResponse(session: schema.Session): SessionResponseDto {
     return {
       id: session.id,
       userId: session.userId,
       startupId: session.startupId,
+      title: session.title ?? undefined,
       status: session.status,
+      isPinned: session.isPinned,
       metadata: session.metadata as Record<string, unknown>,
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,

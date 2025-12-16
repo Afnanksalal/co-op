@@ -14,7 +14,7 @@ import {
   CheckCircle,
   XCircle,
   ArrowsClockwise,
-} from '@phosphor-icons/react/dist/ssr';
+} from '@phosphor-icons/react';
 import { api } from '@/lib/api/client';
 import { useRequireAdmin } from '@/lib/hooks';
 import type { DashboardStats } from '@/lib/api/types';

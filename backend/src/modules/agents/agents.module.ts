@@ -1,5 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { AgentsController } from './agents.controller';
+import { AgentsStreamController } from './agents-stream.controller';
 import { AgentsService } from './agents.service';
 import { OrchestratorService } from './orchestrator/orchestrator.service';
 import { AgentsQueueService } from './queue/agents.queue.service';
@@ -11,6 +12,7 @@ import { ResearchModule } from '@/common/research/research.module';
 import { RedisModule } from '@/common/redis/redis.module';
 import { CacheModule } from '@/common/cache/cache.module';
 import { QStashModule } from '@/common/qstash/qstash.module';
+import { StreamingModule } from '@/common/streaming/streaming.module';
 import { StartupsModule } from '@/modules/startups/startups.module';
 import { UsersModule } from '@/modules/users/users.module';
 import { WebhooksModule } from '@/modules/webhooks/webhooks.module';
@@ -28,11 +30,12 @@ import { CompetitorAgentService } from './domains/competitor/competitor-agent.se
     RedisModule,
     CacheModule,
     QStashModule,
+    StreamingModule,
     StartupsModule,
     forwardRef(() => UsersModule),
     forwardRef(() => WebhooksModule),
   ],
-  controllers: [AgentsController, AgentsWebhookController],
+  controllers: [AgentsController, AgentsStreamController, AgentsWebhookController],
   providers: [
     AgentsService,
     OrchestratorService,

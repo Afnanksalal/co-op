@@ -131,7 +131,9 @@ export interface Session {
   id: string;
   userId: string;
   startupId: string;
+  title?: string;
   status: SessionStatus;
+  isPinned: boolean;
   metadata: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
@@ -341,6 +343,25 @@ export interface UsageStats {
   resetsAt: string;
 }
 
+// === USER ANALYTICS ===
+export interface UserAnalytics {
+  totalSessions: number;
+  activeSessions: number;
+  totalMessages: number;
+  agentUsage: { agent: string; count: number }[];
+  sessionsThisMonth: number;
+  messagesThisMonth: number;
+  averageMessagesPerSession: number;
+  mostActiveDay: string | null;
+  recentActivity: { date: string; sessions: number; messages: number }[];
+}
+
+export interface UserActivityHistory {
+  date: string;
+  sessions: number;
+  messages: number;
+}
+
 // === API KEY USAGE ===
 export interface ApiKeyUsageStats {
   keyId: string;
@@ -484,6 +505,85 @@ export interface CallMcpToolRequest {
   serverId: string;
   toolName: string;
   arguments: Record<string, unknown>;
+}
+
+// === BOOKMARKS ===
+export interface Bookmark {
+  id: string;
+  userId: string;
+  sessionId?: string;
+  messageId?: string;
+  title: string;
+  content: string;
+  agent?: string;
+  tags: string[];
+  createdAt: string;
+}
+
+export interface CreateBookmarkRequest {
+  title: string;
+  content: string;
+  sessionId?: string;
+  messageId?: string;
+  agent?: string;
+  tags?: string[];
+}
+
+export interface UpdateBookmarkRequest {
+  title?: string;
+  tags?: string[];
+}
+
+// === EXPORT ===
+export type ExportFormat = 'markdown' | 'pdf' | 'json';
+
+export interface ExportSessionRequest {
+  format: ExportFormat;
+  title?: string;
+}
+
+export interface ExportResponse {
+  content: string;
+  filename: string;
+  mimeType: string;
+}
+
+export interface EmailSessionRequest {
+  email: string;
+  subject?: string;
+}
+
+// === DOCUMENTS ===
+export interface ChatDocument {
+  id: string;
+  userId: string;
+  sessionId?: string;
+  filename: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  storagePath: string;
+  description?: string;
+  createdAt: string;
+}
+
+export interface DocumentUrlResponse {
+  url: string;
+  expiresAt: string;
+}
+
+// === STREAMING ===
+export interface StreamEvent {
+  type: 'progress' | 'chunk' | 'thinking' | 'done' | 'error';
+  data: {
+    content?: string;
+    phase?: string;
+    progress?: number;
+    agent?: string;
+    step?: string;
+    error?: string;
+    result?: unknown;
+  };
 }
 
 // === API RESPONSE ===

@@ -15,7 +15,7 @@ import {
   ChartLineUp,
   UsersThree,
   Robot,
-} from '@phosphor-icons/react/dist/ssr';
+} from '@phosphor-icons/react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';

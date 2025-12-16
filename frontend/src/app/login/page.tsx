@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Envelope, Lock, ArrowRight, GoogleLogo } from '@phosphor-icons/react/dist/ssr';
+import { Envelope, Lock, ArrowRight, GoogleLogo } from '@phosphor-icons/react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

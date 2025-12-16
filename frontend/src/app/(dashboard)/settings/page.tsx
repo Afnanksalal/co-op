@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { User, Buildings, Pencil, Check, X } from '@phosphor-icons/react/dist/ssr';
+import { User, Buildings, Pencil, Check, X, Sun, Moon, Desktop } from '@phosphor-icons/react';
 import { api } from '@/lib/api/client';
 import { useUser } from '@/lib/hooks';
+import { useUIStore } from '@/lib/store';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,9 +16,21 @@ import { toast } from 'sonner';
 
 export default function SettingsPage() {
   const { user, refreshUser, isLoading } = useUser();
+  const { theme, setTheme } = useUIStore();
   const [isEditingName, setIsEditingName] = useState(false);
   const [newName, setNewName] = useState(user?.name || '');
   const [isSaving, setIsSaving] = useState(false);
+
+  // Apply theme to document
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'system') {
+      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      root.classList.toggle('dark', systemTheme === 'dark');
+    } else {
+      root.classList.toggle('dark', theme === 'dark');
+    }
+  }, [theme]);
 
   const handleSaveName = async () => {
     if (!newName.trim()) {
@@ -137,6 +150,57 @@ export default function SettingsPage() {
                 <Badge variant={user.onboardingCompleted ? 'default' : 'secondary'} className="text-[10px] sm:text-xs">
                   {user.onboardingCompleted ? 'Completed' : 'Pending'}
                 </Badge>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Appearance */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
+      >
+        <Card className="border-border/40">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 font-serif text-xl">
+              <Sun weight="regular" className="w-5 h-5" />
+              Appearance
+            </CardTitle>
+            <CardDescription>Customize how Co-Op looks</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <Label className="text-sm">Theme</Label>
+              <div className="flex gap-2">
+                <Button
+                  variant={theme === 'light' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setTheme('light')}
+                  className="flex-1"
+                >
+                  <Sun weight="regular" className="w-4 h-4 mr-2" />
+                  Light
+                </Button>
+                <Button
+                  variant={theme === 'dark' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setTheme('dark')}
+                  className="flex-1"
+                >
+                  <Moon weight="regular" className="w-4 h-4 mr-2" />
+                  Dark
+                </Button>
+                <Button
+                  variant={theme === 'system' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setTheme('system')}
+                  className="flex-1"
+                >
+                  <Desktop weight="regular" className="w-4 h-4 mr-2" />
+                  System
+                </Button>
               </div>
             </div>
           </CardContent>

@@ -70,10 +70,13 @@ interface ChatState {
   messages: ChatMessage[];
   selectedAgent: AgentType | null; // null = multi-agent A2A mode
   isLoading: boolean;
+  lastUserPrompt: string | null; // For regenerate functionality
   addMessage: (message: ChatMessage) => void;
   updateMessage: (id: string, updates: Partial<ChatMessage>) => void;
+  removeMessage: (id: string) => void;
   setSelectedAgent: (agent: AgentType | null) => void;
   setLoading: (loading: boolean) => void;
+  setLastUserPrompt: (prompt: string | null) => void;
   clearMessages: () => void;
 }
 
@@ -81,14 +84,20 @@ export const useChatStore = create<ChatState>((set) => ({
   messages: [],
   selectedAgent: null, // Default to multi-agent A2A mode
   isLoading: false,
+  lastUserPrompt: null,
   addMessage: (message) => set((state) => ({ messages: [...state.messages, message] })),
   updateMessage: (id, updates) =>
     set((state) => ({
       messages: state.messages.map((m) => (m.id === id ? { ...m, ...updates } : m)),
     })),
+  removeMessage: (id) =>
+    set((state) => ({
+      messages: state.messages.filter((m) => m.id !== id),
+    })),
   setSelectedAgent: (selectedAgent) => set({ selectedAgent }),
   setLoading: (isLoading) => set({ isLoading }),
-  clearMessages: () => set({ messages: [] }),
+  setLastUserPrompt: (lastUserPrompt) => set({ lastUserPrompt }),
+  clearMessages: () => set({ messages: [], lastUserPrompt: null }),
 }));
 
 // ============================================
