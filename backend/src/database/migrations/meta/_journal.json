@@ -36,6 +36,13 @@
       "when": 1765866022870,
       "tag": "0004_natural_vulture",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1765868572071,
+      "tag": "0005_dapper_raider",
+      "breakpoints": true
     }
   ]
 }
