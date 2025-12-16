@@ -316,6 +316,23 @@ export default function AgentPage() {
         setSessionId(currentSessionId);
       }
 
+      // Upload files and get document IDs
+      const documentIds: string[] = [];
+      if (uploadedFiles.length > 0) {
+        setIsUploading(true);
+        for (const file of uploadedFiles) {
+          try {
+            const doc = await api.uploadDocument(file, currentSessionId);
+            documentIds.push(doc.id);
+          } catch (error) {
+            console.error('Failed to upload file:', file.name, error);
+            toast.error(`Failed to upload ${file.name}`);
+          }
+        }
+        setIsUploading(false);
+        setUploadedFiles([]); // Clear uploaded files after processing
+      }
+
       // Save user message to database
       await api.addSessionMessage(currentSessionId, {
         role: 'user',
@@ -333,7 +350,7 @@ export default function AgentPage() {
         prompt: userPrompt,
         sessionId: currentSessionId,
         startupId: user.startup.id,
-        documents: [],
+        documents: documentIds,
         ...metadata,
       });
 

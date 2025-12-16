@@ -750,6 +750,63 @@ class ApiClient {
   async bulkCreateInvestors(data: import('./types').CreateInvestorRequest[]): Promise<{ created: number }> {
     return this.post<{ created: number }>('/investors/bulk', data);
   }
+
+  // ============================================
+  // SECURE DOCUMENTS ENDPOINTS
+  // ============================================
+
+  async uploadSecureDocument(
+    file: File,
+    sessionId?: string,
+    expiryDays?: number,
+  ): Promise<import('./types').SecureDocument> {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (sessionId) formData.append('sessionId', sessionId);
+    if (expiryDays) formData.append('expiryDays', String(expiryDays));
+
+    const headers = await this.getHeaders();
+    delete (headers as Record<string, string>)['Content-Type']; // Let browser set multipart boundary
+
+    const res = await fetch(`${API_URL}/secure-documents/upload`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ error: 'Upload failed' }));
+      throw new ApiError(error.error || error.message || 'Upload failed', res.status);
+    }
+
+    const json = await res.json();
+    return json.data !== undefined ? json.data : json;
+  }
+
+  async getSecureDocuments(sessionId?: string): Promise<import('./types').SecureDocument[]> {
+    const params = sessionId ? `?sessionId=${sessionId}` : '';
+    return this.get<import('./types').SecureDocument[]>(`/secure-documents${params}`);
+  }
+
+  async getDocumentContext(
+    documentId: string,
+    chunkIndices?: number[],
+  ): Promise<import('./types').DocumentChunkContext[]> {
+    const params = chunkIndices ? `?chunks=${chunkIndices.join(',')}` : '';
+    return this.get<import('./types').DocumentChunkContext[]>(`/secure-documents/${documentId}/context${params}`);
+  }
+
+  async extendDocumentExpiry(documentId: string, days: number): Promise<import('./types').SecureDocument> {
+    return this.post<import('./types').SecureDocument>(`/secure-documents/${documentId}/extend`, { days });
+  }
+
+  async deleteSecureDocument(documentId: string): Promise<void> {
+    await this.delete(`/secure-documents/${documentId}`);
+  }
+
+  async purgeAllDocuments(): Promise<{ documentsDeleted: number; chunksDeleted: number }> {
+    return this.request<{ documentsDeleted: number; chunksDeleted: number }>('DELETE', '/secure-documents/purge/all');
+  }
 }
 
 export const api = new ApiClient();

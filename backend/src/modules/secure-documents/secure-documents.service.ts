@@ -1,0 +1,521 @@
+import { Injectable, Inject, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { eq, and, desc, lt, isNull, or } from 'drizzle-orm';
+import { v4 as uuid } from 'uuid';
+import { ConfigService } from '@nestjs/config';
+import { DATABASE_CONNECTION } from '@/database/database.module';
+import { EncryptionService } from '@/common/encryption/encryption.service';
+import * as schema from '@/database/schema';
+import { userDocuments, userDocumentChunks } from '@/database/schema/user-documents.schema';
+
+/** Default document expiry in days */
+const DEFAULT_EXPIRY_DAYS = 30;
+
+/** Maximum file size in bytes (10MB) */
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+/** Chunk size in characters (roughly 500 tokens) */
+const CHUNK_SIZE = 2000;
+
+/** Chunk overlap in characters */
+const CHUNK_OVERLAP = 200;
+
+const ALLOWED_MIME_TYPES = [
+  'application/pdf',
+  'text/plain',
+  'text/markdown',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+] as const;
+
+export interface SecureDocumentResponse {
+  id: string;
+  filename: string;
+  originalName: string;
+  mimeType: string;
+  fileSize: number;
+  status: string;
+  chunkCount: number;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
+export interface DocumentChunkContext {
+  documentId: string;
+  filename: string;
+  chunkIndex: number;
+  content: string; // Decrypted content
+}
+
+@Injectable()
+export class SecureDocumentsService {
+  private readonly logger = new Logger(SecureDocumentsService.name);
+  private readonly expiryDays: number;
+
+  constructor(
+    @Inject(DATABASE_CONNECTION)
+    private readonly db: NodePgDatabase<typeof schema>,
+    private readonly encryption: EncryptionService,
+    private readonly config: ConfigService,
+  ) {
+    this.expiryDays = this.config.get<number>('DOCUMENT_EXPIRY_DAYS', DEFAULT_EXPIRY_DAYS);
+  }
+
+
+  /**
+   * Process and securely store a document.
+   * Flow: Extract text → Chunk → Encrypt chunks → Generate embeddings → Delete original
+   */
+  async processDocument(
+    userId: string,
+    file: Express.Multer.File,
+    sessionId?: string,
+    expiryDays?: number,
+  ): Promise<SecureDocumentResponse> {
+    this.validateFile(file);
+
+    const documentId = uuid();
+    const expiry = expiryDays ?? this.expiryDays;
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + expiry);
+
+    // Create document record first
+    const [document] = await this.db
+      .insert(userDocuments)
+      .values({
+        id: documentId,
+        userId,
+        sessionId: sessionId ?? null,
+        filename: `${documentId}.processed`,
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        fileSize: file.size,
+        status: 'processing',
+        expiresAt,
+      })
+      .returning();
+
+    try {
+      // Extract text from document
+      const text = await this.extractText(file);
+      
+      // Chunk the text
+      const chunks = this.chunkText(text);
+      
+      // Encrypt and store each chunk
+      for (let i = 0; i < chunks.length; i++) {
+        const encryptedContent = this.encryption.encrypt(chunks[i]);
+        
+        // Generate embedding (placeholder - would call embedding API)
+        const embedding = await this.generateEmbedding(chunks[i]);
+        
+        await this.db.insert(userDocumentChunks).values({
+          documentId,
+          userId,
+          chunkIndex: i,
+          encryptedContent,
+          embedding: embedding ? JSON.stringify(embedding) : null,
+          tokenCount: Math.ceil(chunks[i].length / 4), // Rough estimate
+        });
+      }
+
+      // Update document status
+      const [updated] = await this.db
+        .update(userDocuments)
+        .set({
+          status: 'ready',
+          chunkCount: chunks.length,
+          updatedAt: new Date(),
+        })
+        .where(eq(userDocuments.id, documentId))
+        .returning();
+
+      this.logger.log(`Document processed securely: ${documentId} (${chunks.length} chunks)`);
+      
+      // Original file buffer is NOT stored - it's garbage collected after this function
+      return this.toResponse(updated);
+    } catch (error) {
+      // Mark as failed
+      await this.db
+        .update(userDocuments)
+        .set({ status: 'failed', updatedAt: new Date() })
+        .where(eq(userDocuments.id, documentId));
+      
+      this.logger.error(`Document processing failed: ${documentId}`, error);
+      throw new BadRequestException('Failed to process document securely');
+    }
+  }
+
+  /**
+   * Get decrypted chunks for a document (for LLM context).
+   */
+  async getDecryptedChunks(
+    documentId: string,
+    userId: string,
+    chunkIndices?: number[],
+  ): Promise<DocumentChunkContext[]> {
+    // Verify ownership and get document
+    const [document] = await this.db
+      .select()
+      .from(userDocuments)
+      .where(and(
+        eq(userDocuments.id, documentId),
+        eq(userDocuments.userId, userId),
+        eq(userDocuments.status, 'ready'),
+        eq(userDocuments.isExpired, false),
+      ))
+      .limit(1);
+
+    if (!document) {
+      throw new NotFoundException('Document not found or expired');
+    }
+
+    // Update last accessed
+    await this.db
+      .update(userDocuments)
+      .set({ lastAccessedAt: new Date() })
+      .where(eq(userDocuments.id, documentId));
+
+    // Get chunks
+    let query = this.db
+      .select()
+      .from(userDocumentChunks)
+      .where(eq(userDocumentChunks.documentId, documentId))
+      .orderBy(userDocumentChunks.chunkIndex);
+
+    const chunks = await query;
+
+    // Filter by indices if specified
+    const filteredChunks = chunkIndices
+      ? chunks.filter(c => chunkIndices.includes(c.chunkIndex))
+      : chunks;
+
+    // Decrypt and return
+    return filteredChunks.map(chunk => ({
+      documentId: chunk.documentId,
+      filename: document.originalName,
+      chunkIndex: chunk.chunkIndex,
+      content: this.encryption.decrypt(chunk.encryptedContent),
+    }));
+  }
+
+  /**
+   * Semantic search across user's documents.
+   * Returns relevant chunk indices without decrypting content.
+   */
+  async searchDocuments(
+    userId: string,
+    queryEmbedding: number[],
+    limit = 5,
+    sessionId?: string,
+  ): Promise<{ documentId: string; chunkIndex: number; score: number }[]> {
+    // Get user's active documents
+    const whereClause = sessionId
+      ? and(
+          eq(userDocuments.userId, userId),
+          eq(userDocuments.sessionId, sessionId),
+          eq(userDocuments.status, 'ready'),
+          eq(userDocuments.isExpired, false),
+        )
+      : and(
+          eq(userDocuments.userId, userId),
+          eq(userDocuments.status, 'ready'),
+          eq(userDocuments.isExpired, false),
+        );
+
+    const documents = await this.db
+      .select({ id: userDocuments.id })
+      .from(userDocuments)
+      .where(whereClause);
+
+    if (documents.length === 0) return [];
+
+    const documentIds = documents.map(d => d.id);
+
+    // Get all chunks with embeddings
+    const chunks = await this.db
+      .select()
+      .from(userDocumentChunks)
+      .where(and(
+        eq(userDocumentChunks.userId, userId),
+      ));
+
+    // Filter to only chunks from user's documents
+    const relevantChunks = chunks.filter(c => 
+      documentIds.includes(c.documentId) && c.embedding
+    );
+
+    // Calculate cosine similarity
+    const scored = relevantChunks.map(chunk => {
+      const embedding = JSON.parse(chunk.embedding!) as number[];
+      const score = this.cosineSimilarity(queryEmbedding, embedding);
+      return {
+        documentId: chunk.documentId,
+        chunkIndex: chunk.chunkIndex,
+        score,
+      };
+    });
+
+    // Sort by score and return top results
+    return scored
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit);
+  }
+
+
+  /**
+   * Get all documents for a user.
+   */
+  async findByUser(userId: string, sessionId?: string): Promise<SecureDocumentResponse[]> {
+    const whereClause = sessionId
+      ? and(eq(userDocuments.userId, userId), eq(userDocuments.sessionId, sessionId))
+      : eq(userDocuments.userId, userId);
+
+    const documents = await this.db
+      .select()
+      .from(userDocuments)
+      .where(whereClause)
+      .orderBy(desc(userDocuments.createdAt));
+
+    return documents.map(d => this.toResponse(d));
+  }
+
+  /**
+   * Delete a document and all its chunks (user-controlled deletion).
+   */
+  async deleteDocument(documentId: string, userId: string): Promise<void> {
+    const [document] = await this.db
+      .select()
+      .from(userDocuments)
+      .where(and(eq(userDocuments.id, documentId), eq(userDocuments.userId, userId)))
+      .limit(1);
+
+    if (!document) {
+      throw new NotFoundException('Document not found');
+    }
+
+    // Delete chunks first (cascade should handle this, but be explicit)
+    await this.db
+      .delete(userDocumentChunks)
+      .where(eq(userDocumentChunks.documentId, documentId));
+
+    // Delete document
+    await this.db
+      .delete(userDocuments)
+      .where(eq(userDocuments.id, documentId));
+
+    this.logger.log(`Document deleted by user: ${documentId}`);
+  }
+
+  /**
+   * Delete ALL documents for a user (purge all data).
+   */
+  async purgeUserDocuments(userId: string): Promise<{ documentsDeleted: number; chunksDeleted: number }> {
+    // Count before deletion
+    const documents = await this.db
+      .select({ id: userDocuments.id })
+      .from(userDocuments)
+      .where(eq(userDocuments.userId, userId));
+
+    const chunks = await this.db
+      .select({ id: userDocumentChunks.id })
+      .from(userDocumentChunks)
+      .where(eq(userDocumentChunks.userId, userId));
+
+    // Delete all chunks
+    await this.db
+      .delete(userDocumentChunks)
+      .where(eq(userDocumentChunks.userId, userId));
+
+    // Delete all documents
+    await this.db
+      .delete(userDocuments)
+      .where(eq(userDocuments.userId, userId));
+
+    this.logger.log(`User data purged: ${userId} (${documents.length} docs, ${chunks.length} chunks)`);
+
+    return {
+      documentsDeleted: documents.length,
+      chunksDeleted: chunks.length,
+    };
+  }
+
+  /**
+   * Cleanup expired documents (run via cron job).
+   */
+  async cleanupExpired(): Promise<{ documentsExpired: number; chunksDeleted: number }> {
+    const now = new Date();
+
+    // Find expired documents
+    const expiredDocs = await this.db
+      .select()
+      .from(userDocuments)
+      .where(and(
+        lt(userDocuments.expiresAt, now),
+        eq(userDocuments.isExpired, false),
+      ));
+
+    if (expiredDocs.length === 0) {
+      return { documentsExpired: 0, chunksDeleted: 0 };
+    }
+
+    const expiredIds = expiredDocs.map(d => d.id);
+    
+    // Count chunks to be deleted
+    const chunks = await this.db
+      .select({ id: userDocumentChunks.id })
+      .from(userDocumentChunks)
+      .where(eq(userDocumentChunks.userId, expiredDocs[0].userId)); // Simplified
+
+    let chunksDeleted = 0;
+
+    // Delete chunks and mark documents as expired
+    for (const doc of expiredDocs) {
+      const deleted = await this.db
+        .delete(userDocumentChunks)
+        .where(eq(userDocumentChunks.documentId, doc.id))
+        .returning();
+      
+      chunksDeleted += deleted.length;
+
+      await this.db
+        .update(userDocuments)
+        .set({ isExpired: true, status: 'expired', updatedAt: new Date() })
+        .where(eq(userDocuments.id, doc.id));
+    }
+
+    this.logger.log(`Expired documents cleaned: ${expiredDocs.length} docs, ${chunksDeleted} chunks`);
+
+    return {
+      documentsExpired: expiredDocs.length,
+      chunksDeleted,
+    };
+  }
+
+  /**
+   * Extend document expiry.
+   */
+  async extendExpiry(documentId: string, userId: string, additionalDays: number): Promise<SecureDocumentResponse> {
+    const [document] = await this.db
+      .select()
+      .from(userDocuments)
+      .where(and(
+        eq(userDocuments.id, documentId),
+        eq(userDocuments.userId, userId),
+        eq(userDocuments.isExpired, false),
+      ))
+      .limit(1);
+
+    if (!document) {
+      throw new NotFoundException('Document not found or already expired');
+    }
+
+    const newExpiry = new Date(document.expiresAt || new Date());
+    newExpiry.setDate(newExpiry.getDate() + additionalDays);
+
+    const [updated] = await this.db
+      .update(userDocuments)
+      .set({ expiresAt: newExpiry, updatedAt: new Date() })
+      .where(eq(userDocuments.id, documentId))
+      .returning();
+
+    return this.toResponse(updated);
+  }
+
+  // Private helper methods
+
+  private validateFile(file: Express.Multer.File): void {
+    if (!file) {
+      throw new BadRequestException('No file provided');
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      throw new BadRequestException(`File size exceeds maximum of ${MAX_FILE_SIZE / 1024 / 1024}MB`);
+    }
+    if (!ALLOWED_MIME_TYPES.includes(file.mimetype as typeof ALLOWED_MIME_TYPES[number])) {
+      throw new BadRequestException('File type not allowed');
+    }
+  }
+
+  private async extractText(file: Express.Multer.File): Promise<string> {
+    // For text files, return content directly
+    if (file.mimetype === 'text/plain' || file.mimetype === 'text/markdown') {
+      return file.buffer.toString('utf-8');
+    }
+
+    // For PDF - would use pdf-parse library
+    if (file.mimetype === 'application/pdf') {
+      // Placeholder - in production, use pdf-parse
+      // const pdfParse = require('pdf-parse');
+      // const data = await pdfParse(file.buffer);
+      // return data.text;
+      return `[PDF content from ${file.originalname}]`;
+    }
+
+    // For Word docs - would use mammoth library
+    if (file.mimetype.includes('word') || file.mimetype.includes('document')) {
+      return `[Word document content from ${file.originalname}]`;
+    }
+
+    return `[Document content from ${file.originalname}]`;
+  }
+
+  private chunkText(text: string): string[] {
+    const chunks: string[] = [];
+    let start = 0;
+
+    while (start < text.length) {
+      const end = Math.min(start + CHUNK_SIZE, text.length);
+      chunks.push(text.slice(start, end));
+      start = end - CHUNK_OVERLAP;
+      if (start >= text.length - CHUNK_OVERLAP) break;
+    }
+
+    // Ensure we don't have empty chunks
+    return chunks.filter(c => c.trim().length > 0);
+  }
+
+  private async generateEmbedding(text: string): Promise<number[] | null> {
+    // Placeholder - in production, call embedding API (OpenAI, HuggingFace, etc.)
+    // For now, return null (embeddings disabled)
+    // 
+    // Example with OpenAI:
+    // const response = await openai.embeddings.create({
+    //   model: 'text-embedding-3-small',
+    //   input: text,
+    // });
+    // return response.data[0].embedding;
+    
+    return null;
+  }
+
+  private cosineSimilarity(a: number[], b: number[]): number {
+    if (a.length !== b.length) return 0;
+    
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+    
+    for (let i = 0; i < a.length; i++) {
+      dotProduct += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+    
+    const magnitude = Math.sqrt(normA) * Math.sqrt(normB);
+    return magnitude === 0 ? 0 : dotProduct / magnitude;
+  }
+
+  private toResponse(doc: typeof userDocuments.$inferSelect): SecureDocumentResponse {
+    return {
+      id: doc.id,
+      filename: doc.filename,
+      originalName: doc.originalName,
+      mimeType: doc.mimeType,
+      fileSize: doc.fileSize,
+      status: doc.status,
+      chunkCount: doc.chunkCount,
+      expiresAt: doc.expiresAt?.toISOString() ?? null,
+      createdAt: doc.createdAt.toISOString(),
+    };
+  }
+}

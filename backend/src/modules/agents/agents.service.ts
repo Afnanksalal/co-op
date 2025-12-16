@@ -5,6 +5,7 @@ import { OrchestratorService } from './orchestrator/orchestrator.service';
 import { AgentsQueueService } from './queue/agents.queue.service';
 import { StartupsService } from '@/modules/startups/startups.service';
 import { UsersService } from '@/modules/users/users.service';
+import { DocumentsService } from '@/modules/documents/documents.service';
 import { LlmCouncilService } from '@/common/llm/llm-council.service';
 import { RedisService } from '@/common/redis/redis.service';
 import { CacheService } from '@/common/cache/cache.service';
@@ -49,6 +50,7 @@ export class AgentsService {
     private readonly queueService: AgentsQueueService,
     private readonly startupsService: StartupsService,
     private readonly usersService: UsersService,
+    private readonly documentsService: DocumentsService,
     private readonly council: LlmCouncilService,
     private readonly redis: RedisService,
     private readonly cache: CacheService,
@@ -472,6 +474,22 @@ Output: Brief summary, key insights, 3-5 action items. Be concise.`;
       throw new BadRequestException('Startup not found');
     }
 
+    // Fetch document content for each document ID
+    const documentContents: string[] = [];
+    if (dto.documents && dto.documents.length > 0) {
+      for (const docId of dto.documents) {
+        try {
+          const content = await this.documentsService.extractTextContent(docId, userId);
+          if (content) {
+            documentContents.push(content);
+          }
+        } catch (error) {
+          this.logger.warn(`Failed to extract content from document ${docId}`, error);
+          // Continue with other documents
+        }
+      }
+    }
+
     return {
       context: {
         sessionId: dto.sessionId,
@@ -510,7 +528,7 @@ Output: Brief summary, key insights, 3-5 action items. Be concise.`;
         },
       },
       prompt: dto.prompt,
-      documents: dto.documents,
+      documents: documentContents, // Now contains actual content, not IDs
     };
   }
 

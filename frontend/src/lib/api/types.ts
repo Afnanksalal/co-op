@@ -709,6 +709,28 @@ export interface AlertResult {
   createdAt: string;
 }
 
+// === SECURE DOCUMENTS ===
+export type SecureDocumentStatus = 'processing' | 'ready' | 'failed' | 'expired';
+
+export interface SecureDocument {
+  id: string;
+  filename: string;
+  originalName: string;
+  mimeType: string;
+  fileSize: number;
+  status: SecureDocumentStatus;
+  chunkCount: number;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
+export interface DocumentChunkContext {
+  documentId: string;
+  filename: string;
+  chunkIndex: number;
+  content: string; // Decrypted content
+}
+
 // === API RESPONSE ===
 export interface ApiResponse<T> {
   success: boolean;

@@ -346,8 +346,10 @@ export default function ChatPage() {
             const { result } = event.data;
             if (result && typeof result === 'object') {
               const taskResult = result as { results?: Array<{ phase: string; output: { content: string; confidence: number; sources: string[] } }> };
-              const finalResult = taskResult.results?.find((r) => r.phase === 'final');
-              if (finalResult) {
+              // Try to find 'final' phase, fallback to last result with content
+              const finalResult = taskResult.results?.find((r) => r.phase === 'final') 
+                ?? taskResult.results?.find((r) => r.output?.content);
+              if (finalResult?.output?.content) {
                 finalContent = finalResult.output.content;
                 updateMessage(assistantMessageId, {
                   content: finalContent,
@@ -365,7 +367,6 @@ export default function ChatPage() {
                 await api.addSessionMessage(sessionToUse.id, {
                   role: 'assistant',
                   content: finalContent,
-                  // For multi-agent, store as undefined (backend accepts any string for agent)
                   agent: isMultiAgent ? undefined : selectedAgent ?? undefined,
                   metadata: isMultiAgent ? { multiAgent: true } : undefined,
                 });
@@ -375,6 +376,14 @@ export default function ChatPage() {
               }
               
               setFollowUpSuggestions(generateFollowUpSuggestions(prompt, finalContent));
+            } else if (!finalContent) {
+              // Log for debugging - this shouldn't happen in normal flow
+              console.error('No final content to save. Event data:', JSON.stringify(event.data));
+              // Try to extract any content from the result for debugging
+              const resultStr = JSON.stringify(result);
+              if (resultStr.length < 500) {
+                console.error('Full result:', resultStr);
+              }
             }
             
             setLastUserPrompt(prompt);
@@ -417,8 +426,8 @@ export default function ChatPage() {
         handleStreamEvent,
         (error) => {
           console.error('Stream error:', error);
-          // Fallback to polling if SSE fails
-          fallbackToPoll(taskId, assistantMessageId, isMultiAgent, prompt, collectedThinkingSteps);
+          // Fallback to polling if SSE fails - pass sessionToUse to avoid stale closure
+          fallbackToPoll(taskId, assistantMessageId, isMultiAgent, prompt, collectedThinkingSteps, sessionToUse);
         }
       );
       
@@ -453,7 +462,8 @@ export default function ChatPage() {
     assistantMessageId: string,
     isMultiAgent: boolean,
     prompt: string,
-    collectedSteps: string[]
+    collectedSteps: string[],
+    session: Session
   ) => {
     let completed = false;
     let finalContent = '';
@@ -464,8 +474,10 @@ export default function ChatPage() {
         const status = await api.getTaskStatus(taskId);
 
         if (status.status === 'completed' && status.result) {
-          const finalResult = status.result.results.find((r) => r.phase === 'final');
-          if (finalResult) {
+          // Try to find 'final' phase, fallback to last result with content
+          const finalResult = status.result.results.find((r) => r.phase === 'final')
+            ?? status.result.results.find((r) => r.output?.content);
+          if (finalResult?.output?.content) {
             finalContent = finalResult.output.content;
             updateMessage(assistantMessageId, {
               content: finalContent,
@@ -474,6 +486,8 @@ export default function ChatPage() {
               isStreaming: false,
               thinkingSteps: collectedSteps,
             });
+          } else {
+            console.error('No final content in poll result:', JSON.stringify(status.result));
           }
           completed = true;
         } else if (status.status === 'failed') {
@@ -518,9 +532,10 @@ export default function ChatPage() {
       }
     }
 
-    if (finalContent && currentSession) {
+    // Save assistant response using the passed session (not stale store value)
+    if (finalContent && session) {
       try {
-        await api.addSessionMessage(currentSession.id, {
+        await api.addSessionMessage(session.id, {
           role: 'assistant',
           content: finalContent,
           agent: isMultiAgent ? undefined : selectedAgent ?? undefined,

@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { User, Buildings, Pencil, Check, X, Sun, Moon, Desktop } from '@phosphor-icons/react';
+import { User, Buildings, Pencil, Check, X, Sun, Moon, Desktop, ShieldCheck, Trash, FileText, Clock } from '@phosphor-icons/react';
 import { api } from '@/lib/api/client';
 import { useUser } from '@/lib/hooks';
 import { useUIStore } from '@/lib/store';
@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
+import type { SecureDocument } from '@/lib/api/types';
 
 export default function SettingsPage() {
   const { user, refreshUser, isLoading } = useUser();
@@ -20,6 +21,51 @@ export default function SettingsPage() {
   const [isEditingName, setIsEditingName] = useState(false);
   const [newName, setNewName] = useState(user?.name || '');
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Secure documents state
+  const [documents, setDocuments] = useState<SecureDocument[]>([]);
+  const [isLoadingDocs, setIsLoadingDocs] = useState(true);
+  const [isPurging, setIsPurging] = useState(false);
+
+  const loadDocuments = useCallback(async () => {
+    try {
+      const docs = await api.getSecureDocuments();
+      setDocuments(docs || []);
+    } catch {
+      // Silently fail - user may not have any documents
+    }
+    setIsLoadingDocs(false);
+  }, []);
+
+  useEffect(() => {
+    loadDocuments();
+  }, [loadDocuments]);
+
+  const handleDeleteDocument = async (id: string) => {
+    if (!confirm('Delete this document? This cannot be undone.')) return;
+    try {
+      await api.deleteSecureDocument(id);
+      setDocuments(prev => prev.filter(d => d.id !== id));
+      toast.success('Document deleted');
+    } catch {
+      toast.error('Failed to delete document');
+    }
+  };
+
+  const handlePurgeAll = async () => {
+    if (!confirm('Delete ALL your documents? This cannot be undone.')) return;
+    if (!confirm('Are you absolutely sure? All encrypted data will be permanently deleted.')) return;
+    
+    setIsPurging(true);
+    try {
+      const result = await api.purgeAllDocuments();
+      setDocuments([]);
+      toast.success(`Deleted ${result.documentsDeleted} documents and ${result.chunksDeleted} chunks`);
+    } catch {
+      toast.error('Failed to purge documents');
+    }
+    setIsPurging(false);
+  };
 
   const handleSaveName = async () => {
     if (!newName.trim()) {
@@ -244,6 +290,104 @@ export default function SettingsPage() {
           </Card>
         </motion.div>
       )}
+
+      {/* Data Privacy */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.25 }}
+      >
+        <Card className="border-border/40">
+          <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-4">
+            <CardTitle className="flex items-center gap-2 font-serif text-base sm:text-xl">
+              <ShieldCheck weight="regular" className="w-4 h-4 sm:w-5 sm:h-5" />
+              Data Privacy
+            </CardTitle>
+            <CardDescription className="text-xs sm:text-sm">
+              Your documents are encrypted at rest. Original files are never stored.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-4 sm:p-6 pt-0 space-y-4">
+            {/* Security Info */}
+            <div className="p-3 rounded-lg bg-muted/50 space-y-2">
+              <div className="flex items-center gap-2 text-xs sm:text-sm">
+                <ShieldCheck weight="fill" className="w-4 h-4 text-green-500" />
+                <span>AES-256-GCM encryption for all document content</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs sm:text-sm">
+                <Clock weight="fill" className="w-4 h-4 text-blue-500" />
+                <span>Documents auto-expire after 30 days</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs sm:text-sm">
+                <Trash weight="fill" className="w-4 h-4 text-orange-500" />
+                <span>Original files deleted after processing</span>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Documents List */}
+            <div>
+              <Label className="text-xs sm:text-sm mb-2 block">Your Encrypted Documents ({documents.length})</Label>
+              {isLoadingDocs ? (
+                <div className="space-y-2">
+                  {[1, 2].map(i => <div key={i} className="h-12 bg-muted rounded animate-pulse" />)}
+                </div>
+              ) : documents.length === 0 ? (
+                <p className="text-xs sm:text-sm text-muted-foreground py-4 text-center">
+                  No documents uploaded yet
+                </p>
+              ) : (
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {documents.map(doc => (
+                    <div key={doc.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/30">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <FileText weight="regular" className="w-4 h-4 shrink-0 text-muted-foreground" />
+                        <div className="min-w-0">
+                          <p className="text-xs sm:text-sm font-medium truncate">{doc.originalName}</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {doc.chunkCount} chunks · {doc.status}
+                            {doc.expiresAt && ` · Expires ${new Date(doc.expiresAt).toLocaleDateString()}`}
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-destructive hover:text-destructive shrink-0"
+                        onClick={() => handleDeleteDocument(doc.id)}
+                      >
+                        <Trash weight="regular" className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <Separator />
+
+            {/* Purge All */}
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs sm:text-sm font-medium">Delete All Data</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground">
+                  Permanently delete all your encrypted documents
+                </p>
+              </div>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handlePurgeAll}
+                disabled={isPurging || documents.length === 0}
+                className="h-8 text-xs"
+              >
+                {isPurging ? 'Deleting...' : 'Purge All'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
     </div>
   );
 }

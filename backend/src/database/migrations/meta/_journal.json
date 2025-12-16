@@ -78,6 +78,13 @@
       "when": 1765903164827,
       "tag": "0010_early_leper_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1765906843143,
+      "tag": "0011_tricky_rhino",
+      "breakpoints": true
     }
   ]
 }

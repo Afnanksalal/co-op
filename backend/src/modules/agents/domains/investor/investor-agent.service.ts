@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { LlmCouncilService } from '@/common/llm/llm-council.service';
 import { ResearchService } from '@/common/research/research.service';
 import { sanitizeResponse } from '@/common/llm/utils/response-sanitizer';
+import { sanitizePII, restorePII, SanitizationMap } from '@/common/llm/utils/pii-sanitizer';
 import { BaseAgent, AgentInput, AgentOutput } from '../../types/agent.types';
 
 const INVESTOR_SYSTEM_PROMPT = `You are an expert investor relations advisor specializing in: pitch deck optimization, investor targeting, due diligence preparation, term sheet analysis, and cap table management.
@@ -45,15 +46,23 @@ export class InvestorAgentService implements BaseAgent {
   async runDraft(input: AgentInput): Promise<AgentOutput> {
     this.logger.debug('Running investor agent with LLM Council + Web Research');
 
+    // Extract company/founder names for PII sanitization
+    const companyName = typeof input.context.metadata.companyName === 'string' 
+      ? input.context.metadata.companyName : undefined;
+    const founderName = typeof input.context.metadata.founderName === 'string'
+      ? input.context.metadata.founderName : undefined;
+
     // Gather context from multiple sources in parallel
     const [ragContext, webContext] = await Promise.all([
       this.getRagContext(input),
       this.getWebResearchContext(input),
     ]);
 
-    const userPrompt = this.buildUserPrompt(input, ragContext, webContext);
+    // Build and sanitize the user prompt to prevent LLM training on company data
+    const rawPrompt = this.buildUserPrompt(input, ragContext, webContext);
+    const { text: sanitizedPrompt, mappings } = sanitizePII(rawPrompt, companyName, founderName);
 
-    const result = await this.council.runCouncil(INVESTOR_SYSTEM_PROMPT, userPrompt, {
+    const result = await this.council.runCouncil(INVESTOR_SYSTEM_PROMPT, sanitizedPrompt, {
       minModels: this.minModels,
       maxModels: this.maxModels,
       temperature: 0.6,
@@ -78,6 +87,7 @@ export class InvestorAgentService implements BaseAgent {
         critiquesCount: result.critiques.length,
         ragContextUsed: ragContext.length > 0,
         webResearchUsed: webContext.length > 0,
+        piiMappings: mappings, // Store for restoration in runFinal
       },
     };
   }
@@ -101,7 +111,17 @@ export class InvestorAgentService implements BaseAgent {
 
   runFinal(_input: AgentInput, draft: AgentOutput, _critique: AgentOutput): Promise<AgentOutput> {
     // Sanitize final output to ensure clean text for UI
-    const cleanContent = sanitizeResponse(draft.content);
+    let cleanContent = sanitizeResponse(draft.content);
+    
+    // Restore original company/founder names in the response
+    const mappings = draft.metadata?.piiMappings as SanitizationMap[] | undefined;
+    if (mappings && mappings.length > 0) {
+      cleanContent = restorePII(cleanContent, mappings);
+    }
+
+    // Remove piiMappings from final metadata (internal use only)
+    const { piiMappings: _, ...restMetadata } = draft.metadata || {};
+    
     return Promise.resolve({
       content: cleanContent,
       confidence: draft.confidence,
@@ -109,7 +129,7 @@ export class InvestorAgentService implements BaseAgent {
       metadata: {
         phase: 'final',
         agent: 'investor',
-        ...draft.metadata,
+        ...restMetadata,
       },
     });
   }

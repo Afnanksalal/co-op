@@ -4,6 +4,7 @@ import { LlmCouncilService } from '@/common/llm/llm-council.service';
 import { RagService } from '@/common/rag/rag.service';
 import { RagSector, RagJurisdiction } from '@/common/rag/rag.types';
 import { sanitizeResponse } from '@/common/llm/utils/response-sanitizer';
+import { sanitizePII, restorePII, SanitizationMap } from '@/common/llm/utils/pii-sanitizer';
 import { BaseAgent, AgentInput, AgentOutput } from '../../types/agent.types';
 
 const FINANCE_SYSTEM_PROMPT = `You are an expert startup finance advisor specializing in: financial modeling, burn rate analysis, unit economics, valuation methods, budgeting, pricing strategy, and cash flow management.
@@ -84,6 +85,12 @@ export class FinanceAgentService implements BaseAgent {
     const sector = (input.context.metadata.sector as RagSector) || 'saas';
     const country = (input.context.metadata.country as string) || undefined;
 
+    // Extract company/founder names for PII sanitization
+    const companyName = typeof input.context.metadata.companyName === 'string' 
+      ? input.context.metadata.companyName : undefined;
+    const founderName = typeof input.context.metadata.founderName === 'string'
+      ? input.context.metadata.founderName : undefined;
+
     // Detect relevant jurisdictions from the query
     const detectedJurisdictions = this.detectJurisdictions(input.prompt);
 
@@ -103,9 +110,11 @@ export class FinanceAgentService implements BaseAgent {
       }
     }
 
-    const userPrompt = this.buildUserPrompt(input, ragContext, country);
+    // Build and sanitize the user prompt to prevent LLM training on company data
+    const rawPrompt = this.buildUserPrompt(input, ragContext, country);
+    const { text: sanitizedPrompt, mappings } = sanitizePII(rawPrompt, companyName, founderName);
 
-    const result = await this.council.runCouncil(FINANCE_SYSTEM_PROMPT, userPrompt, {
+    const result = await this.council.runCouncil(FINANCE_SYSTEM_PROMPT, sanitizedPrompt, {
       minModels: this.minModels,
       maxModels: this.maxModels,
       temperature: 0.6,
@@ -129,6 +138,7 @@ export class FinanceAgentService implements BaseAgent {
         consensusScore: result.consensus.averageScore,
         responsesCount: result.responses.length,
         critiquesCount: result.critiques.length,
+        piiMappings: mappings, // Store for restoration in runFinal
       },
     };
   }
@@ -150,7 +160,17 @@ export class FinanceAgentService implements BaseAgent {
   }
 
   runFinal(_input: AgentInput, draft: AgentOutput, _critique: AgentOutput): Promise<AgentOutput> {
-    const cleanContent = sanitizeResponse(draft.content);
+    let cleanContent = sanitizeResponse(draft.content);
+    
+    // Restore original company/founder names in the response
+    const mappings = draft.metadata?.piiMappings as SanitizationMap[] | undefined;
+    if (mappings && mappings.length > 0) {
+      cleanContent = restorePII(cleanContent, mappings);
+    }
+
+    // Remove piiMappings from final metadata (internal use only)
+    const { piiMappings: _, ...restMetadata } = draft.metadata || {};
+    
     return Promise.resolve({
       content: cleanContent,
       confidence: draft.confidence,
@@ -158,7 +178,7 @@ export class FinanceAgentService implements BaseAgent {
       metadata: {
         phase: 'final',
         agent: 'finance',
-        ...draft.metadata,
+        ...restMetadata,
       },
     });
   }
