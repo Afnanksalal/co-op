@@ -267,14 +267,14 @@ export default function WebhooksPage() {
                           {webhook.url}
                         </p>
                         <div className="flex items-center gap-1.5 sm:gap-2 mt-1 flex-wrap">
-                          {webhook.events.slice(0, 2).map((event) => (
+                          {(webhook.events || []).slice(0, 2).map((event) => (
                             <Badge key={event} variant="outline" className="text-[9px] sm:text-[10px]">
                               {event === '*' ? 'All' : event}
                             </Badge>
                           ))}
-                          {webhook.events.length > 2 && (
+                          {(webhook.events || []).length > 2 && (
                             <span className="text-[10px] sm:text-xs text-muted-foreground">
-                              +{webhook.events.length - 2} more
+                              +{(webhook.events || []).length - 2} more
                             </span>
                           )}
                         </div>

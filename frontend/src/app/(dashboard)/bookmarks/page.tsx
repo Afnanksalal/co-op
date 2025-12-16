@@ -172,11 +172,11 @@ export default function BookmarksPage() {
                   <p className="text-sm text-muted-foreground line-clamp-3">
                     {bookmark.content}
                   </p>
-                  {bookmark.tags.length > 0 && (
+                  {(bookmark.tags || []).length > 0 && (
                     <div className="flex items-center gap-2 mt-3">
                       <Tag weight="regular" className="w-3.5 h-3.5 text-muted-foreground" />
                       <div className="flex flex-wrap gap-1">
-                        {bookmark.tags.map((tag) => (
+                        {(bookmark.tags || []).map((tag) => (
                           <Badge key={tag} variant="secondary" className="text-[10px]">
                             {tag}
                           </Badge>

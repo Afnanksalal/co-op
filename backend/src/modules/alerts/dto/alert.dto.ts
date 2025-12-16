@@ -1,4 +1,4 @@
-import { IsString, IsArray, IsBoolean, IsOptional, IsEnum, IsUUID, MaxLength, ArrayMaxSize } from 'class-validator';
+import { IsString, IsArray, IsBoolean, IsOptional, IsEnum, MaxLength, ArrayMaxSize } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export type AlertType = 'competitor' | 'market' | 'news' | 'funding';

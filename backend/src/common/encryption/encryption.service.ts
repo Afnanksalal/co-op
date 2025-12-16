@@ -106,7 +106,7 @@ export class EncryptionService {
     if (parts.length !== 3) return false;
 
     // Check if parts look like hex strings of expected lengths
-    const [iv, authTag, _ciphertext] = parts;
+    const [iv, authTag] = parts;
     return iv.length === 24 && authTag.length === 32; // 12 bytes = 24 hex, 16 bytes = 32 hex
   }
 }

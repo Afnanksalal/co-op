@@ -19,7 +19,7 @@ interface EmailOptions {
  * SendGrid API response structure
  */
 interface SendGridErrorResponse {
-  errors?: Array<{ message: string; field?: string }>;
+  errors?: { message: string; field?: string }[];
 }
 
 /**
@@ -153,8 +153,8 @@ export class EmailService {
       .replace(/'/g, '&#039;');
   }
 
-  private buildEmailContent(options: EmailOptions): Array<{ type: string; value: string }> {
-    const content: Array<{ type: string; value: string }> = [];
+  private buildEmailContent(options: EmailOptions): { type: string; value: string }[] {
+    const content: { type: string; value: string }[] = [];
     if (options.text) {
       content.push({ type: 'text/plain', value: options.text });
     }

@@ -1,7 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { HuggingFaceProvider } from '@/common/llm/providers/huggingface.provider';
 import {
-  ChatMessage,
   getRagSpecialistModel,
   ModelConfig,
 } from '@/common/llm/types/llm.types';
@@ -374,8 +373,7 @@ Sources: ${sources.map((s, i) => `[${i + 1}] ${s.filename}`).join(', ')}
     }
   }
 
-  private fallbackAnalysis(content: string, filename: string): DocumentAnalysis {
-    const ext = filename.split('.').pop()?.toLowerCase() ?? '';
+  private fallbackAnalysis(_content: string, filename: string): DocumentAnalysis {
     const isLegal = /contract|agreement|terms|legal|compliance/i.test(filename);
     const isFinance = /financial|budget|forecast|revenue|invoice/i.test(filename);
 

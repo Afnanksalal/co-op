@@ -280,7 +280,7 @@ export default function ApiKeysPage() {
                           <span className="hidden sm:inline">{formatRelativeTime(key.createdAt)}</span>
                         </div>
                         <div className="flex flex-wrap gap-1 mt-2 sm:hidden">
-                          {key.scopes.map((scope) => (
+                          {(key.scopes || []).map((scope) => (
                             <Badge key={scope} variant="secondary" className="text-[10px]">
                               {scope}
                             </Badge>
@@ -290,7 +290,7 @@ export default function ApiKeysPage() {
                     </div>
                     <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                       <div className="hidden sm:flex gap-1">
-                        {key.scopes.map((scope) => (
+                        {(key.scopes || []).map((scope) => (
                           <Badge key={scope} variant="secondary" className="text-xs">
                             {scope}
                           </Badge>

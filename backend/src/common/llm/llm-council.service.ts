@@ -13,7 +13,6 @@ import {
   CouncilResult,
   ModelConfig,
   ModelHealthCheck,
-  AVAILABLE_MODELS,
   getCouncilModels,
   getRagSpecialistModel,
 } from './types/llm.types';
@@ -516,7 +515,7 @@ Output: {"score":7,"feedback":"one sentence","strengths":["s1"],"weaknesses":["w
     try {
       const jsonMatch = /\{[\s\S]*\}/.exec(cleanedContent);
       if (jsonMatch) {
-        let jsonStr = jsonMatch[0]
+        const jsonStr = jsonMatch[0]
           // Fix trailing commas before closing brackets
           .replace(/,\s*([}\]])/g, '$1')
           // Fix unquoted keys

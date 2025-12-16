@@ -76,7 +76,7 @@ export class McpService {
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+      const timeoutId = setTimeout(() => { controller.abort(); }, 30000); // 30s timeout
 
       const response = await fetch(`${server.baseUrl}/discover`, {
         method: 'GET',
@@ -123,7 +123,7 @@ export class McpService {
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout for tool execution
+      const timeoutId = setTimeout(() => { controller.abort(); }, 60000); // 60s timeout for tool execution
 
       const response = await fetch(`${server.baseUrl}/execute`, {
         method: 'POST',

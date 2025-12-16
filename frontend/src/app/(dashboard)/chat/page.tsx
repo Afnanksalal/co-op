@@ -25,7 +25,7 @@ import {
   BookmarkSimple,
   DownloadSimple,
   Paperclip,
-  File,
+
   X,
   FilePdf,
   FileDoc,
@@ -525,10 +525,9 @@ export default function ChatPage() {
   };
   
   // Generate contextual follow-up suggestions
-  const generateFollowUpSuggestions = (query: string, response: string): string[] => {
+  const generateFollowUpSuggestions = (query: string, _response: string): string[] => {
     const suggestions: string[] = [];
     const lowerQuery = query.toLowerCase();
-    const lowerResponse = response.toLowerCase();
     
     // Legal follow-ups
     if (lowerQuery.includes('legal') || lowerQuery.includes('contract') || lowerQuery.includes('compliance')) {
@@ -676,7 +675,7 @@ export default function ChatPage() {
       }
     };
     loadDocs();
-  }, [currentSession?.id]);
+  }, [currentSession]);
 
   // Cleanup SSE and abort controller on unmount
   useEffect(() => {

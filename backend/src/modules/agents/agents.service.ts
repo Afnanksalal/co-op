@@ -7,7 +7,7 @@ import { StartupsService } from '@/modules/startups/startups.service';
 import { UsersService } from '@/modules/users/users.service';
 import { LlmCouncilService } from '@/common/llm/llm-council.service';
 import { RedisService } from '@/common/redis/redis.service';
-import { CacheService, CACHE_TTL } from '@/common/cache/cache.service';
+import { CacheService } from '@/common/cache/cache.service';
 import { AgentType, AgentInput, AgentPhaseResult } from './types/agent.types';
 import { RunAgentDto } from './dto/run-agent.dto';
 import { TaskStatusDto } from './dto/task-status.dto';

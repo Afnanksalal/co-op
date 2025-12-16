@@ -1,4 +1,4 @@
-import { IsString, IsArray, IsBoolean, IsOptional, IsEnum, IsInt, Min, Max, IsUrl, IsEmail, MaxLength, ArrayMaxSize } from 'class-validator';
+import { IsString, IsArray, IsBoolean, IsOptional, IsEnum, IsInt, Min, IsUrl, IsEmail, MaxLength, ArrayMaxSize } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export type InvestorStage = 'pre-seed' | 'seed' | 'series-a' | 'series-b' | 'series-c' | 'growth';

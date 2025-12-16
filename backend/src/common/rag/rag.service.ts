@@ -8,7 +8,6 @@ import {
   RagSector,
   RagRegion,
   RagJurisdiction,
-  RagDocumentType,
   RegisterFileRequest,
   RegisterFileResponse,
   VectorizeResponse,

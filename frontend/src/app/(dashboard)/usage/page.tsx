@@ -79,7 +79,7 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
 }
 
 function ActivityHeatmap({ activity }: { activity: UserAnalytics['recentActivity'] }) {
-  if (activity.length === 0) return null;
+  if (!activity || activity.length === 0) return null;
 
   const maxMessages = Math.max(...activity.map(d => d.messages), 1);
 

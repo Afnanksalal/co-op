@@ -1,6 +1,6 @@
 import { Injectable, Inject, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { eq, desc, and, isNull, lt, asc, ilike, or, sql } from 'drizzle-orm';
+import { eq, desc, and, isNull, lt, asc, ilike } from 'drizzle-orm';
 import { DATABASE_CONNECTION } from '@/database/database.module';
 import { RedisService } from '@/common/redis/redis.service';
 import { UsersService } from '@/modules/users/users.service';
@@ -85,7 +85,7 @@ export class SessionsService {
       .where(and(eq(schema.sessions.userId, userId), isNull(schema.sessions.deletedAt)))
       .orderBy(desc(schema.sessions.createdAt));
 
-    if (search && search.trim()) {
+    if (search?.trim()) {
       const searchTerm = `%${search.trim().toLowerCase()}%`;
       query = this.db
         .select()
