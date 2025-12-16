@@ -586,6 +586,135 @@ export interface StreamEvent {
   };
 }
 
+// === INVESTORS ===
+export type InvestorStage = 'pre-seed' | 'seed' | 'series-a' | 'series-b' | 'series-c' | 'growth';
+
+export interface Investor {
+  id: string;
+  name: string;
+  description: string | null;
+  website: string | null;
+  logoUrl: string | null;
+  stage: InvestorStage;
+  sectors: string[];
+  checkSizeMin: number | null;
+  checkSizeMax: number | null;
+  location: string;
+  regions: string[];
+  contactEmail: string | null;
+  linkedinUrl: string | null;
+  twitterUrl: string | null;
+  portfolioCompanies: string[];
+  notableExits: string[];
+  isActive: boolean;
+  isFeatured: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateInvestorRequest {
+  name: string;
+  description?: string;
+  website?: string;
+  stage: InvestorStage;
+  sectors: string[];
+  checkSizeMin?: number;
+  checkSizeMax?: number;
+  location: string;
+  regions?: string[];
+  contactEmail?: string;
+  linkedinUrl?: string;
+  twitterUrl?: string;
+  portfolioCompanies?: string[];
+  notableExits?: string[];
+  isActive?: boolean;
+  isFeatured?: boolean;
+}
+
+export interface UpdateInvestorRequest {
+  name?: string;
+  description?: string;
+  website?: string;
+  stage?: InvestorStage;
+  sectors?: string[];
+  checkSizeMin?: number;
+  checkSizeMax?: number;
+  location?: string;
+  regions?: string[];
+  contactEmail?: string;
+  linkedinUrl?: string;
+  twitterUrl?: string;
+  portfolioCompanies?: string[];
+  notableExits?: string[];
+  isActive?: boolean;
+  isFeatured?: boolean;
+}
+
+export interface InvestorQuery {
+  stage?: InvestorStage;
+  sector?: string;
+  region?: string;
+  search?: string;
+  featuredOnly?: boolean;
+}
+
+export interface InvestorStats {
+  total: number;
+  byStage: { stage: string; count: number }[];
+  bySector: { sector: string; count: number }[];
+}
+
+// === ALERTS ===
+export type AlertType = 'competitor' | 'market' | 'news' | 'funding';
+export type AlertFrequency = 'realtime' | 'daily' | 'weekly';
+
+export interface Alert {
+  id: string;
+  name: string;
+  type: AlertType;
+  keywords: string[];
+  competitors: string[];
+  frequency: AlertFrequency;
+  isActive: boolean;
+  emailNotify: boolean;
+  lastCheckedAt: string | null;
+  lastTriggeredAt: string | null;
+  triggerCount: number;
+  createdAt: string;
+}
+
+export interface CreateAlertRequest {
+  name: string;
+  type?: AlertType;
+  keywords: string[];
+  competitors?: string[];
+  frequency?: AlertFrequency;
+  emailNotify?: boolean;
+}
+
+export interface UpdateAlertRequest {
+  name?: string;
+  keywords?: string[];
+  competitors?: string[];
+  frequency?: AlertFrequency;
+  isActive?: boolean;
+  emailNotify?: boolean;
+}
+
+export interface AlertResult {
+  id: string;
+  alertId: string;
+  title: string;
+  summary: string;
+  source: string | null;
+  sourceUrl: string | null;
+  relevanceScore: number | null;
+  matchedKeywords: string[];
+  matchedCompetitor: string | null;
+  isRead: boolean;
+  createdAt: string;
+}
+
 // === API RESPONSE ===
 export interface ApiResponse<T> {
   success: boolean;

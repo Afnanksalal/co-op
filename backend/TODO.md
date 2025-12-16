@@ -75,17 +75,33 @@
   - Query-aware context extraction
   - Document analysis and classification
   - Relevance scoring for RAG chunks
+- [x] Investor database module (full CRUD + admin management)
+- [x] Competitor alerts module (monitoring + results)
 
 
 ---
 
-## 🔄 In Progress
+## ✅ Agent Improvements - COMPLETED
 
-### Agent Improvements
-- [ ] Legal: Jurisdiction selector for region-specific advice
-- [ ] Finance: Built-in financial calculators
-- [ ] Investor: Searchable investor database
-- [ ] Competitor: Real-time competitor monitoring alerts
+- [x] Legal: Jurisdiction selector for region-specific advice
+  - 9 regions (Global, US, EU, UK, India, Canada, APAC, LATAM, MENA)
+  - 25+ jurisdictions (GDPR, CCPA, SEC, HIPAA, etc.)
+- [x] Finance: Built-in financial calculators (Runway, Burn Rate, Valuation, Unit Economics)
+- [x] Investor: Searchable investor database
+  - 20+ real investors (Y Combinator, Sequoia, a16z, First Round, Ribbit, etc.)
+  - Admin management panel with full CRUD
+  - Filter by stage, sector, region
+  - Seed script for initial data
+- [x] Competitor: Real-time competitor monitoring alerts
+  - 3 alerts per user (pilot limit)
+  - Keywords and competitor tracking
+  - Alert results with read/unread status
+  - Email notification support
+  - Split-view UI for alerts and results
+
+---
+
+## 🔄 In Progress
 
 ### Architecture Improvements
 - [ ] Database migrations (currently using db:push)

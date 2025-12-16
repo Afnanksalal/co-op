@@ -94,11 +94,15 @@ function ActivityHeatmap({ activity }: { activity: UserAnalytics['recentActivity
             title={`${day.date}: ${day.sessions} sessions, ${day.messages} messages`}
           >
             <div
-              className="w-full aspect-square rounded-md mb-1 transition-transform group-hover:scale-110"
+              className={`w-full aspect-square rounded-md mb-1 transition-transform group-hover:scale-110 border ${
+                intensity > 0 
+                  ? 'border-primary/20' 
+                  : 'border-border/40'
+              }`}
               style={{
                 backgroundColor: intensity > 0
-                  ? `hsl(var(--primary) / ${0.2 + intensity * 0.8})`
-                  : 'hsl(var(--muted))',
+                  ? `hsl(262 83% 58% / ${0.15 + intensity * 0.6})`
+                  : 'hsl(var(--muted) / 0.5)',
               }}
             />
             <span className="text-[10px] text-muted-foreground">

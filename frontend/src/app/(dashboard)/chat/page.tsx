@@ -362,11 +362,20 @@ export default function ChatPage() {
           
           case 'error': {
             const { error } = event.data;
+            let displayMessage = error || 'Sorry, I encountered an error. Please try again.';
+            
+            // Show specific error message for usage limits
+            if (displayMessage.toLowerCase().includes('limit') || displayMessage.toLowerCase().includes('quota') || displayMessage.toLowerCase().includes('exceeded')) {
+              displayMessage = `You've reached your usage limit. ${displayMessage}`;
+            } else if (displayMessage.toLowerCase().includes('rate')) {
+              displayMessage = 'Too many requests. Please wait a moment and try again.';
+            }
+            
             updateMessage(assistantMessageId, {
-              content: error || 'Sorry, I encountered an error. Please try again.',
+              content: displayMessage,
               isStreaming: false,
             });
-            toast.error(error || 'Failed to get response');
+            toast.error(displayMessage);
             setLoading(false);
             streamCleanupRef.current = null;
             break;
@@ -389,11 +398,23 @@ export default function ChatPage() {
 
     } catch (error) {
       console.error('Failed to get response:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to get response';
+      
+      // Show specific error message for usage limits
+      let displayMessage = 'Sorry, I encountered an error. Please try again.';
+      if (errorMessage.toLowerCase().includes('limit') || errorMessage.toLowerCase().includes('quota') || errorMessage.toLowerCase().includes('exceeded')) {
+        displayMessage = `You've reached your usage limit. ${errorMessage}`;
+      } else if (errorMessage.toLowerCase().includes('rate')) {
+        displayMessage = 'Too many requests. Please wait a moment and try again.';
+      } else if (errorMessage !== 'Failed to get response') {
+        displayMessage = errorMessage;
+      }
+      
       updateMessage(assistantMessageId, {
-        content: 'Sorry, I encountered an error. Please try again.',
+        content: displayMessage,
         isStreaming: false,
       });
-      toast.error('Failed to get response');
+      toast.error(displayMessage);
       setLoading(false);
     }
   };
@@ -448,11 +469,23 @@ export default function ChatPage() {
         }
       } catch (error) {
         console.error('Poll error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Failed to get response';
+        
+        // Show specific error message for usage limits
+        let displayMessage = 'Sorry, I encountered an error. Please try again.';
+        if (errorMessage.toLowerCase().includes('limit') || errorMessage.toLowerCase().includes('quota') || errorMessage.toLowerCase().includes('exceeded')) {
+          displayMessage = `You've reached your usage limit. ${errorMessage}`;
+        } else if (errorMessage.toLowerCase().includes('rate')) {
+          displayMessage = 'Too many requests. Please wait a moment and try again.';
+        } else if (errorMessage !== 'Failed to get response' && errorMessage !== 'Task failed') {
+          displayMessage = errorMessage;
+        }
+        
         updateMessage(assistantMessageId, {
-          content: 'Sorry, I encountered an error. Please try again.',
+          content: displayMessage,
           isStreaming: false,
         });
-        toast.error('Failed to get response');
+        toast.error(displayMessage);
         completed = true;
       }
     }

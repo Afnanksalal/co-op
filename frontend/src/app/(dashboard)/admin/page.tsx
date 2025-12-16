@@ -15,7 +15,9 @@ import {
   MagnifyingGlass,
   Broom,
   Globe,
+  Buildings,
 } from '@phosphor-icons/react';
+import Link from 'next/link';
 import { api } from '@/lib/api/client';
 import { useRequireAdmin } from '@/lib/hooks';
 import type {
@@ -265,9 +267,17 @@ export default function AdminPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="font-serif text-2xl sm:text-3xl font-medium tracking-tight mb-1 sm:mb-2">Admin Dashboard</h1>
-        <p className="text-sm sm:text-base text-muted-foreground">Manage RAG embeddings and MCP servers</p>
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex items-start justify-between">
+        <div>
+          <h1 className="font-serif text-2xl sm:text-3xl font-medium tracking-tight mb-1 sm:mb-2">Admin Dashboard</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">Manage RAG embeddings and MCP servers</p>
+        </div>
+        <Link href="/admin/investors">
+          <Button variant="outline" className="gap-2">
+            <Buildings weight="regular" className="w-4 h-4" />
+            Manage Investors
+          </Button>
+        </Link>
       </motion.div>
 
       <Tabs defaultValue="rag" className="space-y-6">

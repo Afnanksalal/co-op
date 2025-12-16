@@ -48,6 +48,9 @@ Co-Op is an open-source AI advisory platform that provides startup founders with
 | **Bookmarks** | Save and organize AI responses |
 | **Usage Analytics** | Personal usage dashboard |
 | **PWA Support** | Installable with shortcuts |
+| **Financial Tools** | Runway, burn rate, valuation calculators |
+| **Investor Database** | 20+ real investors with admin management |
+| **Competitor Alerts** | Real-time monitoring with email notifications |
 | **Self-Hostable** | Deploy on your own infrastructure |
 
 ---
@@ -321,13 +324,16 @@ See [Backend README](./Backend/README.md) for complete API documentation.
 - [x] Mobile-responsive design
 - [x] PWA improvements (shortcuts, share target)
 
+### Agent Improvements ✓
+- [x] Jurisdiction selector for legal agent (9 regions, 25+ jurisdictions)
+- [x] Built-in financial calculators (Runway, Burn Rate, Valuation, Unit Economics)
+- [x] Searchable investor database (20+ real investors, admin management)
+- [x] Real-time competitor alerts (3 per user, email notifications)
+
 ### Coming Soon
-- [ ] Jurisdiction selector for legal agent
-- [ ] Built-in financial calculators
-- [ ] Searchable investor database
-- [ ] Real-time competitor alerts
 - [ ] Team workspaces
 - [ ] Stripe integration
+- [ ] Slack integration
 
 ---
 

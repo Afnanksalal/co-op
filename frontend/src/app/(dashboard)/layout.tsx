@@ -24,6 +24,9 @@ import {
   List,
   X,
   BookmarkSimple,
+  Calculator,
+  Buildings,
+  Bell,
 } from '@phosphor-icons/react';
 import { useUser, useRequireAuth, useGlobalShortcuts } from '@/lib/hooks';
 import { useUIStore } from '@/lib/store';
@@ -44,6 +47,12 @@ const agents = [
   { name: 'Finance', href: '/agents/finance', icon: ChartLineUp },
   { name: 'Investor', href: '/agents/investor', icon: UsersThree },
   { name: 'Competitor', href: '/agents/competitor', icon: Globe },
+];
+
+const tools = [
+  { name: 'Calculators', href: '/tools/calculators', icon: Calculator },
+  { name: 'Investors', href: '/tools/investors', icon: Buildings },
+  { name: 'Alerts', href: '/tools/alerts', icon: Bell },
 ];
 
 const settings = [
@@ -146,6 +155,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="space-y-1">
           {agents.map((agent) => (
             <NavItem key={agent.name} item={agent} collapsed={collapsed} onClick={onItemClick} />
+          ))}
+        </div>
+      </div>
+
+      {/* Tools */}
+      <div>
+        {!collapsed && (
+          <p className="px-3 mb-3 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+            Tools
+          </p>
+        )}
+        <div className="space-y-1">
+          {tools.map((tool) => (
+            <NavItem key={tool.name} item={tool} collapsed={collapsed} onClick={onItemClick} />
           ))}
         </div>
       </div>

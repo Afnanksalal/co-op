@@ -112,7 +112,25 @@ export function RadialGradient() {
     <div
       className="pointer-events-none fixed inset-0 z-0"
       style={{
-        background: 'radial-gradient(ellipse at top, rgba(139,92,246,0.05) 0%, transparent 50%)',
+        background: `
+          radial-gradient(ellipse at top, rgba(139,92,246,0.05) 0%, transparent 50%),
+          radial-gradient(ellipse at bottom, transparent 60%, rgba(0,0,0,0.15) 100%)
+        `,
+      }}
+    />
+  );
+}
+
+// Light mode vignette effect
+export function LightModeVignette() {
+  return (
+    <div
+      className="pointer-events-none fixed inset-0 z-0 dark:hidden"
+      style={{
+        background: `
+          radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.03) 100%),
+          radial-gradient(ellipse at top, rgba(139,92,246,0.03) 0%, transparent 40%)
+        `,
       }}
     />
   );
@@ -122,6 +140,7 @@ export function PremiumBackground() {
   return (
     <>
       <RadialGradient />
+      <LightModeVignette />
       <GridBackground />
       <GlowOrbs />
       <GrainOverlay />
@@ -133,6 +152,7 @@ export function LandingBackground() {
   return (
     <>
       <RadialGradient />
+      <LightModeVignette />
       <GridBackground />
       <GlowOrbs />
       <FloatingParticles />

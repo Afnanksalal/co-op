@@ -27,13 +27,13 @@
 - [x] Touch-friendly interactions (larger tap targets)
 - [x] PWA improvements (shortcuts, share target)
 
-## Agent Improvements - IN PROGRESS
+## Agent Improvements - COMPLETED ✓
 
 - [x] CLaRA RAG Specialist integration (Apple CLaRa-7B-Instruct)
-- [ ] Legal: Jurisdiction selector for region-specific advice
-- [ ] Finance: Built-in financial calculators
-- [ ] Investor: Searchable investor database
-- [ ] Competitor: Real-time competitor monitoring alerts
+- [x] Legal: Jurisdiction selector for region-specific advice
+- [x] Finance: Built-in financial calculators
+- [x] Investor: Searchable investor database
+- [x] Competitor: Real-time competitor monitoring alerts
 
 ## Low Priority / Future
 
@@ -104,3 +104,26 @@
   - Query-aware context extraction
   - Document analysis and classification
   - Relevance scoring for RAG chunks
+
+### Agent Improvements
+- [x] Legal: Jurisdiction selector (region + specific regulations)
+  - 9 regions (Global, US, EU, UK, India, Canada, APAC, LATAM, MENA)
+  - 25+ jurisdictions (GDPR, CCPA, SEC, HIPAA, etc.)
+- [x] Finance: Built-in financial calculators
+  - Runway Calculator
+  - Burn Rate Calculator
+  - Valuation Calculator
+  - Unit Economics Calculator (LTV, CAC, payback)
+- [x] Investor: Searchable investor database
+  - 20+ real investors (Y Combinator, Sequoia, a16z, etc.)
+  - Filter by stage, sector, region
+  - Admin management panel (/admin/investors)
+  - Bulk import via seed script
+  - Direct links to investor websites/LinkedIn
+- [x] Competitor: Real-time monitoring alerts
+  - 3 alerts per user (pilot limit)
+  - Keywords and competitor tracking
+  - Email notifications
+  - Daily/weekly/realtime frequency
+  - Results viewing with read/unread status
+  - Split-view UI for alerts and results

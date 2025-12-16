@@ -45,6 +45,7 @@ src/
 ├── app/                        # Next.js App Router
 │   ├── (dashboard)/            # Authenticated routes
 │   │   ├── admin/              # Admin panel
+│   │   │   └── investors/      # Investor management
 │   │   ├── agents/[agent]/     # Individual agents
 │   │   ├── analytics/          # Admin analytics
 │   │   ├── bookmarks/          # Saved responses
@@ -52,6 +53,10 @@ src/
 │   │   ├── dashboard/          # Main dashboard
 │   │   ├── developers/         # API documentation
 │   │   ├── sessions/           # Session history
+│   │   ├── tools/              # Startup tools
+│   │   │   ├── calculators/    # Financial calculators
+│   │   │   ├── investors/      # Investor database
+│   │   │   └── alerts/         # Competitor alerts
 │   │   ├── usage/              # Personal analytics
 │   │   └── settings/           # User settings
 │   ├── auth/callback/          # OAuth callback
@@ -124,6 +129,11 @@ Four specialized agents with real-time SSE streaming:
 - Shortcuts (New Chat, Sessions)
 - Share target for text
 
+### Tools
+- **Financial Calculators** - Runway, burn rate, valuation, unit economics
+- **Investor Database** - 20+ real investors, filter by stage/sector/region
+- **Competitor Alerts** - Real-time monitoring with email notifications
+
 ### Settings
 - Profile editing
 - API key management
@@ -133,6 +143,7 @@ Four specialized agents with real-time SSE streaming:
 - RAG document management
 - PDF upload and vectorization
 - Platform analytics
+- **Investor Management** - Add, edit, delete investors
 
 ## Scripts
 

@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2025-12-16
+
+### Added
+- **Investor Database Module** - Full CRUD for investor management
+  - 20+ real investors seeded (Y Combinator, Sequoia, a16z, etc.)
+  - Admin management endpoints with bulk import
+  - Filter by stage, sector, region
+  - Featured investors support
+- **Competitor Alerts Module** - Real-time monitoring system
+  - 3 alerts per user (pilot limit)
+  - Keywords and competitor tracking
+  - Alert results with read/unread status
+  - Email notification support
+  - Daily/weekly/realtime frequency options
+- **Financial Calculators** - Frontend tools page
+  - Runway Calculator
+  - Burn Rate Calculator
+  - Valuation Calculator
+  - Unit Economics Calculator (LTV, CAC, payback)
+- **Legal Jurisdiction Selector** - Region-specific legal advice
+  - 9 regions (Global, US, EU, UK, India, Canada, APAC, LATAM, MENA)
+  - 25+ jurisdictions (GDPR, CCPA, SEC, HIPAA, etc.)
+- Admin investors management page
+- Seed script for initial investor data
+
+### Changed
+- Fixed route order in investors controller (admin/all before :id)
+- Added PATCH endpoints for partial updates
+- Improved alerts page with split-view UI for results
+
 ## [1.1.0] - 2025-12-15
 
 ### Changed
@@ -97,5 +127,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date | Description |
 |---------|------|-------------|
+| 1.2.0 | 2025-12-16 | Investor database, competitor alerts, financial tools |
 | 1.1.0 | 2025-12-15 | LLM model updates, progress tracking |
 | 1.0.0 | 2024-12-13 | Initial release |

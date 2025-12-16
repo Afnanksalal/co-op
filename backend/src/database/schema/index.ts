@@ -10,3 +10,5 @@ export * from './audit-logs.schema';
 export * from './rag-files.schema';
 export * from './bookmarks.schema';
 export * from './documents.schema';
+export * from './alerts.schema';
+export * from './investors.schema';

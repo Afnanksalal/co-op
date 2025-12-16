@@ -52,6 +52,8 @@ src/
     ├── documents/             # Document upload
     ├── analytics/             # User + admin analytics
     ├── users/                 # User management
+    ├── investors/             # Investor database (CRUD + admin)
+    ├── alerts/                # Competitor monitoring alerts
     ├── mcp/                   # MCP protocol server
     └── ...
 ```
@@ -188,6 +190,13 @@ curl -H "X-API-Key: coop_xxxxx" /api/v1/mcp-server/discover
 | GET | `/analytics/me` | READ | Personal analytics |
 | POST | `/bookmarks` | CREATE | Create bookmark |
 | POST | `/documents/upload` | CREATE | Upload document |
+| GET | `/investors` | READ | List investors (public) |
+| GET | `/investors/stats` | READ | Investor statistics |
+| GET | `/investors/admin/all` | READ | All investors (admin) |
+| POST | `/investors` | CREATE | Create investor (admin) |
+| GET | `/alerts` | READ | User's alerts |
+| POST | `/alerts` | CREATE | Create alert |
+| GET | `/alerts/:id/results` | READ | Alert results |
 | GET | `/mcp-server/discover` | READ | List MCP tools |
 | POST | `/mcp-server/execute` | STANDARD | Execute MCP tool |
 | GET | `/health` | - | Health check |

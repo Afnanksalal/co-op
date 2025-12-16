@@ -36,6 +36,8 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { NotionModule } from './modules/notion/notion.module';
 import { BookmarksModule } from './modules/bookmarks/bookmarks.module';
 import { DocumentsModule } from './modules/documents/documents.module';
+import { AlertsModule } from './modules/alerts/alerts.module';
+import { InvestorsModule } from './modules/investors/investors.module';
 
 @Module({
   imports: [
@@ -84,6 +86,8 @@ import { DocumentsModule } from './modules/documents/documents.module';
     NotionModule,
     BookmarksModule,
     DocumentsModule,
+    AlertsModule,
+    InvestorsModule,
   ],
 })
 export class AppModule {}

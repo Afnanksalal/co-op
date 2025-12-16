@@ -624,6 +624,87 @@ class ApiClient {
   async deleteBookmark(id: string): Promise<void> {
     await this.delete(`/bookmarks/${id}`);
   }
+
+  // ============================================
+  // ALERTS ENDPOINTS
+  // ============================================
+
+  async getAlerts(): Promise<import('./types').Alert[]> {
+    return this.get<import('./types').Alert[]>('/alerts');
+  }
+
+  async getAlert(id: string): Promise<import('./types').Alert> {
+    return this.get<import('./types').Alert>(`/alerts/${id}`);
+  }
+
+  async createAlert(data: import('./types').CreateAlertRequest): Promise<import('./types').Alert> {
+    return this.post<import('./types').Alert>('/alerts', data);
+  }
+
+  async updateAlert(id: string, data: import('./types').UpdateAlertRequest): Promise<import('./types').Alert> {
+    return this.patch<import('./types').Alert>(`/alerts/${id}`, data);
+  }
+
+  async deleteAlert(id: string): Promise<void> {
+    await this.delete(`/alerts/${id}`);
+  }
+
+  async getAlertResults(alertId: string, limit?: number): Promise<import('./types').AlertResult[]> {
+    const query = limit ? `?limit=${limit}` : '';
+    return this.get<import('./types').AlertResult[]>(`/alerts/${alertId}/results${query}`);
+  }
+
+  async getUnreadAlertCount(): Promise<{ count: number }> {
+    return this.get<{ count: number }>('/alerts/unread-count');
+  }
+
+  async markAlertResultRead(resultId: string): Promise<void> {
+    await this.patch(`/alerts/results/${resultId}/read`, {});
+  }
+
+  // ============================================
+  // INVESTORS ENDPOINTS
+  // ============================================
+
+  async getInvestors(query?: import('./types').InvestorQuery): Promise<import('./types').Investor[]> {
+    const params = new URLSearchParams();
+    if (query?.stage) params.set('stage', query.stage);
+    if (query?.sector) params.set('sector', query.sector);
+    if (query?.region) params.set('region', query.region);
+    if (query?.search) params.set('search', query.search);
+    if (query?.featuredOnly) params.set('featuredOnly', 'true');
+    const queryStr = params.toString();
+    return this.get<import('./types').Investor[]>(`/investors${queryStr ? `?${queryStr}` : ''}`);
+  }
+
+  async getInvestor(id: string): Promise<import('./types').Investor> {
+    return this.get<import('./types').Investor>(`/investors/${id}`);
+  }
+
+  async getInvestorStats(): Promise<import('./types').InvestorStats> {
+    return this.get<import('./types').InvestorStats>('/investors/stats');
+  }
+
+  // Admin only
+  async getAllInvestorsAdmin(): Promise<import('./types').Investor[]> {
+    return this.get<import('./types').Investor[]>('/investors/admin/all');
+  }
+
+  async createInvestor(data: import('./types').CreateInvestorRequest): Promise<import('./types').Investor> {
+    return this.post<import('./types').Investor>('/investors', data);
+  }
+
+  async updateInvestor(id: string, data: import('./types').UpdateInvestorRequest): Promise<import('./types').Investor> {
+    return this.patch<import('./types').Investor>(`/investors/${id}`, data);
+  }
+
+  async deleteInvestor(id: string): Promise<void> {
+    await this.delete(`/investors/${id}`);
+  }
+
+  async bulkCreateInvestors(data: import('./types').CreateInvestorRequest[]): Promise<{ created: number }> {
+    return this.post<{ created: number }>('/investors/bulk', data);
+  }
 }
 
 export const api = new ApiClient();
