@@ -111,8 +111,21 @@ export default function InvestorsPage() {
         api.getInvestors(query as Parameters<typeof api.getInvestors>[0]),
         api.getInvestorStats(),
       ]);
-      setInvestors(investorsData);
-      setStats(statsData);
+      // Ensure arrays are always arrays (defensive against null/undefined from API)
+      const safeInvestors = (investorsData || []).map((inv) => ({
+        ...inv,
+        sectors: Array.isArray(inv.sectors) ? inv.sectors : [],
+        regions: Array.isArray(inv.regions) ? inv.regions : [],
+        portfolioCompanies: Array.isArray(inv.portfolioCompanies) ? inv.portfolioCompanies : [],
+        notableExits: Array.isArray(inv.notableExits) ? inv.notableExits : [],
+      }));
+      setInvestors(safeInvestors);
+      // Ensure stats arrays are safe
+      setStats(statsData ? {
+        ...statsData,
+        byStage: Array.isArray(statsData.byStage) ? statsData.byStage : [],
+        bySector: Array.isArray(statsData.bySector) ? statsData.bySector : [],
+      } : null);
     } catch (error) {
       console.error('Failed to fetch investors:', error);
       toast.error('Failed to load investors');
@@ -156,7 +169,7 @@ export default function InvestorsPage() {
       </motion.div>
 
       {/* Stats Summary */}
-      {stats && stats.byStage && stats.byStage.length > 0 && (
+      {stats && Array.isArray(stats.byStage) && stats.byStage.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -167,7 +180,7 @@ export default function InvestorsPage() {
             <Card key={s.stage} className="border-border/40">
               <CardContent className="p-3 sm:p-4">
                 <p className="text-xl sm:text-2xl font-serif font-medium">{s.count}</p>
-                <p className="text-[10px] sm:text-xs text-muted-foreground capitalize">{s.stage.replace('-', ' ')}</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground capitalize">{(s.stage || '').replace('-', ' ')}</p>
               </CardContent>
             </Card>
           ))}
@@ -312,23 +325,25 @@ export default function InvestorsPage() {
                         <span>Check: {formatCheckSize(investor.checkSizeMin, investor.checkSizeMax)}</span>
                       </div>
                       
-                      <div className="flex flex-wrap gap-1">
-                        {(investor.sectors || []).slice(0, 4).map((sector) => (
-                          <Badge key={sector} variant="secondary" className="text-[10px] sm:text-xs">
-                            {sector}
-                          </Badge>
-                        ))}
-                        {(investor.sectors || []).length > 4 && (
-                          <Badge variant="secondary" className="text-[10px] sm:text-xs">
-                            +{(investor.sectors || []).length - 4}
-                          </Badge>
-                        )}
-                      </div>
+                      {Array.isArray(investor.sectors) && investor.sectors.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {investor.sectors.slice(0, 4).map((sector) => (
+                            <Badge key={sector} variant="secondary" className="text-[10px] sm:text-xs">
+                              {sector}
+                            </Badge>
+                          ))}
+                          {investor.sectors.length > 4 && (
+                            <Badge variant="secondary" className="text-[10px] sm:text-xs">
+                              +{investor.sectors.length - 4}
+                            </Badge>
+                          )}
+                        </div>
+                      )}
                       
-                      {(investor.portfolioCompanies || []).length > 0 && (
+                      {Array.isArray(investor.portfolioCompanies) && investor.portfolioCompanies.length > 0 && (
                         <p className="text-[10px] sm:text-xs text-muted-foreground mt-2 line-clamp-1">
-                          Portfolio: {(investor.portfolioCompanies || []).slice(0, 3).join(', ')}
-                          {(investor.portfolioCompanies || []).length > 3 && ` +${(investor.portfolioCompanies || []).length - 3}`}
+                          Portfolio: {investor.portfolioCompanies.slice(0, 3).join(', ')}
+                          {investor.portfolioCompanies.length > 3 && ` +${investor.portfolioCompanies.length - 3}`}
                         </p>
                       )}
                     </div>

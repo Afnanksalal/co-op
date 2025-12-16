@@ -92,6 +92,12 @@ const NotionLogoIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
+const PaperclipIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" className={className} width="16" height="16" fill="currentColor" viewBox="0 0 256 256">
+    <path d="M209.66,122.34a8,8,0,0,1,0,11.32l-82.05,82a56,56,0,0,1-79.2-79.21L147.67,35.73a40,40,0,1,1,56.61,56.55L105,193A24,24,0,1,1,71,159L154.3,74.38A8,8,0,1,1,165.7,85.6L82.39,170.31a8,8,0,1,0,11.27,11.36L192.93,81a24,24,0,1,0-33.94-34L59.73,148a40,40,0,0,0,56.53,56.62l82.06-82A8,8,0,0,1,209.66,122.34Z"/>
+  </svg>
+);
+
 // Jurisdiction options for Legal agent
 const REGION_OPTIONS: { value: RagRegion; label: string }[] = [
   { value: 'global', label: 'Global (General)' },
@@ -215,10 +221,41 @@ export default function AgentPage() {
   const [selectedRegion, setSelectedRegion] = useState<RagRegion>('global');
   const [selectedJurisdiction, setSelectedJurisdiction] = useState<RagJurisdiction>('general');
   
+  // File upload state
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  
   // Filter jurisdictions based on selected region
   const filteredJurisdictions = JURISDICTION_OPTIONS.filter(
     (j) => !j.region || j.region === selectedRegion || selectedRegion === 'global'
   );
+
+  const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    
+    const file = files[0];
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    const allowedTypes = ['application/pdf', 'text/plain', 'text/markdown', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    
+    if (file.size > maxSize) {
+      toast.error('File too large (max 10MB)');
+      return;
+    }
+    
+    if (!allowedTypes.includes(file.type) && !file.name.endsWith('.md')) {
+      toast.error('Unsupported file type');
+      return;
+    }
+    
+    setUploadedFiles((prev) => [...prev, file]);
+    toast.success(`Added: ${file.name}`);
+    e.target.value = '';
+  }, []);
+
+  const removeFile = useCallback((index: number) => {
+    setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
+  }, []);
 
   const config = agentConfig[agentType];
   const finalResult = results?.find((r) => r.phase === 'final');
@@ -366,14 +403,14 @@ export default function AgentPage() {
           </div>
         </div>
         
-        {/* Jurisdiction Selector for Legal Agent */}
+        {/* Jurisdiction Selector for Legal Agent - inline single row */}
         {config.hasJurisdiction && (
-          <div className="flex flex-wrap gap-2 ml-10 sm:ml-14">
+          <div className="flex items-center gap-2 ml-10 sm:ml-14">
             <Select value={selectedRegion} onValueChange={(v) => {
               setSelectedRegion(v as RagRegion);
               setSelectedJurisdiction('general');
             }}>
-              <SelectTrigger className="w-[140px] sm:w-[160px] h-8 text-xs">
+              <SelectTrigger className="w-[120px] sm:w-[140px] h-8 text-xs">
                 <SelectValue placeholder="Region" />
               </SelectTrigger>
               <SelectContent>
@@ -385,7 +422,7 @@ export default function AgentPage() {
               </SelectContent>
             </Select>
             <Select value={selectedJurisdiction} onValueChange={(v) => setSelectedJurisdiction(v as RagJurisdiction)}>
-              <SelectTrigger className="w-[160px] sm:w-[200px] h-8 text-xs">
+              <SelectTrigger className="w-[140px] sm:w-[180px] h-8 text-xs">
                 <SelectValue placeholder="Jurisdiction" />
               </SelectTrigger>
               <SelectContent>
@@ -551,35 +588,61 @@ export default function AgentPage() {
         )}
       </div>
 
-      {/* Input - fixed at bottom */}
-      <div className="pt-3 sm:pt-4 border-t border-border/40 shrink-0">
+      {/* Input - fixed at bottom with padding */}
+      <div className="pt-3 sm:pt-4 pb-3 sm:pb-4 border-t border-border/40 shrink-0">
         <form onSubmit={handleSubmit}>
-          <div className="relative">
-            <Textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                  e.preventDefault();
-                  void handleSubmit(e);
-                }
-              }}
-              placeholder={`Ask ${config.name.toLowerCase()} anything...`}
-              className="min-h-[48px] sm:min-h-[56px] max-h-[120px] sm:max-h-[150px] pr-12 sm:pr-14 resize-none text-sm"
-              disabled={isLoading}
-            />
-            <Button
-              type="submit"
-              size="icon"
-              className="absolute right-2 bottom-2 h-8 w-8 sm:h-9 sm:w-9"
-              disabled={!prompt.trim() || isLoading}
-            >
-              {isLoading ? (
-                <CircleNotchIcon className="w-4 h-4 animate-spin" />
-              ) : (
-                <PaperPlaneTiltIcon className="w-4 h-4" />
-              )}
-            </Button>
+          {/* Uploaded files preview */}
+          {uploadedFiles.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-2">
+              {uploadedFiles.map((file, i) => (
+                <Badge key={i} variant="secondary" className="text-xs gap-1">
+                  {file.name.length > 20 ? `${file.name.slice(0, 20)}...` : file.name}
+                  <button type="button" onClick={() => removeFile(i)} className="ml-1 hover:text-destructive">×</button>
+                </Badge>
+              ))}
+            </div>
+          )}
+          <div className="relative flex items-end gap-2">
+            {/* File upload button */}
+            <label className="cursor-pointer shrink-0">
+              <input
+                type="file"
+                className="hidden"
+                accept=".pdf,.txt,.md,.doc,.docx"
+                onChange={handleFileUpload}
+                disabled={isLoading || isUploading}
+              />
+              <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground flex items-center justify-center transition-colors">
+                <PaperclipIcon className="w-4 h-4 text-muted-foreground" />
+              </div>
+            </label>
+            <div className="relative flex-1">
+              <Textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault();
+                    void handleSubmit(e);
+                  }
+                }}
+                placeholder={`Ask ${config.name.toLowerCase()} anything...`}
+                className="min-h-[48px] sm:min-h-[56px] max-h-[120px] sm:max-h-[150px] pr-12 sm:pr-14 resize-none text-sm"
+                disabled={isLoading}
+              />
+              <Button
+                type="submit"
+                size="icon"
+                className="absolute right-2 bottom-2 h-8 w-8 sm:h-9 sm:w-9"
+                disabled={!prompt.trim() || isLoading}
+              >
+                {isLoading ? (
+                  <CircleNotchIcon className="w-4 h-4 animate-spin" />
+                ) : (
+                  <PaperPlaneTiltIcon className="w-4 h-4" />
+                )}
+              </Button>
+            </div>
           </div>
           <p className="text-[10px] sm:text-xs text-muted-foreground mt-2 text-center hidden sm:block">
             Press Ctrl+Enter to send

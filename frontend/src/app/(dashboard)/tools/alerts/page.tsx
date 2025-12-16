@@ -99,7 +99,13 @@ export default function AlertsPage() {
   const fetchAlerts = useCallback(async () => {
     try {
       const data = await api.getAlerts();
-      setAlerts(data);
+      // Ensure arrays are always arrays (defensive against null/undefined from API)
+      const safeAlerts = (data || []).map((alert) => ({
+        ...alert,
+        keywords: Array.isArray(alert.keywords) ? alert.keywords : [],
+        competitors: Array.isArray(alert.competitors) ? alert.competitors : [],
+      }));
+      setAlerts(safeAlerts);
     } catch {
       toast.error('Failed to load alerts');
     } finally {
@@ -116,7 +122,12 @@ export default function AlertsPage() {
     setIsLoadingResults(true);
     try {
       const results = await api.getAlertResults(alert.id);
-      setAlertResults(results);
+      // Ensure arrays are always arrays
+      const safeResults = (results || []).map((r) => ({
+        ...r,
+        matchedKeywords: Array.isArray(r.matchedKeywords) ? r.matchedKeywords : [],
+      }));
+      setAlertResults(safeResults);
     } catch {
       toast.error('Failed to load results');
     } finally {
