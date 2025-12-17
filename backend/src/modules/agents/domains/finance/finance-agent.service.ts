@@ -190,7 +190,9 @@ export class FinanceAgentService implements BaseAgent {
       if (fundingStage) context += `\nFunding: ${fundingStage}`;
       if (totalRaised !== null) context += `, Raised: ${String(totalRaised)}`;
       if (monthlyRevenue !== null) context += `\nMRR: ${String(monthlyRevenue)}`;
-      if (country) context += `\n\nNote: Consider ${country}-specific financial regulations.`;
+      if (country) {
+        context += `\n\nIMPORTANT: This startup is based in ${country}. Use ${country}'s local currency for all monetary values (not USD unless the user is from the US). Consider ${country}-specific financial regulations.`;
+      }
       parts.push(context);
     }
 

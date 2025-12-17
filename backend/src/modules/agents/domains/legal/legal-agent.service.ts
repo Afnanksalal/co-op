@@ -220,7 +220,7 @@ export class LegalAgentService implements BaseAgent {
       context += ')';
       
       if (country) {
-        context += `\n\nIMPORTANT: This startup is based in ${country}. Please prioritize ${country}-specific laws and regulations in your response.`;
+        context += `\n\nIMPORTANT: This startup is based in ${country}. Prioritize ${country}-specific laws and regulations. Use ${country}'s local currency for any monetary values (not USD unless the user is from the US).`;
       }
       
       parts.push(context);

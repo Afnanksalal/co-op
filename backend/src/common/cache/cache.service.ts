@@ -138,4 +138,91 @@ export class CacheService {
   private buildKey(key: string, prefix?: string): string {
     return `${prefix ?? this.defaultPrefix}${key}`;
   }
+
+  /**
+   * Get multiple cached values at once (batch operation)
+   */
+  async mget<T>(keys: string[], prefix?: string): Promise<(T | null)[]> {
+    if (keys.length === 0) return [];
+    const fullKeys = keys.map(k => this.buildKey(k, prefix));
+    return this.redis.mget<T>(fullKeys);
+  }
+
+  /**
+   * Set multiple cached values at once (batch operation)
+   */
+  async mset(entries: { key: string; value: unknown; ttl: number }[], prefix?: string): Promise<void> {
+    if (entries.length === 0) return;
+    const redisEntries = entries.map(e => ({
+      key: this.buildKey(e.key, prefix),
+      value: e.value,
+      ttl: e.ttl,
+    }));
+    await this.redis.mset(redisEntries);
+    this.logger.debug(`Cache batch set: ${entries.length} keys`);
+  }
+
+  /**
+   * Invalidate multiple keys at once
+   */
+  async invalidateMany(keys: string[], prefix?: string): Promise<void> {
+    if (keys.length === 0) return;
+    await Promise.all(keys.map(k => this.invalidate(k, prefix)));
+    this.logger.debug(`Cache batch invalidated: ${keys.length} keys`);
+  }
+
+  /**
+   * Get or set multiple values (batch operation)
+   * Returns results in same order as keys
+   */
+  async mgetOrSet<T>(
+    keys: string[],
+    factory: (missingKeys: string[]) => Promise<Map<string, T>>,
+    options: CacheOptions,
+  ): Promise<(T | null)[]> {
+    if (keys.length === 0) return [];
+
+    // Get all from cache
+    const cached = await this.mget<T>(keys, options.prefix);
+    
+    // Find missing keys
+    const missingKeys: string[] = [];
+    const missingIndices: number[] = [];
+    cached.forEach((value, index) => {
+      if (value === null) {
+        missingKeys.push(keys[index]);
+        missingIndices.push(index);
+      }
+    });
+
+    // If all cached, return immediately
+    if (missingKeys.length === 0) {
+      this.logger.debug(`Cache batch hit: all ${keys.length} keys`);
+      return cached;
+    }
+
+    this.logger.debug(`Cache batch: ${keys.length - missingKeys.length} hits, ${missingKeys.length} misses`);
+
+    // Fetch missing values
+    const fetched = await factory(missingKeys);
+
+    // Cache the fetched values
+    const toCache: { key: string; value: unknown; ttl: number }[] = [];
+    for (const [key, value] of fetched) {
+      toCache.push({ key, value, ttl: options.ttl });
+    }
+    if (toCache.length > 0) {
+      await this.mset(toCache, options.prefix);
+    }
+
+    // Merge results
+    const results = [...cached];
+    for (let i = 0; i < missingKeys.length; i++) {
+      const key = missingKeys[i];
+      const index = missingIndices[i];
+      results[index] = fetched.get(key) ?? null;
+    }
+
+    return results;
+  }
 }

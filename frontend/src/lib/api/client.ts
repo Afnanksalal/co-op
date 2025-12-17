@@ -45,9 +45,26 @@ class ApiError extends Error {
   }
 }
 
+// In-flight request deduplication to prevent duplicate API calls
+const inflightRequests = new Map<string, Promise<unknown>>();
+
+// Simple in-memory cache for GET requests (5 second TTL)
+const responseCache = new Map<string, { data: unknown; timestamp: number }>();
+const CACHE_TTL = 5000; // 5 seconds
+
 class ApiClient {
   private readonly maxRetries = 3;
   private readonly retryDelay = 1000; // 1 second base delay
+  
+  // Cacheable GET endpoints (short-lived cache for rapid re-renders)
+  private readonly cacheableEndpoints = [
+    '/users/me',
+    '/sessions',
+    '/bookmarks',
+    '/alerts',
+    '/api-keys',
+    '/webhooks',
+  ];
 
   private async getHeaders(): Promise<HeadersInit> {
     const supabase = createClient();
@@ -68,7 +85,59 @@ class ApiClient {
     return status === 0 || status === 429 || (status >= 500 && status < 600);
   }
 
+  private isCacheable(endpoint: string): boolean {
+    return this.cacheableEndpoints.some(e => endpoint.startsWith(e));
+  }
+
+  private getCacheKey(method: string, endpoint: string, body?: unknown): string {
+    return `${method}:${endpoint}:${body ? JSON.stringify(body) : ''}`;
+  }
+
   private async request<T>(
+    method: string,
+    endpoint: string,
+    body?: unknown,
+    customHeaders?: HeadersInit
+  ): Promise<T> {
+    const cacheKey = this.getCacheKey(method, endpoint, body);
+    
+    // Check cache for GET requests
+    if (method === 'GET' && this.isCacheable(endpoint)) {
+      const cached = responseCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+        return cached.data as T;
+      }
+    }
+    
+    // Deduplicate in-flight requests (same request made multiple times)
+    if (method === 'GET') {
+      const inflight = inflightRequests.get(cacheKey);
+      if (inflight) {
+        return inflight as Promise<T>;
+      }
+    }
+    
+    const requestPromise = this.executeRequest<T>(method, endpoint, body, customHeaders);
+    
+    // Track in-flight GET requests
+    if (method === 'GET') {
+      inflightRequests.set(cacheKey, requestPromise);
+      requestPromise.finally(() => {
+        inflightRequests.delete(cacheKey);
+      });
+    }
+    
+    const result = await requestPromise;
+    
+    // Cache successful GET responses
+    if (method === 'GET' && this.isCacheable(endpoint)) {
+      responseCache.set(cacheKey, { data: result, timestamp: Date.now() });
+    }
+    
+    return result;
+  }
+
+  private async executeRequest<T>(
     method: string,
     endpoint: string,
     body?: unknown,
@@ -816,3 +885,28 @@ class ApiClient {
 
 export const api = new ApiClient();
 export { ApiError };
+
+// Cache invalidation helpers
+export function invalidateCache(endpoint?: string): void {
+  if (endpoint) {
+    // Invalidate specific endpoint
+    const keysToDelete: string[] = [];
+    responseCache.forEach((_, key) => {
+      if (key.includes(endpoint)) {
+        keysToDelete.push(key);
+      }
+    });
+    keysToDelete.forEach(key => responseCache.delete(key));
+  } else {
+    // Clear all cache
+    responseCache.clear();
+  }
+}
+
+export function invalidateUserCache(): void {
+  invalidateCache('/users/me');
+}
+
+export function invalidateSessionsCache(): void {
+  invalidateCache('/sessions');
+}

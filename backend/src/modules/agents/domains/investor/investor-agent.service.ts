@@ -149,7 +149,12 @@ export class InvestorAgentService implements BaseAgent {
 
     // Startup context
     if (Object.keys(input.context.metadata).length > 0) {
-      parts.push(`\n\nStartup Context: ${JSON.stringify(input.context.metadata)}`);
+      const country = this.extractFromMetadata(input, 'country', '');
+      let contextStr = `\n\nStartup Context: ${JSON.stringify(input.context.metadata)}`;
+      if (country) {
+        contextStr += `\n\nIMPORTANT: This startup is based in ${country}. Use ${country}'s local currency for all monetary values (not USD unless the user is from the US).`;
+      }
+      parts.push(contextStr);
     }
 
     return parts.join('\n');

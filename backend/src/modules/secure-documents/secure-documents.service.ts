@@ -438,20 +438,22 @@ export class SecureDocumentsService {
       return file.buffer.toString('utf-8');
     }
 
-    // For PDF - use pdf-parse library, fallback to OCR
+    // For PDF - use pdf-parse library, fallback to OCR for scanned PDFs
     if (file.mimetype === 'application/pdf' || ext === 'pdf') {
       try {
+        // pdf-parse default export
         // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const pdfParse = require('pdf-parse');
+        const pdfParse = require('pdf-parse/lib/pdf-parse');
         const data = await pdfParse(file.buffer);
-        if (data.text && data.text.trim().length > 100) {
+        if (data.text && data.text.trim().length > 50) {
           this.logger.log(`PDF extracted: ${file.originalname} (${data.numpages} pages, ${data.text.length} chars)`);
           return data.text;
         }
-        // Text extraction returned little/no content - try OCR
-        this.logger.warn(`PDF text extraction returned minimal content, trying OCR: ${file.originalname}`);
+        // PDF has no extractable text - try OCR
+        this.logger.warn(`PDF has minimal text, trying OCR: ${file.originalname}`);
         return this.extractTextWithOcr(file.buffer, file.originalname);
       } catch (error) {
+        if (error instanceof BadRequestException) throw error;
         this.logger.warn(`PDF parse failed, trying OCR: ${file.originalname}`, error);
         return this.extractTextWithOcr(file.buffer, file.originalname);
       }
@@ -468,56 +470,71 @@ export class SecureDocumentsService {
           return result.value;
         }
         this.logger.warn(`Word extraction returned empty text: ${file.originalname}`);
-        return `[Word: ${file.originalname} - Could not extract text]`;
+        throw new BadRequestException(`Could not extract text from "${file.originalname}". The document may be empty.`);
       } catch (error) {
+        if (error instanceof BadRequestException) throw error;
         this.logger.error(`Word extraction failed for ${file.originalname}`, error);
-        return `[Word: ${file.originalname} - Text extraction failed]`;
+        throw new BadRequestException(`Failed to process "${file.originalname}". The file may be corrupted.`);
       }
     }
 
-    return `[Document: ${file.originalname} - Unsupported format for text extraction]`;
+    throw new BadRequestException(`Unsupported file format: ${file.originalname}`);
   }
 
   /**
    * Extract text from image-based PDFs using Tesseract OCR.
-   * Converts PDF pages to images, then runs OCR on each.
+   * Uses pdfjs-dist to render pages to canvas, then OCR.
    */
   private async extractTextWithOcr(pdfBuffer: Buffer, filename: string): Promise<string> {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const Tesseract = require('tesseract.js');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { createCanvas } = require('canvas');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.mjs');
+
+    this.logger.log(`Starting OCR for: ${filename}`);
+
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { pdfToPng } = require('pdf-to-png-converter');
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const Tesseract = require('tesseract.js');
+      // Load PDF document
+      const loadingTask = pdfjsLib.getDocument({ data: pdfBuffer });
+      const pdfDoc = await loadingTask.promise;
+      const numPages = pdfDoc.numPages;
 
-      this.logger.log(`Starting OCR for: ${filename}`);
+      this.logger.log(`PDF has ${numPages} pages, rendering for OCR...`);
 
-      // Convert PDF pages to PNG images
-      const pngPages = await pdfToPng(pdfBuffer, {
-        disableFontFace: true,
-        useSystemFonts: true,
-        viewportScale: 2.0, // Higher resolution for better OCR
-      });
-
-      if (!pngPages || pngPages.length === 0) {
-        this.logger.warn(`No pages extracted from PDF: ${filename}`);
-        throw new Error('No pages extracted');
-      }
-
-      this.logger.log(`Converted ${pngPages.length} pages to images, running OCR...`);
-
-      // Run OCR on each page
       const textParts: string[] = [];
-      for (let i = 0; i < pngPages.length; i++) {
-        const page = pngPages[i];
+      const scale = 2.0; // Higher scale = better OCR accuracy
+
+      for (let pageNum = 1; pageNum <= Math.min(numPages, 20); pageNum++) { // Limit to 20 pages
         try {
-          const result = await Tesseract.recognize(page.content, 'eng', {
+          const page = await pdfDoc.getPage(pageNum);
+          const viewport = page.getViewport({ scale });
+
+          // Create canvas
+          const canvas = createCanvas(viewport.width, viewport.height);
+          const context = canvas.getContext('2d');
+
+          // Render PDF page to canvas
+          await page.render({
+            canvasContext: context,
+            viewport: viewport,
+          }).promise;
+
+          // Convert canvas to PNG buffer
+          const pngBuffer = canvas.toBuffer('image/png');
+
+          // Run OCR on the image
+          const result = await Tesseract.recognize(pngBuffer, 'eng', {
             logger: () => {}, // Suppress progress logs
           });
-          if (result.data.text && result.data.text.trim().length > 0) {
+
+          if (result.data.text && result.data.text.trim().length > 10) {
             textParts.push(result.data.text.trim());
+            this.logger.debug(`OCR page ${pageNum}: ${result.data.text.length} chars`);
           }
         } catch (pageError) {
-          this.logger.warn(`OCR failed for page ${i + 1} of ${filename}`, pageError);
+          this.logger.warn(`OCR failed for page ${pageNum} of ${filename}`, pageError);
         }
       }
 
@@ -527,12 +544,13 @@ export class SecureDocumentsService {
       }
 
       const fullText = textParts.join('\n\n');
-      this.logger.log(`OCR completed: ${filename} (${pngPages.length} pages, ${fullText.length} chars)`);
+      this.logger.log(`OCR completed: ${filename} (${numPages} pages, ${fullText.length} chars)`);
       return fullText;
     } catch (error) {
       this.logger.error(`OCR extraction failed for ${filename}`, error);
-      // Return a descriptive message instead of failing - user can still see the doc was uploaded
-      return `[PDF: ${filename} - This appears to be a scanned/image-based PDF. Text extraction via OCR failed. Please try uploading a text-based PDF or a different document format.]`;
+      throw new BadRequestException(
+        `Could not extract text from "${filename}". The PDF may be corrupted or contain only images that cannot be processed.`
+      );
     }
   }
 
