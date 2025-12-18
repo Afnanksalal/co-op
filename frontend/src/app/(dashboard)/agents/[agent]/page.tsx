@@ -236,15 +236,16 @@ export default function AgentPage() {
     
     const file = files[0];
     const maxSize = 10 * 1024 * 1024; // 10MB
-    const allowedTypes = ['application/pdf', 'text/plain', 'text/markdown', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
     
     if (file.size > maxSize) {
       toast.error('File too large (max 10MB)');
       return;
     }
     
-    if (!allowedTypes.includes(file.type) && !file.name.endsWith('.md')) {
-      toast.error('Unsupported file type');
+    // Only PDF files are supported
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (file.type !== 'application/pdf' && ext !== 'pdf') {
+      toast.error('Only PDF files are supported');
       return;
     }
     
@@ -630,7 +631,7 @@ export default function AgentPage() {
               <input
                 type="file"
                 className="hidden"
-                accept=".pdf,.txt,.md,.doc,.docx"
+                accept=".pdf,application/pdf"
                 onChange={handleFileUpload}
                 disabled={isLoading || isUploading}
               />

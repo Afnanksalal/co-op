@@ -26,10 +26,7 @@ import {
   DownloadSimple,
   Paperclip,
 
-  X,
   FilePdf,
-  FileDoc,
-  FileText,
 } from '@phosphor-icons/react';
 import { api } from '@/lib/api/client';
 import { useUser } from '@/lib/hooks';
@@ -652,24 +649,16 @@ export default function ChatPage() {
 
     const file = files[0];
     const maxSize = 10 * 1024 * 1024; // 10MB
-    // Secure documents only support text-extractable formats
-    const allowedTypes = [
-      'application/pdf',
-      'text/plain',
-      'text/markdown',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    ];
-    const allowedExtensions = ['.pdf', '.doc', '.docx', '.txt', '.md'];
 
     if (file.size > maxSize) {
       toast.error('File too large. Maximum size is 10MB.');
       return;
     }
 
-    const ext = '.' + file.name.split('.').pop()?.toLowerCase();
-    if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(ext)) {
-      toast.error('Unsupported file type. Please upload PDF, DOC, DOCX, TXT, or MD files.');
+    // Only PDF files are supported
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (file.type !== 'application/pdf' && ext !== 'pdf') {
+      toast.error('Only PDF files are supported');
       return;
     }
 
@@ -702,11 +691,7 @@ export default function ChatPage() {
     }
   };
 
-  const getDocIcon = (mimeType: string) => {
-    if (mimeType === 'application/pdf') return FilePdf;
-    if (mimeType.includes('word') || mimeType.includes('document')) return FileDoc;
-    return FileText;
-  };
+  const getDocIcon = () => FilePdf;
 
   // Load session documents when continuing an existing session
   // Don't overwrite local docs if we just created a new session (docs uploaded before session creation)
@@ -1209,7 +1194,7 @@ export default function ChatPage() {
         {uploadedDocs.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-2">
             {uploadedDocs.map((doc) => {
-              const DocIcon = getDocIcon(doc.mimeType);
+              const DocIcon = getDocIcon();
               const isProcessing = doc.status === 'processing';
               return (
                 <Badge 
@@ -1243,7 +1228,7 @@ export default function ChatPage() {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".pdf,.doc,.docx,.txt,.md"
+              accept=".pdf,application/pdf"
               onChange={handleFileChange}
               className="hidden"
             />

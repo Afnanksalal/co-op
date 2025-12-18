@@ -6,12 +6,9 @@
 # Build stage
 FROM node:22-alpine AS builder
 
-# Install build dependencies for canvas (node-canvas)
-RUN apk add --no-cache python3 make g++ pkgconfig pixman-dev cairo-dev pango-dev libjpeg-turbo-dev giflib-dev
-
 WORKDIR /app
 
-# Install dependencies (canvas needs native build)
+# Install dependencies
 COPY package*.json ./
 RUN npm ci
 
@@ -31,16 +28,6 @@ RUN npm prune --production
 # Production stage
 # ===========================================
 FROM node:22-alpine AS production
-
-# Install runtime dependencies for canvas and Tesseract OCR
-RUN apk add --no-cache \
-    tesseract-ocr \
-    tesseract-ocr-data-eng \
-    cairo \
-    pango \
-    libjpeg-turbo \
-    giflib \
-    pixman
 
 # Security: run as non-root
 RUN addgroup -g 1001 -S nodejs && \
