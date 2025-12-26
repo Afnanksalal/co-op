@@ -12,6 +12,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import type { SecureDocument } from '@/lib/api/types';
 
@@ -26,6 +37,9 @@ export default function SettingsPage() {
   const [documents, setDocuments] = useState<SecureDocument[]>([]);
   const [isLoadingDocs, setIsLoadingDocs] = useState(true);
   const [isPurging, setIsPurging] = useState(false);
+
+  const [documentToDelete, setDocumentToDelete] = useState<string | null>(null);
+  const [showPurgeDialog, setShowPurgeDialog] = useState(false);
 
   const loadDocuments = useCallback(async () => {
     try {
@@ -42,7 +56,6 @@ export default function SettingsPage() {
   }, [loadDocuments]);
 
   const handleDeleteDocument = async (id: string) => {
-    if (!confirm('Delete this document? This cannot be undone.')) return;
     try {
       await api.deleteSecureDocument(id);
       setDocuments(prev => prev.filter(d => d.id !== id));
@@ -50,12 +63,10 @@ export default function SettingsPage() {
     } catch {
       toast.error('Failed to delete document');
     }
+    setDocumentToDelete(null);
   };
 
   const handlePurgeAll = async () => {
-    if (!confirm('Delete ALL your documents? This cannot be undone.')) return;
-    if (!confirm('Are you absolutely sure? All encrypted data will be permanently deleted.')) return;
-    
     setIsPurging(true);
     try {
       const result = await api.purgeAllDocuments();
@@ -65,6 +76,7 @@ export default function SettingsPage() {
       toast.error('Failed to purge documents');
     }
     setIsPurging(false);
+    setShowPurgeDialog(false);
   };
 
   const handleSaveName = async () => {
@@ -351,14 +363,35 @@ export default function SettingsPage() {
                           </p>
                         </div>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-destructive hover:text-destructive shrink-0"
-                        onClick={() => handleDeleteDocument(doc.id)}
-                      >
-                        <Trash weight="regular" className="w-3.5 h-3.5" />
-                      </Button>
+                      <AlertDialog open={documentToDelete === doc.id} onOpenChange={(open) => !open && setDocumentToDelete(null)}>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-destructive hover:text-destructive shrink-0"
+                            onClick={() => setDocumentToDelete(doc.id)}
+                          >
+                            <Trash weight="regular" className="w-3.5 h-3.5" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Document</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to delete &quot;{doc.originalName}&quot;? This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDeleteDocument(doc.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   ))}
                 </div>
@@ -375,15 +408,35 @@ export default function SettingsPage() {
                   Permanently delete all your encrypted documents
                 </p>
               </div>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handlePurgeAll}
-                disabled={isPurging || documents.length === 0}
-                className="h-8 text-xs"
-              >
-                {isPurging ? 'Deleting...' : 'Purge All'}
-              </Button>
+              <AlertDialog open={showPurgeDialog} onOpenChange={setShowPurgeDialog}>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={isPurging || documents.length === 0}
+                    className="h-8 text-xs"
+                  >
+                    {isPurging ? 'Deleting...' : 'Purge All'}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete All Documents</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete all {documents.length} encrypted documents and their data. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handlePurgeAll}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      {isPurging ? 'Deleting...' : 'Delete All'}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </CardContent>
         </Card>

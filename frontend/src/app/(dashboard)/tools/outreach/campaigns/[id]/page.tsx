@@ -8,6 +8,17 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
@@ -91,8 +102,6 @@ export default function CampaignDetailPage() {
   };
 
   const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete this campaign?')) return;
-
     setIsDeleting(true);
     try {
       await api.deleteCampaign(campaignId);
@@ -170,15 +179,35 @@ export default function CampaignDetailPage() {
               )}
             </Button>
           )}
-          <Button 
-            variant="outline" 
-            size="icon"
-            onClick={handleDelete}
-            disabled={isDeleting}
-            className="text-muted-foreground hover:text-destructive"
-          >
-            <TrashIcon />
-          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button 
+                variant="outline" 
+                size="icon"
+                disabled={isDeleting}
+                className="text-muted-foreground hover:text-destructive"
+              >
+                <TrashIcon />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Campaign</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to delete &quot;{campaign.name}&quot;? This will also delete all generated emails. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDelete}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {isDeleting ? 'Deleting...' : 'Delete'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </motion.div>
 

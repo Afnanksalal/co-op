@@ -44,6 +44,17 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { formatRelativeTime } from '@/lib/utils';
@@ -216,7 +227,6 @@ export default function AdminPage() {
   };
 
   const handleDeleteEmbedding = async (id: string) => {
-    if (!confirm('Delete this embedding?')) return;
     try {
       await api.deleteEmbedding(id);
       toast.success('Embedding deleted');
@@ -228,7 +238,6 @@ export default function AdminPage() {
   };
 
   const handleCleanup = async () => {
-    if (!confirm('Clean up old embeddings?')) return;
     try {
       const result = await api.cleanupEmbeddings(30);
       toast.success(`Cleaned ${result.filesCleaned} files`);
@@ -271,7 +280,6 @@ export default function AdminPage() {
   };
 
   const handleUnregisterMcp = async (id: string) => {
-    if (!confirm('Unregister this server?')) return;
     try {
       await api.unregisterMcpServer(id);
       toast.success('Server unregistered');
@@ -389,7 +397,6 @@ export default function AdminPage() {
   };
 
   const handleDeleteInvestor = async (id: string) => {
-    if (!confirm('Delete this investor?')) return;
     try {
       await api.deleteInvestor(id);
       setInvestors((prev) => prev.filter((i) => i.id !== id));
@@ -488,9 +495,27 @@ export default function AdminPage() {
               </Select>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={handleCleanup} size="sm" className="h-8 sm:h-9 text-xs sm:text-sm">
-                <Broom weight="regular" className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8 sm:h-9 text-xs sm:text-sm">
+                    <Broom weight="regular" className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Cleanup Old Embeddings</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will remove embeddings older than 30 days that haven&apos;t been accessed recently.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleCleanup}>
+                      Cleanup
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
               <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
                 <DialogTrigger asChild>
                   <Button size="sm" className="h-8 sm:h-9 text-xs sm:text-sm">
@@ -617,9 +642,27 @@ export default function AdminPage() {
                             <Lightning weight="bold" className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                           </Button>
                         )}
-                        <Button variant="ghost" size="icon" onClick={() => handleDeleteEmbedding(emb.id)} className="h-7 w-7 sm:h-8 sm:w-8 text-destructive hover:text-destructive">
-                          <Trash weight="regular" className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8 text-destructive hover:text-destructive">
+                              <Trash weight="regular" className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Embedding</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Delete &quot;{emb.filename}&quot;? This will remove all vectorized chunks.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDeleteEmbedding(emb.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </div>
                   </CardContent>
@@ -697,9 +740,27 @@ export default function AdminPage() {
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
                           <Badge variant={server.enabled ? 'default' : 'secondary'} className="text-[9px] sm:text-[10px]">{server.enabled ? 'On' : 'Off'}</Badge>
-                          <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleUnregisterMcp(server.id); }} className="h-7 w-7 text-destructive hover:text-destructive">
-                            <Trash weight="regular" className="w-3.5 h-3.5" />
-                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="icon" onClick={(e) => e.stopPropagation()} className="h-7 w-7 text-destructive hover:text-destructive">
+                                <Trash weight="regular" className="w-3.5 h-3.5" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Unregister Server</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Unregister &quot;{server.name}&quot;? You can re-register it later.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleUnregisterMcp(server.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                  Unregister
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         </div>
                       </div>
                     </CardContent>
@@ -794,9 +855,27 @@ export default function AdminPage() {
                         <Button variant="ghost" size="icon" onClick={() => openEditInvestor(investor)} className="h-7 w-7">
                           <PencilSimple weight="regular" className="w-3.5 h-3.5" />
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDeleteInvestor(investor.id)} className="h-7 w-7 text-destructive hover:text-destructive">
-                          <Trash weight="regular" className="w-3.5 h-3.5" />
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive">
+                              <Trash weight="regular" className="w-3.5 h-3.5" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Investor</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Delete &quot;{investor.name}&quot;? This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDeleteInvestor(investor.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </div>
                   </CardContent>

@@ -19,6 +19,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { formatRelativeTime, copyToClipboard } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -73,10 +84,6 @@ export default function ApiKeysPage() {
   };
 
   const handleRevoke = async (id: string) => {
-    if (!confirm('Are you sure you want to revoke this API key? This action cannot be undone.')) {
-      return;
-    }
-
     try {
       await api.revokeApiKey(id);
       setApiKeys((prev) => prev.filter((k) => k.id !== id));
@@ -296,14 +303,34 @@ export default function ApiKeysPage() {
                           </Badge>
                         ))}
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleRevoke(key.id)}
-                        className="text-destructive hover:text-destructive h-8 w-8 sm:h-9 sm:w-9"
-                      >
-                        <Trash weight="regular" className="w-4 h-4" />
-                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:text-destructive h-8 w-8 sm:h-9 sm:w-9"
+                          >
+                            <Trash weight="regular" className="w-4 h-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Revoke API Key</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to revoke &quot;{key.name}&quot;? Any applications using this key will lose access immediately. This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleRevoke(key.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Revoke
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   </div>
                 </CardContent>

@@ -20,6 +20,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 
 const AVAILABLE_EVENTS = [
@@ -100,8 +111,6 @@ export default function WebhooksPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this webhook?')) return;
-
     try {
       await api.deleteWebhook(id);
       setWebhooks((prev) => prev.filter((w) => w.id !== id));
@@ -124,8 +133,6 @@ export default function WebhooksPage() {
   };
 
   const handleRegenerateSecret = async (id: string) => {
-    if (!confirm('Regenerate the webhook secret? You will need to update your endpoint.')) return;
-
     try {
       const { secret } = await api.regenerateWebhookSecret(id);
       toast.success('Secret regenerated. New secret: ' + secret.slice(0, 8) + '...');
@@ -306,15 +313,32 @@ export default function WebhooksPage() {
                         checked={webhook.isActive}
                         onCheckedChange={() => handleToggleActive(webhook)}
                       />
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleRegenerateSecret(webhook.id)}
-                        title="Regenerate secret"
-                        className="h-8 w-8 sm:h-9 sm:w-9"
-                      >
-                        <ArrowsClockwise weight="regular" className="w-4 h-4" />
-                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Regenerate secret"
+                            className="h-8 w-8 sm:h-9 sm:w-9"
+                          >
+                            <ArrowsClockwise weight="regular" className="w-4 h-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Regenerate Secret</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will generate a new webhook secret. You&apos;ll need to update your endpoint with the new secret.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleRegenerateSecret(webhook.id)}>
+                              Regenerate
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -323,14 +347,34 @@ export default function WebhooksPage() {
                       >
                         <Pencil weight="regular" className="w-4 h-4" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDelete(webhook.id)}
-                        className="text-destructive hover:text-destructive h-8 w-8 sm:h-9 sm:w-9"
-                      >
-                        <Trash weight="regular" className="w-4 h-4" />
-                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:text-destructive h-8 w-8 sm:h-9 sm:w-9"
+                          >
+                            <Trash weight="regular" className="w-4 h-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Webhook</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to delete &quot;{webhook.name}&quot;? This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDelete(webhook.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   </div>
                 </CardContent>
