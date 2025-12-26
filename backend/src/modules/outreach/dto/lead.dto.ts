@@ -1,24 +1,23 @@
-import { IsString, IsOptional, IsArray, IsNumber, IsEnum, Min, Max, MaxLength } from 'class-validator';
+import { IsString, IsOptional, IsArray, IsNumber, IsEnum, IsObject, Min, Max, MaxLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { LEAD_STATUSES, LeadStatus } from '@/database/schema/outreach.schema';
+import { LEAD_STATUSES, LEAD_TYPES, LeadStatus, LeadType } from '@/database/schema/outreach.schema';
 
 export class DiscoverLeadsDto {
-  @ApiProperty({ description: 'Description of your startup idea or product' })
-  @IsString()
-  @MaxLength(2000)
-  startupIdea: string;
+  @ApiProperty({ enum: LEAD_TYPES, description: 'Type of leads to discover' })
+  @IsEnum(LEAD_TYPES)
+  leadType: LeadType;
 
-  @ApiPropertyOptional({ description: 'Target industry for leads' })
+  @ApiPropertyOptional({ description: 'Target industry/niche for leads' })
   @IsOptional()
   @IsString()
   @MaxLength(100)
-  targetIndustry?: string;
+  targetNiche?: string;
 
-  @ApiPropertyOptional({ description: 'Target company sizes', example: ['1-10', '11-50', '51-200'] })
+  @ApiPropertyOptional({ description: 'Target platforms (for influencers)', example: ['youtube', 'twitter', 'linkedin'] })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  targetCompanySizes?: string[];
+  targetPlatforms?: string[];
 
   @ApiPropertyOptional({ description: 'Target locations', example: ['United States', 'Europe'] })
   @IsOptional()
@@ -26,11 +25,28 @@ export class DiscoverLeadsDto {
   @IsString({ each: true })
   targetLocations?: string[];
 
-  @ApiPropertyOptional({ description: 'Ideal customer profile description' })
+  @ApiPropertyOptional({ description: 'Minimum follower count (for influencers)' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  minFollowers?: number;
+
+  @ApiPropertyOptional({ description: 'Maximum follower count (for influencers)' })
+  @IsOptional()
+  @IsNumber()
+  maxFollowers?: number;
+
+  @ApiPropertyOptional({ description: 'Target company sizes (for companies)', example: ['1-10', '11-50', '51-200'] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  targetCompanySizes?: string[];
+
+  @ApiPropertyOptional({ description: 'Additional search keywords' })
   @IsOptional()
   @IsString()
-  @MaxLength(1000)
-  idealCustomerProfile?: string;
+  @MaxLength(500)
+  keywords?: string;
 
   @ApiPropertyOptional({ description: 'Maximum number of leads to discover', default: 10 })
   @IsOptional()
@@ -41,72 +57,11 @@ export class DiscoverLeadsDto {
 }
 
 export class CreateLeadDto {
-  @ApiProperty()
-  @IsString()
-  @MaxLength(255)
-  companyName: string;
+  @ApiProperty({ enum: LEAD_TYPES })
+  @IsEnum(LEAD_TYPES)
+  leadType: LeadType;
 
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  website?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  industry?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  @MaxLength(50)
-  companySize?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  @MaxLength(255)
-  location?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  description?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  @MaxLength(255)
-  contactName?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  @MaxLength(255)
-  contactEmail?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  @MaxLength(255)
-  contactTitle?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  linkedinUrl?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  source?: string;
-}
-
-export class UpdateLeadDto {
+  // Company fields
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
@@ -131,6 +86,43 @@ export class UpdateLeadDto {
   @MaxLength(50)
   companySize?: string;
 
+  // Person/Influencer fields
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  name?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  platform?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  handle?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  followers?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  niche?: string;
+
+  // Common fields
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  email?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
@@ -145,26 +137,90 @@ export class UpdateLeadDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @MaxLength(500)
+  profileUrl?: string;
+
+  @ApiPropertyOptional({ description: 'Custom fields as key-value pairs' })
+  @IsOptional()
+  @IsObject()
+  customFields?: Record<string, string>;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  tags?: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  source?: string;
+}
+
+export class UpdateLeadDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   @MaxLength(255)
-  contactName?: string;
+  companyName?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   @MaxLength(255)
-  contactEmail?: string;
+  name?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   @MaxLength(255)
-  contactTitle?: string;
+  email?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  platform?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  handle?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  followers?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  niche?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  location?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  description?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   @MaxLength(500)
-  linkedinUrl?: string;
+  profileUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsObject()
+  customFields?: Record<string, string>;
 
   @ApiPropertyOptional({ enum: LEAD_STATUSES })
   @IsOptional()
@@ -177,6 +233,12 @@ export class UpdateLeadDto {
   @Min(0)
   @Max(100)
   leadScore?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  tags?: string[];
 }
 
 export class LeadResponseDto {
@@ -184,7 +246,11 @@ export class LeadResponseDto {
   id: string;
 
   @ApiProperty()
-  companyName: string;
+  leadType: LeadType;
+
+  // Company fields
+  @ApiPropertyOptional()
+  companyName: string | null;
 
   @ApiPropertyOptional()
   website: string | null;
@@ -195,6 +261,26 @@ export class LeadResponseDto {
   @ApiPropertyOptional()
   companySize: string | null;
 
+  // Person fields
+  @ApiPropertyOptional()
+  name: string | null;
+
+  @ApiPropertyOptional()
+  platform: string | null;
+
+  @ApiPropertyOptional()
+  handle: string | null;
+
+  @ApiPropertyOptional()
+  followers: number | null;
+
+  @ApiPropertyOptional()
+  niche: string | null;
+
+  // Common fields
+  @ApiPropertyOptional()
+  email: string | null;
+
   @ApiPropertyOptional()
   location: string | null;
 
@@ -202,16 +288,10 @@ export class LeadResponseDto {
   description: string | null;
 
   @ApiPropertyOptional()
-  contactName: string | null;
+  profileUrl: string | null;
 
   @ApiPropertyOptional()
-  contactEmail: string | null;
-
-  @ApiPropertyOptional()
-  contactTitle: string | null;
-
-  @ApiPropertyOptional()
-  linkedinUrl: string | null;
+  customFields: Record<string, string>;
 
   @ApiProperty()
   leadScore: number;
@@ -222,8 +302,15 @@ export class LeadResponseDto {
   @ApiPropertyOptional()
   source: string | null;
 
+  @ApiPropertyOptional()
+  tags: string[];
+
   @ApiProperty()
   createdAt: string;
+
+  // Computed display name
+  @ApiProperty()
+  displayName: string;
 }
 
 export class LeadFiltersDto {
@@ -231,6 +318,11 @@ export class LeadFiltersDto {
   @IsOptional()
   @IsString()
   search?: string;
+
+  @ApiPropertyOptional({ enum: LEAD_TYPES })
+  @IsOptional()
+  @IsEnum(LEAD_TYPES)
+  leadType?: LeadType;
 
   @ApiPropertyOptional({ enum: LEAD_STATUSES })
   @IsOptional()
@@ -240,11 +332,51 @@ export class LeadFiltersDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  industry?: string;
+  platform?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  niche?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsNumber()
   @Min(0)
   minScore?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  tags?: string[];
 }
+
+// Available template variables based on lead type
+export const PERSON_VARIABLES = [
+  '{{name}}',
+  '{{email}}',
+  '{{platform}}',
+  '{{handle}}',
+  '{{followers}}',
+  '{{niche}}',
+  '{{location}}',
+  '{{profileUrl}}',
+] as const;
+
+export const COMPANY_VARIABLES = [
+  '{{companyName}}',
+  '{{email}}',
+  '{{website}}',
+  '{{industry}}',
+  '{{companySize}}',
+  '{{location}}',
+] as const;
+
+export const STARTUP_VARIABLES = [
+  '{{myCompany}}',
+  '{{myProduct}}',
+  '{{myIndustry}}',
+  '{{myFounder}}',
+  '{{myWebsite}}',
+] as const;

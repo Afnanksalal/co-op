@@ -732,86 +732,122 @@ export interface DocumentChunkContext {
 }
 
 // === OUTREACH - LEADS ===
+export type LeadType = 'person' | 'company';
 export type LeadStatus = 'new' | 'enriched' | 'contacted' | 'replied' | 'converted' | 'unsubscribed';
 
 export interface Lead {
   id: string;
-  companyName: string;
+  leadType: LeadType;
+  // Company fields
+  companyName: string | null;
   website: string | null;
   industry: string | null;
   companySize: string | null;
+  // Person/Influencer fields
+  name: string | null;
+  platform: string | null;
+  handle: string | null;
+  followers: number | null;
+  niche: string | null;
+  // Common fields
+  email: string | null;
   location: string | null;
   description: string | null;
-  contactName: string | null;
-  contactEmail: string | null;
-  contactTitle: string | null;
-  linkedinUrl: string | null;
+  profileUrl: string | null;
+  customFields: Record<string, string>;
   leadScore: number;
   status: LeadStatus;
   source: string | null;
+  tags: string[];
   createdAt: string;
+  displayName: string;
 }
 
 export interface DiscoverLeadsRequest {
-  startupIdea: string;
-  targetIndustry?: string;
-  targetCompanySizes?: string[];
+  leadType: LeadType;
+  targetNiche?: string;
+  targetPlatforms?: string[];
   targetLocations?: string[];
-  idealCustomerProfile?: string;
+  minFollowers?: number;
+  maxFollowers?: number;
+  targetCompanySizes?: string[];
+  keywords?: string;
   maxLeads?: number;
 }
 
 export interface CreateLeadRequest {
-  companyName: string;
+  leadType: LeadType;
+  // Company fields
+  companyName?: string;
   website?: string;
   industry?: string;
   companySize?: string;
+  // Person fields
+  name?: string;
+  platform?: string;
+  handle?: string;
+  followers?: number;
+  niche?: string;
+  // Common fields
+  email?: string;
   location?: string;
   description?: string;
-  contactName?: string;
-  contactEmail?: string;
-  contactTitle?: string;
-  linkedinUrl?: string;
+  profileUrl?: string;
+  customFields?: Record<string, string>;
+  tags?: string[];
   source?: string;
 }
 
 export interface UpdateLeadRequest {
   companyName?: string;
-  website?: string;
-  industry?: string;
-  companySize?: string;
+  name?: string;
+  email?: string;
+  platform?: string;
+  handle?: string;
+  followers?: number;
+  niche?: string;
   location?: string;
   description?: string;
-  contactName?: string;
-  contactEmail?: string;
-  contactTitle?: string;
-  linkedinUrl?: string;
+  profileUrl?: string;
+  customFields?: Record<string, string>;
   status?: LeadStatus;
   leadScore?: number;
+  tags?: string[];
 }
 
 export interface LeadFilters {
   search?: string;
+  leadType?: LeadType;
   status?: LeadStatus;
-  industry?: string;
+  platform?: string;
+  niche?: string;
   minScore?: number;
+  tags?: string[];
 }
 
 // === OUTREACH - CAMPAIGNS ===
+export type CampaignMode = 'single_template' | 'ai_personalized';
 export type CampaignStatus = 'draft' | 'scheduled' | 'sending' | 'paused' | 'completed';
 export type EmailStatus = 'pending' | 'sent' | 'delivered' | 'opened' | 'clicked' | 'bounced' | 'failed';
 
 export interface Campaign {
   id: string;
   name: string;
-  subjectTemplate: string;
-  bodyTemplate: string;
+  mode: CampaignMode;
+  targetLeadType: LeadType;
+  subjectTemplate: string | null;
+  bodyTemplate: string | null;
+  campaignGoal: string | null;
+  tone: string | null;
+  callToAction: string | null;
   status: CampaignStatus;
   settings: {
     trackOpens?: boolean;
     trackClicks?: boolean;
     dailyLimit?: number;
+    includeUnsubscribeLink?: boolean;
   };
+  availableVariables: string[];
   stats: {
     totalEmails?: number;
     sent?: number;
@@ -826,30 +862,43 @@ export interface Campaign {
 
 export interface CreateCampaignRequest {
   name: string;
-  subjectTemplate: string;
-  bodyTemplate: string;
+  mode: CampaignMode;
+  targetLeadType: LeadType;
+  // For single_template mode
+  subjectTemplate?: string;
+  bodyTemplate?: string;
+  // For ai_personalized mode
+  campaignGoal?: string;
+  tone?: 'professional' | 'casual' | 'friendly' | 'bold';
+  callToAction?: string;
+  // Settings
   trackOpens?: boolean;
   trackClicks?: boolean;
   dailyLimit?: number;
+  includeUnsubscribeLink?: boolean;
 }
 
 export interface UpdateCampaignRequest {
   name?: string;
   subjectTemplate?: string;
   bodyTemplate?: string;
+  campaignGoal?: string;
+  tone?: 'professional' | 'casual' | 'friendly' | 'bold';
+  callToAction?: string;
   status?: CampaignStatus;
   trackOpens?: boolean;
   trackClicks?: boolean;
 }
 
-export interface GenerateTemplateRequest {
-  pitch: string;
-  tone?: 'professional' | 'casual' | 'friendly';
+export interface PreviewEmailRequest {
+  leadId: string;
 }
 
-export interface GeneratedTemplate {
-  subjectTemplate: string;
-  bodyTemplate: string;
+export interface EmailPreview {
+  subject: string;
+  body: string;
+  leadName: string;
+  variables: Record<string, string>;
 }
 
 export interface CampaignEmail {
@@ -862,6 +911,8 @@ export interface CampaignEmail {
   openedAt: string | null;
   clickedAt: string | null;
   createdAt: string;
+  leadName?: string;
+  leadEmail?: string;
 }
 
 export interface CampaignStats {
@@ -875,6 +926,22 @@ export interface CampaignStats {
   clickRate: number;
   bounceRate: number;
 }
+
+// Template variables
+export const PERSON_VARIABLES = [
+  '{{name}}', '{{email}}', '{{platform}}', '{{handle}}',
+  '{{followers}}', '{{niche}}', '{{location}}', '{{profileUrl}}',
+] as const;
+
+export const COMPANY_VARIABLES = [
+  '{{companyName}}', '{{email}}', '{{website}}',
+  '{{industry}}', '{{companySize}}', '{{location}}',
+] as const;
+
+export const STARTUP_VARIABLES = [
+  '{{myCompany}}', '{{myProduct}}', '{{myIndustry}}',
+  '{{myFounder}}', '{{myWebsite}}',
+] as const;
 
 // === API RESPONSE ===
 export interface ApiResponse<T> {

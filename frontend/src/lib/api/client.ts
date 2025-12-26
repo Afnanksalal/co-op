@@ -893,8 +893,10 @@ class ApiClient {
   async getLeads(filters?: import('./types').LeadFilters): Promise<import('./types').Lead[]> {
     const params = new URLSearchParams();
     if (filters?.search) params.set('search', filters.search);
+    if (filters?.leadType) params.set('leadType', filters.leadType);
     if (filters?.status) params.set('status', filters.status);
-    if (filters?.industry) params.set('industry', filters.industry);
+    if (filters?.platform) params.set('platform', filters.platform);
+    if (filters?.niche) params.set('niche', filters.niche);
     if (filters?.minScore !== undefined) params.set('minScore', String(filters.minScore));
     const queryStr = params.toString();
     return this.get<import('./types').Lead[]>(`/outreach/leads${queryStr ? `?${queryStr}` : ''}`);
@@ -920,10 +922,6 @@ class ApiClient {
   // OUTREACH - CAMPAIGNS ENDPOINTS
   // ============================================
 
-  async generateEmailTemplate(data: import('./types').GenerateTemplateRequest): Promise<import('./types').GeneratedTemplate> {
-    return this.post<import('./types').GeneratedTemplate>('/outreach/campaigns/generate-template', data);
-  }
-
   async getCampaigns(): Promise<import('./types').Campaign[]> {
     return this.get<import('./types').Campaign[]>('/outreach/campaigns');
   }
@@ -942,6 +940,10 @@ class ApiClient {
 
   async deleteCampaign(id: string): Promise<void> {
     await this.delete(`/outreach/campaigns/${id}`);
+  }
+
+  async previewCampaignEmail(campaignId: string, leadId: string): Promise<import('./types').EmailPreview> {
+    return this.post<import('./types').EmailPreview>(`/outreach/campaigns/${campaignId}/preview`, { leadId });
   }
 
   async generateCampaignEmails(campaignId: string, leadIds: string[]): Promise<import('./types').CampaignEmail[]> {

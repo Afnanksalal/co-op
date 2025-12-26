@@ -1,6 +1,6 @@
-import { IsString, IsOptional, IsArray, IsBoolean, IsEnum, IsUUID, MaxLength } from 'class-validator';
+import { IsString, IsOptional, IsArray, IsBoolean, IsEnum, IsUUID, IsNumber, MaxLength, Min, Max } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { CAMPAIGN_STATUSES, CampaignStatus } from '@/database/schema/outreach.schema';
+import { CAMPAIGN_STATUSES, CAMPAIGN_MODES, LEAD_TYPES, CampaignStatus, CampaignMode, LeadType } from '@/database/schema/outreach.schema';
 
 export class CreateCampaignDto {
   @ApiProperty({ description: 'Campaign name' })
@@ -8,15 +8,44 @@ export class CreateCampaignDto {
   @MaxLength(255)
   name: string;
 
-  @ApiProperty({ description: 'Email subject template with variables like {{companyName}}' })
+  @ApiProperty({ enum: CAMPAIGN_MODES, description: 'single_template = 1 email to N leads, ai_personalized = N unique emails' })
+  @IsEnum(CAMPAIGN_MODES)
+  mode: CampaignMode;
+
+  @ApiProperty({ enum: LEAD_TYPES, description: 'Target lead type' })
+  @IsEnum(LEAD_TYPES)
+  targetLeadType: LeadType;
+
+  // For single_template mode
+  @ApiPropertyOptional({ description: 'Email subject template with variables like {{name}}' })
+  @IsOptional()
+  @IsString()
+  subjectTemplate?: string;
+
+  @ApiPropertyOptional({ description: 'Email body template with variables' })
+  @IsOptional()
+  @IsString()
+  bodyTemplate?: string;
+
+  // For ai_personalized mode
+  @ApiPropertyOptional({ description: 'What you want to achieve with this campaign' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  campaignGoal?: string;
+
+  @ApiPropertyOptional({ enum: ['professional', 'casual', 'friendly', 'bold'], default: 'professional' })
+  @IsOptional()
+  @IsEnum(['professional', 'casual', 'friendly', 'bold'])
+  tone?: 'professional' | 'casual' | 'friendly' | 'bold';
+
+  @ApiPropertyOptional({ description: 'What action you want recipients to take' })
+  @IsOptional()
   @IsString()
   @MaxLength(500)
-  subjectTemplate: string;
+  callToAction?: string;
 
-  @ApiProperty({ description: 'Email body template with variables' })
-  @IsString()
-  bodyTemplate: string;
-
+  // Settings
   @ApiPropertyOptional({ description: 'Track email opens', default: true })
   @IsOptional()
   @IsBoolean()
@@ -29,7 +58,15 @@ export class CreateCampaignDto {
 
   @ApiPropertyOptional({ description: 'Daily sending limit', default: 50 })
   @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(100)
   dailyLimit?: number;
+
+  @ApiPropertyOptional({ description: 'Include unsubscribe link', default: true })
+  @IsOptional()
+  @IsBoolean()
+  includeUnsubscribeLink?: boolean;
 }
 
 export class UpdateCampaignDto {
@@ -42,13 +79,29 @@ export class UpdateCampaignDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @MaxLength(500)
   subjectTemplate?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   bodyTemplate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  campaignGoal?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsEnum(['professional', 'casual', 'friendly', 'bold'])
+  tone?: 'professional' | 'casual' | 'friendly' | 'bold';
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  callToAction?: string;
 
   @ApiPropertyOptional({ enum: CAMPAIGN_STATUSES })
   @IsOptional()
@@ -71,23 +124,12 @@ export class GenerateEmailsDto {
   @IsArray()
   @IsUUID('4', { each: true })
   leadIds: string[];
-
-  @ApiPropertyOptional({ description: 'Email tone', default: 'professional' })
-  @IsOptional()
-  @IsEnum(['professional', 'casual', 'friendly'])
-  tone?: 'professional' | 'casual' | 'friendly';
 }
 
-export class GenerateTemplateDto {
-  @ApiProperty({ description: 'Brief description of what you want to communicate' })
-  @IsString()
-  @MaxLength(1000)
-  pitch: string;
-
-  @ApiPropertyOptional({ description: 'Email tone', default: 'professional' })
-  @IsOptional()
-  @IsEnum(['professional', 'casual', 'friendly'])
-  tone?: 'professional' | 'casual' | 'friendly';
+export class PreviewEmailDto {
+  @ApiProperty({ description: 'Lead ID to preview email for' })
+  @IsUUID('4')
+  leadId: string;
 }
 
 export class CampaignResponseDto {
@@ -98,10 +140,25 @@ export class CampaignResponseDto {
   name: string;
 
   @ApiProperty()
-  subjectTemplate: string;
+  mode: CampaignMode;
 
   @ApiProperty()
-  bodyTemplate: string;
+  targetLeadType: LeadType;
+
+  @ApiPropertyOptional()
+  subjectTemplate: string | null;
+
+  @ApiPropertyOptional()
+  bodyTemplate: string | null;
+
+  @ApiPropertyOptional()
+  campaignGoal: string | null;
+
+  @ApiPropertyOptional()
+  tone: string | null;
+
+  @ApiPropertyOptional()
+  callToAction: string | null;
 
   @ApiProperty()
   status: CampaignStatus;
@@ -111,7 +168,11 @@ export class CampaignResponseDto {
     trackOpens?: boolean;
     trackClicks?: boolean;
     dailyLimit?: number;
+    includeUnsubscribeLink?: boolean;
   };
+
+  @ApiProperty()
+  availableVariables: string[];
 
   @ApiProperty()
   stats: {
@@ -157,6 +218,13 @@ export class CampaignEmailResponseDto {
 
   @ApiProperty()
   createdAt: string;
+
+  // Include lead info for display
+  @ApiPropertyOptional()
+  leadName?: string;
+
+  @ApiPropertyOptional()
+  leadEmail?: string;
 }
 
 export class CampaignStatsDto {
@@ -188,10 +256,16 @@ export class CampaignStatsDto {
   bounceRate: number;
 }
 
-export class GeneratedTemplateDto {
+export class EmailPreviewDto {
   @ApiProperty()
-  subjectTemplate: string;
+  subject: string;
 
   @ApiProperty()
-  bodyTemplate: string;
+  body: string;
+
+  @ApiProperty()
+  leadName: string;
+
+  @ApiProperty()
+  variables: Record<string, string>;
 }

@@ -9,7 +9,8 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq, and, desc, ilike, or, gte } from 'drizzle-orm';
 import { DATABASE_CONNECTION } from '@/database/database.module';
 import * as schema from '@/database/schema';
-import { leads, Lead } from '@/database/schema/outreach.schema';
+import { leads, Lead, LeadType } from '@/database/schema/outreach.schema';
+import { startups } from '@/database/schema/startups.schema';
 import { ResearchService } from '@/common/research/research.service';
 import { LlmCouncilService } from '@/common/llm/llm-council.service';
 import { CacheService } from '@/common/cache/cache.service';
@@ -24,8 +25,8 @@ import {
 // Pilot limits
 const PILOT_LEAD_LIMIT = 50;
 const DISCOVERY_RATE_LIMIT_KEY = 'outreach:discovery:';
-const DISCOVERY_RATE_LIMIT_TTL = 3600; // 1 hour
-const DISCOVERY_RATE_LIMIT_MAX = 5; // 5 discoveries per hour
+const DISCOVERY_RATE_LIMIT_TTL = 3600;
+const DISCOVERY_RATE_LIMIT_MAX = 5;
 
 @Injectable()
 export class LeadsService {
@@ -41,6 +42,7 @@ export class LeadsService {
 
   /**
    * Discover potential leads using web research
+   * Uses startup data from onboarding - no need to ask again
    */
   async discoverLeads(
     userId: string,
@@ -49,7 +51,7 @@ export class LeadsService {
   ): Promise<LeadResponseDto[]> {
     // Check rate limit
     const rateLimitKey = `${DISCOVERY_RATE_LIMIT_KEY}${userId}`;
-    const currentCount = await this.cache.get<number>(rateLimitKey) || 0;
+    const currentCount = await this.cache.get<number>(rateLimitKey) ?? 0;
     
     if (currentCount >= DISCOVERY_RATE_LIMIT_MAX) {
       throw new BadRequestException(
@@ -69,13 +71,23 @@ export class LeadsService {
       );
     }
 
-    const maxLeads = Math.min(dto.maxLeads || 10, PILOT_LEAD_LIMIT - existingLeads.length);
+    // Get startup info for context (already have from onboarding!)
+    const [startup] = await this.db
+      .select()
+      .from(startups)
+      .where(eq(startups.id, startupId));
 
-    // Build search query
-    const searchQuery = this.buildSearchQuery(dto);
-    this.logger.log(`Discovering leads with query: ${searchQuery}`);
+    if (!startup) {
+      throw new NotFoundException('Startup not found');
+    }
 
-    // Use research service to find potential customers
+    const maxLeads = Math.min(dto.maxLeads ?? 10, PILOT_LEAD_LIMIT - existingLeads.length);
+
+    // Build search query based on lead type
+    const searchQuery = this.buildSearchQuery(dto, startup);
+    this.logger.log(`Discovering ${dto.leadType}s with query: ${searchQuery}`);
+
+    // Use research service to find potential leads
     const webResults = await this.researchService.searchWeb(searchQuery);
 
     if (webResults.length === 0) {
@@ -83,10 +95,11 @@ export class LeadsService {
       return [];
     }
 
-    // Use LLM to extract and score leads from search results
+    // Use LLM to extract leads from search results
     const extractedLeads = await this.extractLeadsFromResults(
       webResults,
       dto,
+      startup,
       maxLeads,
     );
 
@@ -99,24 +112,33 @@ export class LeadsService {
           .values({
             userId,
             startupId,
-            companyName: lead.companyName || 'Unknown Company',
-            website: lead.website || null,
-            industry: lead.industry || dto.targetIndustry || null,
-            companySize: lead.companySize || null,
-            location: lead.location || null,
-            description: lead.description || null,
-            contactName: lead.contactName || null,
-            contactEmail: lead.contactEmail || null,
-            contactTitle: lead.contactTitle || null,
-            linkedinUrl: lead.linkedinUrl || null,
-            leadScore: lead.leadScore || 0,
+            leadType: dto.leadType,
+            // Company fields
+            companyName: lead.companyName ?? null,
+            website: lead.website ?? null,
+            industry: lead.industry ?? null,
+            companySize: lead.companySize ?? null,
+            // Person fields
+            name: lead.name ?? null,
+            platform: lead.platform ?? null,
+            handle: lead.handle ?? null,
+            followers: lead.followers ?? null,
+            niche: lead.niche ?? dto.targetNiche ?? null,
+            // Common fields
+            email: lead.email ?? null,
+            location: lead.location ?? null,
+            description: lead.description ?? null,
+            profileUrl: lead.profileUrl ?? null,
+            customFields: lead.customFields ?? {},
+            leadScore: lead.leadScore ?? 0,
             source: 'discovery',
+            tags: [],
           })
           .returning();
 
         savedLeads.push(this.toResponseDto(saved));
       } catch (error) {
-        this.logger.warn(`Failed to save lead ${lead.companyName}:`, error);
+        this.logger.warn(`Failed to save lead:`, error);
       }
     }
 
@@ -135,7 +157,6 @@ export class LeadsService {
     startupId: string,
     dto: CreateLeadDto,
   ): Promise<LeadResponseDto> {
-    // Check limit
     const existingLeads = await this.db
       .select()
       .from(leads)
@@ -152,8 +173,23 @@ export class LeadsService {
       .values({
         userId,
         startupId,
-        ...dto,
-        source: dto.source || 'manual',
+        leadType: dto.leadType,
+        companyName: dto.companyName ?? null,
+        website: dto.website ?? null,
+        industry: dto.industry ?? null,
+        companySize: dto.companySize ?? null,
+        name: dto.name ?? null,
+        platform: dto.platform ?? null,
+        handle: dto.handle ?? null,
+        followers: dto.followers ?? null,
+        niche: dto.niche ?? null,
+        email: dto.email ?? null,
+        location: dto.location ?? null,
+        description: dto.description ?? null,
+        profileUrl: dto.profileUrl ?? null,
+        customFields: dto.customFields ?? {},
+        tags: dto.tags ?? [],
+        source: dto.source ?? 'manual',
       })
       .returning();
 
@@ -166,12 +202,20 @@ export class LeadsService {
   async findAll(userId: string, filters?: LeadFiltersDto): Promise<LeadResponseDto[]> {
     const conditions = [eq(leads.userId, userId)];
 
+    if (filters?.leadType) {
+      conditions.push(eq(leads.leadType, filters.leadType));
+    }
+
     if (filters?.status) {
       conditions.push(eq(leads.status, filters.status));
     }
 
-    if (filters?.industry) {
-      conditions.push(eq(leads.industry, filters.industry));
+    if (filters?.platform) {
+      conditions.push(eq(leads.platform, filters.platform));
+    }
+
+    if (filters?.niche) {
+      conditions.push(ilike(leads.niche, `%${filters.niche}%`));
     }
 
     if (filters?.minScore !== undefined) {
@@ -181,9 +225,10 @@ export class LeadsService {
     if (filters?.search) {
       conditions.push(
         or(
+          ilike(leads.name, `%${filters.search}%`),
           ilike(leads.companyName, `%${filters.search}%`),
-          ilike(leads.contactName, `%${filters.search}%`),
-          ilike(leads.contactEmail, `%${filters.search}%`),
+          ilike(leads.email, `%${filters.search}%`),
+          ilike(leads.handle, `%${filters.search}%`),
         )!
       );
     }
@@ -232,7 +277,12 @@ export class LeadsService {
 
     const [updated] = await this.db
       .update(leads)
-      .set({ ...dto, updatedAt: new Date() })
+      .set({ 
+        ...dto, 
+        customFields: dto.customFields ?? existing.customFields,
+        tags: dto.tags ?? existing.tags,
+        updatedAt: new Date() 
+      })
       .where(eq(leads.id, leadId))
       .returning();
 
@@ -263,7 +313,7 @@ export class LeadsService {
       .select()
       .from(leads)
       .where(eq(leads.id, leadId));
-    return lead || null;
+    return lead ?? null;
   }
 
   /**
@@ -280,72 +330,119 @@ export class LeadsService {
     return userLeads.filter(l => leadIds.includes(l.id));
   }
 
+  /**
+   * Get available variables for a lead type
+   */
+  getAvailableVariables(leadType: LeadType): string[] {
+    const common = ['{{email}}', '{{location}}', '{{description}}'];
+    const startup = ['{{myCompany}}', '{{myProduct}}', '{{myIndustry}}', '{{myFounder}}', '{{myWebsite}}'];
+    
+    if (leadType === 'person') {
+      return [...common, '{{name}}', '{{platform}}', '{{handle}}', '{{followers}}', '{{niche}}', '{{profileUrl}}', ...startup];
+    }
+    return [...common, '{{companyName}}', '{{website}}', '{{industry}}', '{{companySize}}', ...startup];
+  }
+
   // Private helpers
 
-  private buildSearchQuery(dto: DiscoverLeadsDto): string {
+  private buildSearchQuery(dto: DiscoverLeadsDto, startup: typeof startups.$inferSelect): string {
     const parts: string[] = [];
 
-    // Core idea
-    parts.push(dto.startupIdea);
-
-    // Add industry context
-    if (dto.targetIndustry) {
-      parts.push(`${dto.targetIndustry} companies`);
+    if (dto.leadType === 'person') {
+      // Searching for influencers/people
+      if (dto.targetPlatforms?.length) {
+        parts.push(dto.targetPlatforms.join(' OR '));
+      }
+      parts.push('influencer OR creator OR expert');
+      if (dto.targetNiche) {
+        parts.push(dto.targetNiche);
+      }
+      if (dto.keywords) {
+        parts.push(dto.keywords);
+      }
+      // Use startup context
+      parts.push(startup.industry ?? '');
+      parts.push('contact email');
+    } else {
+      // Searching for companies
+      parts.push('company OR business OR startup');
+      if (dto.targetNiche) {
+        parts.push(dto.targetNiche);
+      }
+      if (dto.keywords) {
+        parts.push(dto.keywords);
+      }
+      // Use startup context for B2B targeting
+      if (startup.targetCustomer) {
+        parts.push(startup.targetCustomer);
+      }
+      parts.push(startup.industry ?? '');
+      parts.push('contact');
     }
 
-    // Add location context
     if (dto.targetLocations?.length) {
       parts.push(`in ${dto.targetLocations.join(' or ')}`);
     }
 
-    // Add ICP context
-    if (dto.idealCustomerProfile) {
-      parts.push(dto.idealCustomerProfile);
-    }
-
-    // Add business context
-    parts.push('potential customers business contact');
-
-    return parts.join(' ');
+    return parts.filter(Boolean).join(' ');
   }
 
   private async extractLeadsFromResults(
     webResults: { title: string; url: string; snippet: string }[],
     dto: DiscoverLeadsDto,
+    startup: typeof startups.$inferSelect,
     maxLeads: number,
   ): Promise<Partial<Lead & { leadScore: number }>[]> {
-    const prompt = `You are a lead generation expert. Analyze these web search results and extract potential customer leads for a startup.
+    const isPerson = dto.leadType === 'person';
+    
+    const prompt = `You are a lead generation expert. Extract ${isPerson ? 'influencers/people' : 'companies'} from these search results.
 
-STARTUP IDEA: ${dto.startupIdea}
-TARGET INDUSTRY: ${dto.targetIndustry || 'Any'}
-TARGET COMPANY SIZES: ${dto.targetCompanySizes?.join(', ') || 'Any'}
-TARGET LOCATIONS: ${dto.targetLocations?.join(', ') || 'Any'}
-IDEAL CUSTOMER: ${dto.idealCustomerProfile || 'Not specified'}
+MY STARTUP CONTEXT (use this to score relevance):
+- Company: ${startup.companyName}
+- Industry: ${startup.industry}
+- Product: ${startup.description}
+- Target Customer: ${startup.targetCustomer ?? 'Not specified'}
+
+SEARCH CRITERIA:
+- Lead Type: ${dto.leadType}
+${isPerson ? `- Target Platforms: ${dto.targetPlatforms?.join(', ') ?? 'Any'}
+- Target Niche: ${dto.targetNiche ?? 'Any'}
+- Min Followers: ${dto.minFollowers ?? 'Any'}
+- Max Followers: ${dto.maxFollowers ?? 'Any'}` : `- Target Industry: ${dto.targetNiche ?? 'Any'}
+- Target Company Sizes: ${dto.targetCompanySizes?.join(', ') ?? 'Any'}`}
+- Target Locations: ${dto.targetLocations?.join(', ') ?? 'Any'}
 
 WEB RESULTS:
 ${webResults.map((r, i) => `${i + 1}. ${r.title}\n   URL: ${r.url}\n   ${r.snippet}`).join('\n\n')}
 
-Extract up to ${maxLeads} potential customer leads. For each lead, provide:
-- companyName: Company name
-- website: Company website URL
+Extract up to ${maxLeads} leads. For each lead, provide:
+${isPerson ? `- name: Full name
+- platform: Primary platform (youtube, twitter, linkedin, instagram, tiktok)
+- handle: Username/handle (e.g., @username)
+- followers: Estimated follower count (number)
+- niche: Their content niche
+- email: Email if found (or null)
+- location: Location if found
+- description: Brief description
+- profileUrl: Profile URL
+- leadScore: 0-100 based on relevance to my startup` : `- companyName: Company name
+- website: Company website
 - industry: Industry/sector
-- companySize: Estimated size (1-10, 11-50, 51-200, 201-500, 500+)
-- location: Location/region
-- description: Brief description of what they do
-- contactTitle: Likely decision maker title (e.g., "CEO", "CTO", "Head of Product")
-- leadScore: Score 0-100 based on fit with the startup's ideal customer
+- companySize: Size (1-10, 11-50, 51-200, 201-500, 500+)
+- email: Contact email if found
+- location: Location
+- description: What they do
+- leadScore: 0-100 based on fit as potential customer`}
 
-Return ONLY a JSON array of leads. No explanation.
-Example: [{"companyName": "Acme Corp", "website": "https://acme.com", "industry": "SaaS", "companySize": "51-200", "location": "San Francisco, CA", "description": "B2B software company", "contactTitle": "CTO", "leadScore": 85}]`;
+Return ONLY a JSON array. No explanation.`;
 
     try {
       const result = await this.llmCouncil.runCouncil(
-        'You are a lead extraction assistant. Return only valid JSON.',
+        'You are a lead extraction assistant. Return only valid JSON array.',
         prompt,
         { minModels: 1, maxModels: 2, maxTokens: 2000, temperature: 0.3 },
       );
 
-      // Parse JSON from response
       const jsonMatch = /\[[\s\S]*\]/.exec(result.finalResponse);
       if (!jsonMatch) {
         this.logger.warn('No JSON array found in LLM response');
@@ -361,22 +458,33 @@ Example: [{"companyName": "Acme Corp", "website": "https://acme.com", "industry"
   }
 
   private toResponseDto(lead: Lead): LeadResponseDto {
+    const displayName = lead.leadType === 'person' 
+      ? (lead.name ?? lead.handle ?? 'Unknown')
+      : (lead.companyName ?? 'Unknown Company');
+
     return {
       id: lead.id,
+      leadType: lead.leadType ?? 'company',
       companyName: lead.companyName,
       website: lead.website,
       industry: lead.industry,
       companySize: lead.companySize,
+      name: lead.name,
+      platform: lead.platform,
+      handle: lead.handle,
+      followers: lead.followers,
+      niche: lead.niche,
+      email: lead.email,
       location: lead.location,
       description: lead.description,
-      contactName: lead.contactName,
-      contactEmail: lead.contactEmail,
-      contactTitle: lead.contactTitle,
-      linkedinUrl: lead.linkedinUrl,
+      profileUrl: lead.profileUrl,
+      customFields: (lead.customFields as Record<string, string>) ?? {},
       leadScore: lead.leadScore ?? 0,
       status: lead.status ?? 'new',
       source: lead.source,
+      tags: (lead.tags as string[]) ?? [],
       createdAt: lead.createdAt.toISOString(),
+      displayName,
     };
   }
 }

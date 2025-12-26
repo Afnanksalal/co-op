@@ -19,11 +19,11 @@ import {
   CreateCampaignDto,
   UpdateCampaignDto,
   GenerateEmailsDto,
-  GenerateTemplateDto,
+  PreviewEmailDto,
   CampaignResponseDto,
   CampaignEmailResponseDto,
   CampaignStatsDto,
-  GeneratedTemplateDto,
+  EmailPreviewDto,
 } from './dto/campaign.dto';
 
 @ApiTags('Outreach - Campaigns')
@@ -33,18 +33,16 @@ import {
 export class CampaignsController {
   constructor(private readonly campaignsService: CampaignsService) {}
 
-  @Post('generate-template')
-  @RateLimit({ limit: 10, ttl: 3600 }) // 10 per hour
-  @ApiOperation({ summary: 'Generate email template using AI' })
-  async generateTemplate(
+  @Post(':id/preview')
+  @RateLimit({ limit: 20, ttl: 3600 }) // 20 previews per hour
+  @ApiOperation({ summary: 'Preview email for a specific lead' })
+  @ApiParam({ name: 'id', type: 'string' })
+  async previewEmail(
     @CurrentUser('id') userId: string,
-    @CurrentUser('startupId') startupId: string | null,
-    @Body() dto: GenerateTemplateDto,
-  ): Promise<GeneratedTemplateDto> {
-    if (!startupId) {
-      throw new BadRequestException('Startup not found. Please complete onboarding first.');
-    }
-    return this.campaignsService.generateTemplate(userId, startupId, dto);
+    @Param('id', ParseUUIDPipe) campaignId: string,
+    @Body() dto: PreviewEmailDto,
+  ): Promise<EmailPreviewDto> {
+    return this.campaignsService.previewEmail(userId, campaignId, dto);
   }
 
   @Post()

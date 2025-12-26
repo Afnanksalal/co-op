@@ -19,14 +19,13 @@ import {
   CreateCampaignDto,
   UpdateCampaignDto,
   GenerateEmailsDto,
-  GenerateTemplateDto,
+  PreviewEmailDto,
   CampaignResponseDto,
   CampaignEmailResponseDto,
   CampaignStatsDto,
-  GeneratedTemplateDto,
+  EmailPreviewDto,
 } from './dto/campaign.dto';
 
-// Pilot limits
 const PILOT_CAMPAIGN_LIMIT = 5;
 const PILOT_EMAILS_PER_DAY = 50;
 
@@ -43,72 +42,6 @@ export class CampaignsService {
   ) {}
 
   /**
-   * Generate email template using AI
-   */
-  async generateTemplate(
-    userId: string,
-    startupId: string,
-    dto: GenerateTemplateDto,
-  ): Promise<GeneratedTemplateDto> {
-    // Get startup info for context
-    const [startup] = await this.db
-      .select()
-      .from(startups)
-      .where(eq(startups.id, startupId));
-
-    if (!startup) {
-      throw new NotFoundException('Startup not found');
-    }
-
-    const prompt = `Generate a cold email template for customer outreach.
-
-STARTUP INFO:
-- Company: ${startup.companyName}
-- Industry: ${startup.industry}
-- Description: ${startup.description}
-- Value Proposition: ${startup.problemSolved || 'Not specified'}
-
-PITCH/GOAL: ${dto.pitch}
-TONE: ${dto.tone || 'professional'}
-
-Generate a personalized cold email template with these requirements:
-1. Subject line: Compelling, personalized, under 60 chars. Use {{companyName}} variable.
-2. Body: 
-   - Opening: Reference something about their company (use {{companyName}})
-   - Value prop: Clear benefit for THEM
-   - Social proof if applicable
-   - Soft CTA (15-min call, quick feedback)
-   - Professional signature
-3. Length: Under 150 words
-4. NO spam triggers (free, guarantee, act now, limited time)
-5. Use variables: {{companyName}}, {{contactName}}, {{contactTitle}}
-
-Return ONLY JSON with this format:
-{
-  "subjectTemplate": "Subject line here with {{companyName}}",
-  "bodyTemplate": "Email body here with {{variables}}"
-}`;
-
-    try {
-      const result = await this.llmCouncil.runCouncil(
-        'You are an expert cold email copywriter. Return only valid JSON.',
-        prompt,
-        { minModels: 2, maxModels: 3, maxTokens: 1000, temperature: 0.7 },
-      );
-
-      const jsonMatch = /\{[\s\S]*\}/.exec(result.finalResponse);
-      if (!jsonMatch) {
-        throw new Error('No JSON found in response');
-      }
-
-      return JSON.parse(jsonMatch[0]) as GeneratedTemplateDto;
-    } catch (error) {
-      this.logger.error('Failed to generate template:', error);
-      throw new BadRequestException('Failed to generate email template');
-    }
-  }
-
-  /**
    * Create a new campaign
    */
   async create(
@@ -116,7 +49,6 @@ Return ONLY JSON with this format:
     startupId: string,
     dto: CreateCampaignDto,
   ): Promise<CampaignResponseDto> {
-    // Check limit
     const existingCampaigns = await this.db
       .select()
       .from(campaigns)
@@ -128,18 +60,39 @@ Return ONLY JSON with this format:
       );
     }
 
+    // Validate based on mode
+    if (dto.mode === 'single_template') {
+      if (!dto.subjectTemplate || !dto.bodyTemplate) {
+        throw new BadRequestException('Subject and body templates are required for single_template mode');
+      }
+    } else if (dto.mode === 'ai_personalized') {
+      if (!dto.campaignGoal) {
+        throw new BadRequestException('Campaign goal is required for ai_personalized mode');
+      }
+    }
+
+    // Get available variables for this lead type
+    const availableVariables = this.leadsService.getAvailableVariables(dto.targetLeadType);
+
     const [campaign] = await this.db
       .insert(campaigns)
       .values({
         userId,
         startupId,
         name: dto.name,
-        subjectTemplate: dto.subjectTemplate,
-        bodyTemplate: dto.bodyTemplate,
+        mode: dto.mode,
+        targetLeadType: dto.targetLeadType,
+        subjectTemplate: dto.subjectTemplate ?? null,
+        bodyTemplate: dto.bodyTemplate ?? null,
+        campaignGoal: dto.campaignGoal ?? null,
+        tone: dto.tone ?? 'professional',
+        callToAction: dto.callToAction ?? null,
+        availableVariables,
         settings: {
           trackOpens: dto.trackOpens ?? true,
           trackClicks: dto.trackClicks ?? true,
           dailyLimit: dto.dailyLimit ?? PILOT_EMAILS_PER_DAY,
+          includeUnsubscribeLink: dto.includeUnsubscribeLink ?? true,
         },
         stats: { totalEmails: 0, sent: 0, delivered: 0, opened: 0, clicked: 0, bounced: 0 },
       })
@@ -194,14 +147,17 @@ Return ONLY JSON with this format:
       throw new NotFoundException('Campaign not found');
     }
 
-    if (existing.status !== 'draft' && dto.subjectTemplate) {
+    if (existing.status !== 'draft' && (dto.subjectTemplate || dto.bodyTemplate)) {
       throw new BadRequestException('Cannot modify template of active campaign');
     }
 
     const updateData: Partial<Campaign> = { updatedAt: new Date() };
     if (dto.name) updateData.name = dto.name;
-    if (dto.subjectTemplate) updateData.subjectTemplate = dto.subjectTemplate;
-    if (dto.bodyTemplate) updateData.bodyTemplate = dto.bodyTemplate;
+    if (dto.subjectTemplate !== undefined) updateData.subjectTemplate = dto.subjectTemplate;
+    if (dto.bodyTemplate !== undefined) updateData.bodyTemplate = dto.bodyTemplate;
+    if (dto.campaignGoal !== undefined) updateData.campaignGoal = dto.campaignGoal;
+    if (dto.tone !== undefined) updateData.tone = dto.tone;
+    if (dto.callToAction !== undefined) updateData.callToAction = dto.callToAction;
     if (dto.status) updateData.status = dto.status;
 
     if (dto.trackOpens !== undefined || dto.trackClicks !== undefined) {
@@ -234,12 +190,66 @@ Return ONLY JSON with this format:
       throw new NotFoundException('Campaign not found');
     }
 
-    // Cascade delete handles campaign_emails
     await this.db.delete(campaigns).where(eq(campaigns.id, campaignId));
   }
 
   /**
-   * Generate personalized emails for leads
+   * Preview email for a specific lead
+   */
+  async previewEmail(
+    userId: string,
+    campaignId: string,
+    dto: PreviewEmailDto,
+  ): Promise<EmailPreviewDto> {
+    const [campaign] = await this.db
+      .select()
+      .from(campaigns)
+      .where(and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId)));
+
+    if (!campaign) {
+      throw new NotFoundException('Campaign not found');
+    }
+
+    const lead = await this.leadsService.getLeadById(dto.leadId);
+    if (!lead) {
+      throw new NotFoundException('Lead not found');
+    }
+
+    // Get startup for variables
+    const [startup] = await this.db
+      .select()
+      .from(startups)
+      .where(eq(startups.id, campaign.startupId));
+
+    const variables = this.buildVariables(lead, startup);
+    
+    let subject: string;
+    let body: string;
+
+    if (campaign.mode === 'single_template') {
+      subject = this.applyVariables(campaign.subjectTemplate ?? '', variables);
+      body = this.applyVariables(campaign.bodyTemplate ?? '', variables);
+    } else {
+      // AI personalized - generate unique email
+      const generated = await this.generatePersonalizedEmail(campaign, lead, startup);
+      subject = generated.subject;
+      body = generated.body;
+    }
+
+    const leadName = lead.leadType === 'person' 
+      ? (lead.name ?? lead.handle ?? 'Unknown')
+      : (lead.companyName ?? 'Unknown');
+
+    return {
+      subject,
+      body,
+      leadName,
+      variables,
+    };
+  }
+
+  /**
+   * Generate emails for leads
    */
   async generateEmails(
     userId: string,
@@ -255,16 +265,21 @@ Return ONLY JSON with this format:
       throw new NotFoundException('Campaign not found');
     }
 
-    // Get leads
     const leadsList = await this.leadsService.getLeadsByIds(userId, dto.leadIds);
     if (leadsList.length === 0) {
       throw new BadRequestException('No valid leads found');
     }
 
+    // Get startup for variables
+    const [startup] = await this.db
+      .select()
+      .from(startups)
+      .where(eq(startups.id, campaign.startupId));
+
     const generatedEmails: CampaignEmailResponseDto[] = [];
 
     for (const lead of leadsList) {
-      // Check if email already exists for this lead in this campaign
+      // Check if email already exists
       const [existing] = await this.db
         .select()
         .from(campaignEmails)
@@ -274,13 +289,24 @@ Return ONLY JSON with this format:
         ));
 
       if (existing) {
-        generatedEmails.push(this.toEmailResponseDto(existing));
+        generatedEmails.push(this.toEmailResponseDto(existing, lead));
         continue;
       }
 
-      // Personalize template
-      const subject = this.personalizeTemplate(campaign.subjectTemplate, lead);
-      const body = this.personalizeTemplate(campaign.bodyTemplate, lead);
+      let subject: string;
+      let body: string;
+
+      if (campaign.mode === 'single_template') {
+        // Apply template variables
+        const variables = this.buildVariables(lead, startup);
+        subject = this.applyVariables(campaign.subjectTemplate ?? '', variables);
+        body = this.applyVariables(campaign.bodyTemplate ?? '', variables);
+      } else {
+        // AI personalized - generate unique email for each lead
+        const generated = await this.generatePersonalizedEmail(campaign, lead, startup);
+        subject = generated.subject;
+        body = generated.body;
+      }
 
       const [email] = await this.db
         .insert(campaignEmails)
@@ -293,7 +319,7 @@ Return ONLY JSON with this format:
         })
         .returning();
 
-      generatedEmails.push(this.toEmailResponseDto(email));
+      generatedEmails.push(this.toEmailResponseDto(email, lead));
     }
 
     // Update campaign stats
@@ -317,7 +343,6 @@ Return ONLY JSON with this format:
    * Get emails for a campaign
    */
   async getEmails(userId: string, campaignId: string): Promise<CampaignEmailResponseDto[]> {
-    // Verify ownership
     const [campaign] = await this.db
       .select()
       .from(campaigns)
@@ -333,7 +358,14 @@ Return ONLY JSON with this format:
       .where(eq(campaignEmails.campaignId, campaignId))
       .orderBy(desc(campaignEmails.createdAt));
 
-    return emails.map((email) => this.toEmailResponseDto(email));
+    // Get lead info for each email
+    const results: CampaignEmailResponseDto[] = [];
+    for (const email of emails) {
+      const lead = await this.leadsService.getLeadById(email.leadId);
+      results.push(this.toEmailResponseDto(email, lead));
+    }
+
+    return results;
   }
 
   /**
@@ -349,7 +381,6 @@ Return ONLY JSON with this format:
       throw new NotFoundException('Campaign not found');
     }
 
-    // Get pending emails
     const pendingEmails = await this.db
       .select()
       .from(campaignEmails)
@@ -362,22 +393,20 @@ Return ONLY JSON with this format:
       throw new BadRequestException('No pending emails to send');
     }
 
-    // Check daily limit
     const dailyLimit = campaign.settings?.dailyLimit ?? PILOT_EMAILS_PER_DAY;
     const toSend = pendingEmails.slice(0, dailyLimit);
 
     let sent = 0;
     let failed = 0;
 
-    // Update campaign status
     await this.db
       .update(campaigns)
       .set({ status: 'sending', updatedAt: new Date() })
       .where(eq(campaigns.id, campaignId));
 
     for (const email of toSend) {
-      // Get lead for email address
       const lead = await this.leadsService.getLeadById(email.leadId);
+      
       if (!lead) {
         await this.db
           .update(campaignEmails)
@@ -386,11 +415,11 @@ Return ONLY JSON with this format:
         failed++;
         continue;
       }
-      
-      if (!lead.contactEmail) {
+
+      if (!lead.email) {
         await this.db
           .update(campaignEmails)
-          .set({ status: 'failed', errorMessage: 'No contact email for lead' })
+          .set({ status: 'failed', errorMessage: 'No email address for lead' })
           .where(eq(campaignEmails.id, email.id));
         failed++;
         continue;
@@ -398,9 +427,9 @@ Return ONLY JSON with this format:
 
       try {
         const success = await this.emailService.send({
-          to: lead.contactEmail,
+          to: lead.email,
           subject: email.subject,
-          html: this.formatEmailHtml(email.body, email.trackingId!),
+          html: this.formatEmailHtml(email.body, email.trackingId!, campaign.settings?.includeUnsubscribeLink ?? true),
           text: email.body,
         });
 
@@ -411,7 +440,6 @@ Return ONLY JSON with this format:
             .where(eq(campaignEmails.id, email.id));
           sent++;
 
-          // Update lead status
           await this.db
             .update(leads)
             .set({ status: 'contacted', updatedAt: new Date() })
@@ -487,21 +515,129 @@ Return ONLY JSON with this format:
 
   // Private helpers
 
-  private personalizeTemplate(template: string, lead: Lead): string {
-    return template
-      .replace(/\{\{companyName\}\}/g, lead.companyName || 'your company')
-      .replace(/\{\{contactName\}\}/g, lead.contactName || 'there')
-      .replace(/\{\{contactTitle\}\}/g, lead.contactTitle || '')
-      .replace(/\{\{industry\}\}/g, lead.industry || '')
-      .replace(/\{\{location\}\}/g, lead.location || '');
+  private buildVariables(lead: Lead, startup: typeof startups.$inferSelect | undefined): Record<string, string> {
+    const vars: Record<string, string> = {};
+
+    // Lead variables
+    if (lead.leadType === 'person') {
+      vars['name'] = lead.name ?? '';
+      vars['platform'] = lead.platform ?? '';
+      vars['handle'] = lead.handle ?? '';
+      vars['followers'] = lead.followers?.toString() ?? '';
+      vars['niche'] = lead.niche ?? '';
+      vars['profileUrl'] = lead.profileUrl ?? '';
+    } else {
+      vars['companyName'] = lead.companyName ?? '';
+      vars['website'] = lead.website ?? '';
+      vars['industry'] = lead.industry ?? '';
+      vars['companySize'] = lead.companySize ?? '';
+    }
+
+    // Common lead variables
+    vars['email'] = lead.email ?? '';
+    vars['location'] = lead.location ?? '';
+    vars['description'] = lead.description ?? '';
+
+    // Custom fields
+    const customFields = (lead.customFields as Record<string, string>) ?? {};
+    for (const [key, value] of Object.entries(customFields)) {
+      vars[key] = value;
+    }
+
+    // Startup variables
+    if (startup) {
+      vars['myCompany'] = startup.companyName ?? '';
+      vars['myProduct'] = startup.description ?? '';
+      vars['myIndustry'] = startup.industry ?? '';
+      vars['myFounder'] = startup.founderName ?? '';
+      vars['myWebsite'] = startup.website ?? '';
+    }
+
+    return vars;
   }
 
-  private formatEmailHtml(body: string, trackingId: string): string {
-    // Convert newlines to <br> and wrap in basic HTML
+  private applyVariables(template: string, variables: Record<string, string>): string {
+    let result = template;
+    for (const [key, value] of Object.entries(variables)) {
+      result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value);
+    }
+    return result;
+  }
+
+  private async generatePersonalizedEmail(
+    campaign: Campaign,
+    lead: Lead,
+    startup: typeof startups.$inferSelect | undefined,
+  ): Promise<{ subject: string; body: string }> {
+    const isPerson = lead.leadType === 'person';
+    const leadInfo = isPerson
+      ? `Name: ${lead.name ?? 'Unknown'}
+Platform: ${lead.platform ?? 'Unknown'}
+Handle: ${lead.handle ?? ''}
+Followers: ${lead.followers ?? 'Unknown'}
+Niche: ${lead.niche ?? 'Unknown'}`
+      : `Company: ${lead.companyName ?? 'Unknown'}
+Industry: ${lead.industry ?? 'Unknown'}
+Size: ${lead.companySize ?? 'Unknown'}`;
+
+    const prompt = `Write a personalized cold email for outreach.
+
+MY STARTUP:
+- Company: ${startup?.companyName ?? 'My Company'}
+- Product: ${startup?.description ?? 'Our product'}
+- Industry: ${startup?.industry ?? 'Tech'}
+- Founder: ${startup?.founderName ?? 'Founder'}
+
+RECIPIENT (${isPerson ? 'Influencer/Person' : 'Company'}):
+${leadInfo}
+Location: ${lead.location ?? 'Unknown'}
+Description: ${lead.description ?? 'No description'}
+
+CAMPAIGN GOAL: ${campaign.campaignGoal}
+TONE: ${campaign.tone ?? 'professional'}
+CALL TO ACTION: ${campaign.callToAction ?? 'Schedule a quick call'}
+
+Write a highly personalized email that:
+1. Opens with something specific about THEM (not generic)
+2. Connects their work/niche to our product naturally
+3. Provides clear value proposition for THEM
+4. Ends with the specified call to action
+5. Is under 150 words
+6. Sounds human, not templated
+
+Return JSON only:
+{
+  "subject": "Compelling subject line (under 60 chars)",
+  "body": "Email body with proper formatting"
+}`;
+
+    try {
+      const result = await this.llmCouncil.runCouncil(
+        'You are an expert cold email copywriter. Return only valid JSON.',
+        prompt,
+        { minModels: 1, maxModels: 2, maxTokens: 800, temperature: 0.7 },
+      );
+
+      const jsonMatch = /\{[\s\S]*\}/.exec(result.finalResponse);
+      if (!jsonMatch) {
+        throw new Error('No JSON found');
+      }
+
+      return JSON.parse(jsonMatch[0]) as { subject: string; body: string };
+    } catch (error) {
+      this.logger.error('Failed to generate personalized email:', error);
+      // Fallback to template if AI fails
+      const variables = this.buildVariables(lead, startup);
+      return {
+        subject: `Quick question for ${variables['name'] ?? variables['companyName'] ?? 'you'}`,
+        body: `Hi ${variables['name'] ?? 'there'},\n\n${campaign.campaignGoal ?? 'I wanted to reach out.'}\n\n${campaign.callToAction ?? 'Would love to connect!'}\n\nBest,\n${startup?.founderName ?? 'Team'}`,
+      };
+    }
+  }
+
+  private formatEmailHtml(body: string, trackingId: string, includeUnsubscribe: boolean): string {
     const htmlBody = body.replace(/\n/g, '<br>');
-    
-    // Generate tracking URLs
-    const appUrl = process.env.APP_URL || 'http://localhost:3000';
+    const appUrl = process.env.APP_URL ?? 'http://localhost:3000';
     const trackingPixelUrl = `${appUrl}/api/v1/outreach/track/open/${trackingId}`;
     const unsubscribeUrl = `${appUrl}/api/v1/outreach/unsubscribe/${trackingId}`;
     
@@ -510,10 +646,9 @@ Return ONLY JSON with this format:
 <head><meta charset="utf-8"></head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333;">
 ${htmlBody}
-<div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666;">
+${includeUnsubscribe ? `<div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666;">
 <p>If you'd prefer not to receive these emails, <a href="${unsubscribeUrl}">unsubscribe here</a>.</p>
-</div>
-<!-- Tracking pixel -->
+</div>` : ''}
 <img src="${trackingPixelUrl}" width="1" height="1" style="display:none;" alt="" />
 </body>
 </html>`;
@@ -523,17 +658,27 @@ ${htmlBody}
     return {
       id: campaign.id,
       name: campaign.name,
+      mode: campaign.mode ?? 'single_template',
+      targetLeadType: campaign.targetLeadType ?? 'person',
       subjectTemplate: campaign.subjectTemplate,
       bodyTemplate: campaign.bodyTemplate,
+      campaignGoal: campaign.campaignGoal,
+      tone: campaign.tone,
+      callToAction: campaign.callToAction,
       status: campaign.status ?? 'draft',
       settings: campaign.settings ?? {},
+      availableVariables: (campaign.availableVariables as string[]) ?? [],
       stats: campaign.stats ?? {},
       createdAt: campaign.createdAt.toISOString(),
       updatedAt: campaign.updatedAt.toISOString(),
     };
   }
 
-  private toEmailResponseDto(email: CampaignEmail): CampaignEmailResponseDto {
+  private toEmailResponseDto(email: CampaignEmail, lead: Lead | null): CampaignEmailResponseDto {
+    const leadName = lead 
+      ? (lead.leadType === 'person' ? (lead.name ?? lead.handle) : lead.companyName)
+      : null;
+
     return {
       id: email.id,
       leadId: email.leadId,
@@ -544,6 +689,8 @@ ${htmlBody}
       openedAt: email.openedAt?.toISOString() ?? null,
       clickedAt: email.clickedAt?.toISOString() ?? null,
       createdAt: email.createdAt.toISOString(),
+      leadName: leadName ?? undefined,
+      leadEmail: lead?.email ?? undefined,
     };
   }
 }

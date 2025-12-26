@@ -135,7 +135,7 @@ services:
       # CORS (set to your frontend URL)
       # ===========================================
       - key: CORS_ORIGINS
-        sync: false
+        value: "https://co-op-dev.vercel.app"
       
       # ===========================================
       # Logging

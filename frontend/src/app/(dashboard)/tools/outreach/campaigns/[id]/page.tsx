@@ -220,22 +220,57 @@ export default function CampaignDetailPage() {
         </div>
       )}
 
-      {/* Template Preview */}
+      {/* Template/Goal Preview */}
       <Card className="border-border/40">
         <CardHeader>
-          <CardTitle className="text-lg">Email Template</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div>
-            <p className="text-sm text-muted-foreground">Subject</p>
-            <p className="font-medium">{campaign.subjectTemplate}</p>
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground mb-1">Body</p>
-            <div className="p-3 rounded-lg bg-muted/50 text-sm whitespace-pre-wrap max-h-[200px] overflow-y-auto">
-              {campaign.bodyTemplate}
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">
+              {campaign.mode === 'single_template' ? 'Email Template' : 'AI Configuration'}
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className="text-xs">
+                {campaign.mode === 'single_template' ? 'Single Template' : 'AI Personalized'}
+              </Badge>
+              <Badge variant="outline" className="text-xs capitalize">
+                {campaign.targetLeadType}s
+              </Badge>
             </div>
           </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {campaign.mode === 'single_template' ? (
+            <>
+              <div>
+                <p className="text-sm text-muted-foreground">Subject</p>
+                <p className="font-medium">{campaign.subjectTemplate}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Body</p>
+                <div className="p-3 rounded-lg bg-muted/50 text-sm whitespace-pre-wrap max-h-[200px] overflow-y-auto">
+                  {campaign.bodyTemplate}
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <p className="text-sm text-muted-foreground">Campaign Goal</p>
+                <p>{campaign.campaignGoal}</p>
+              </div>
+              <div className="flex gap-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Tone</p>
+                  <p className="font-medium capitalize">{campaign.tone}</p>
+                </div>
+                {campaign.callToAction && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Call to Action</p>
+                    <p className="font-medium">{campaign.callToAction}</p>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -259,8 +294,10 @@ export default function CampaignDetailPage() {
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className="font-medium truncate">{email.subject}</p>
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          {email.leadName && (
+                            <span className="text-sm text-muted-foreground">{email.leadName}</span>
+                          )}
                           <Badge 
                             variant="outline" 
                             className={cn('text-xs capitalize', EMAIL_STATUS_COLORS[email.status])}
@@ -268,10 +305,12 @@ export default function CampaignDetailPage() {
                             {email.status}
                           </Badge>
                         </div>
-                        <p className="text-sm text-muted-foreground line-clamp-2">
+                        <p className="font-medium truncate">{email.subject}</p>
+                        <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
                           {email.body.slice(0, 150)}...
                         </p>
                         <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                          {email.leadEmail && <span>To: {email.leadEmail}</span>}
                           {email.sentAt && <span>Sent: {formatDate(email.sentAt)}</span>}
                           {email.openedAt && <span>Opened: {formatDate(email.openedAt)}</span>}
                           {email.clickedAt && <span>Clicked: {formatDate(email.clickedAt)}</span>}

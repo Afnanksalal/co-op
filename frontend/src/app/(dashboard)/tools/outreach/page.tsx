@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
-import type { Lead, Campaign, LeadStatus } from '@/lib/api/types';
+import type { Lead, Campaign, LeadStatus, LeadType } from '@/lib/api/types';
 
 // SVG Icons
 const ArrowLeftIcon = () => (
@@ -48,6 +48,18 @@ const SparkleIcon = () => (
   </svg>
 );
 
+const UserIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 256 256">
+    <path d="M230.92,212c-15.23-26.33-38.7-45.21-66.09-54.16a72,72,0,1,0-73.66,0C63.78,166.78,40.31,185.66,25.08,212a8,8,0,1,0,13.85,8c18.84-32.56,52.14-52,89.07-52s70.23,19.44,89.07,52a8,8,0,1,0,13.85-8ZM72,96a56,56,0,1,1,56,56A56.06,56.06,0,0,1,72,96Z"/>
+  </svg>
+);
+
+const BuildingIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 256 256">
+    <path d="M232,224H208V32h8a8,8,0,0,0,0-16H40a8,8,0,0,0,0,16h8V224H24a8,8,0,0,0,0,16H232a8,8,0,0,0,0-16ZM64,32H192V224H160V184a8,8,0,0,0-8-8H104a8,8,0,0,0-8,8v40H64Zm80,192H112V192h32ZM88,64a8,8,0,0,1,8-8h16a8,8,0,0,1,0,16H96A8,8,0,0,1,88,64Zm48,0a8,8,0,0,1,8-8h16a8,8,0,0,1,0,16H144A8,8,0,0,1,136,64ZM88,104a8,8,0,0,1,8-8h16a8,8,0,0,1,0,16H96A8,8,0,0,1,88,104Zm48,0a8,8,0,0,1,8-8h16a8,8,0,0,1,0,16H144A8,8,0,0,1,136,104ZM88,144a8,8,0,0,1,8-8h16a8,8,0,0,1,0,16H96A8,8,0,0,1,88,144Zm48,0a8,8,0,0,1,8-8h16a8,8,0,0,1,0,16H144A8,8,0,0,1,136,144Z"/>
+  </svg>
+);
+
 const UsersIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 256 256">
     <path d="M117.25,157.92a60,60,0,1,0-66.5,0A95.83,95.83,0,0,0,3.53,195.63a8,8,0,1,0,13.4,8.74,80,80,0,0,1,134.14,0,8,8,0,0,0,13.4-8.74A95.83,95.83,0,0,0,117.25,157.92ZM40,108a44,44,0,1,1,44,44A44.05,44.05,0,0,1,40,108Zm210.14,98.7a8,8,0,0,1-11.07-2.33A79.83,79.83,0,0,0,172,168a8,8,0,0,1,0-16,44,44,0,1,0-16.34-84.87,8,8,0,1,1-5.94-14.85,60,60,0,0,1,55.53,105.64,95.83,95.83,0,0,1,47.22,37.71A8,8,0,0,1,250.14,206.7Z"/>
@@ -69,6 +81,8 @@ const STATUS_COLORS: Record<LeadStatus, string> = {
   unsubscribed: 'bg-gray-500/10 text-gray-600 border-gray-500/20',
 };
 
+const PLATFORMS = ['youtube', 'twitter', 'linkedin', 'instagram', 'tiktok'];
+
 export default function OutreachPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState('leads');
@@ -78,13 +92,18 @@ export default function OutreachPage() {
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [showDiscoverDialog, setShowDiscoverDialog] = useState(false);
   const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
-  
-  // Discovery form
+  const [leadTypeFilter, setLeadTypeFilter] = useState<LeadType | 'all'>('all');
+
+  // Discovery form - supports both person and company
   const [discoverForm, setDiscoverForm] = useState({
-    startupIdea: '',
-    targetIndustry: '',
+    leadType: 'person' as LeadType,
+    targetNiche: '',
+    targetPlatforms: [] as string[],
     targetLocations: '',
-    idealCustomerProfile: '',
+    minFollowers: undefined as number | undefined,
+    maxFollowers: undefined as number | undefined,
+    targetCompanySizes: [] as string[],
+    keywords: '',
     maxLeads: 10,
   });
 
@@ -108,28 +127,32 @@ export default function OutreachPage() {
   }, [fetchData]);
 
   const handleDiscover = async () => {
-    if (!discoverForm.startupIdea.trim()) {
-      toast.error('Please describe your startup idea');
-      return;
-    }
-
     setIsDiscovering(true);
     try {
       const discovered = await api.discoverLeads({
-        startupIdea: discoverForm.startupIdea,
-        targetIndustry: discoverForm.targetIndustry || undefined,
+        leadType: discoverForm.leadType,
+        targetNiche: discoverForm.targetNiche || undefined,
+        targetPlatforms: discoverForm.targetPlatforms.length > 0 ? discoverForm.targetPlatforms : undefined,
         targetLocations: discoverForm.targetLocations ? discoverForm.targetLocations.split(',').map(s => s.trim()) : undefined,
-        idealCustomerProfile: discoverForm.idealCustomerProfile || undefined,
+        minFollowers: discoverForm.minFollowers,
+        maxFollowers: discoverForm.maxFollowers,
+        targetCompanySizes: discoverForm.targetCompanySizes.length > 0 ? discoverForm.targetCompanySizes : undefined,
+        keywords: discoverForm.keywords || undefined,
         maxLeads: discoverForm.maxLeads,
       });
       setLeads(prev => [...discovered, ...prev]);
       setShowDiscoverDialog(false);
-      toast.success(`Discovered ${discovered.length} potential leads`);
+      toast.success(`Discovered ${discovered.length} ${discoverForm.leadType === 'person' ? 'people' : 'companies'}`);
+      // Reset form
       setDiscoverForm({
-        startupIdea: '',
-        targetIndustry: '',
+        leadType: 'person',
+        targetNiche: '',
+        targetPlatforms: [],
         targetLocations: '',
-        idealCustomerProfile: '',
+        minFollowers: undefined,
+        maxFollowers: undefined,
+        targetCompanySizes: [],
+        keywords: '',
         maxLeads: 10,
       });
     } catch (error: unknown) {
@@ -167,9 +190,29 @@ export default function OutreachPage() {
     });
   };
 
+  const togglePlatform = (platform: string) => {
+    setDiscoverForm(prev => ({
+      ...prev,
+      targetPlatforms: prev.targetPlatforms.includes(platform)
+        ? prev.targetPlatforms.filter(p => p !== platform)
+        : [...prev.targetPlatforms, platform],
+    }));
+  };
+
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
+
+  const formatFollowers = (count: number | null) => {
+    if (!count) return '';
+    if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
+    if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
+    return count.toString();
+  };
+
+  const filteredLeads = leadTypeFilter === 'all' 
+    ? leads 
+    : leads.filter(l => l.leadType === leadTypeFilter);
 
   return (
     <div className="max-w-6xl mx-auto space-y-4 sm:space-y-6">
@@ -187,7 +230,7 @@ export default function OutreachPage() {
               Customer Outreach
             </h1>
             <p className="text-xs sm:text-sm text-muted-foreground truncate">
-              Discover leads and run email campaigns
+              Discover influencers & companies, run personalized campaigns
             </p>
           </div>
         </div>
@@ -216,8 +259,37 @@ export default function OutreachPage() {
 
         {/* LEADS TAB */}
         <TabsContent value="leads" className="space-y-4">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-2">
+              {/* Lead type filter */}
+              <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-lg">
+                <Button
+                  variant={leadTypeFilter === 'all' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setLeadTypeFilter('all')}
+                >
+                  All
+                </Button>
+                <Button
+                  variant={leadTypeFilter === 'person' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="h-7 px-2 text-xs gap-1"
+                  onClick={() => setLeadTypeFilter('person')}
+                >
+                  <UserIcon />
+                  People
+                </Button>
+                <Button
+                  variant={leadTypeFilter === 'company' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="h-7 px-2 text-xs gap-1"
+                  onClick={() => setLeadTypeFilter('company')}
+                >
+                  <BuildingIcon />
+                  Companies
+                </Button>
+              </div>
               {selectedLeads.size > 0 && (
                 <Badge variant="secondary">{selectedLeads.size} selected</Badge>
               )}
@@ -231,32 +303,120 @@ export default function OutreachPage() {
               </DialogTrigger>
               <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
-                  <DialogTitle>Discover Potential Customers</DialogTitle>
+                  <DialogTitle>Discover Potential Leads</DialogTitle>
                   <DialogDescription>
-                    Use AI to find companies that might be interested in your product.
+                    Find influencers or companies that match your target audience.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
+                  {/* Lead Type Toggle */}
                   <div className="space-y-2">
-                    <Label>Your Startup Idea / Product *</Label>
-                    <textarea
-                      className="w-full min-h-[100px] px-3 py-2 text-sm rounded-md border border-input bg-background"
-                      placeholder="Describe what you're building and who it's for..."
-                      value={discoverForm.startupIdea}
-                      onChange={(e) => setDiscoverForm(prev => ({ ...prev, startupIdea: e.target.value }))}
-                    />
+                    <Label>What are you looking for?</Label>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant={discoverForm.leadType === 'person' ? 'default' : 'outline'}
+                        className="flex-1 gap-2"
+                        onClick={() => setDiscoverForm(prev => ({ ...prev, leadType: 'person' }))}
+                      >
+                        <UserIcon />
+                        People / Influencers
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={discoverForm.leadType === 'company' ? 'default' : 'outline'}
+                        className="flex-1 gap-2"
+                        onClick={() => setDiscoverForm(prev => ({ ...prev, leadType: 'company' }))}
+                      >
+                        <BuildingIcon />
+                        Companies
+                      </Button>
+                    </div>
                   </div>
+
+                  {/* Person-specific fields */}
+                  {discoverForm.leadType === 'person' && (
+                    <>
+                      <div className="space-y-2">
+                        <Label>Platforms</Label>
+                        <div className="flex flex-wrap gap-2">
+                          {PLATFORMS.map(platform => (
+                            <Badge
+                              key={platform}
+                              variant={discoverForm.targetPlatforms.includes(platform) ? 'default' : 'outline'}
+                              className="cursor-pointer capitalize"
+                              onClick={() => togglePlatform(platform)}
+                            >
+                              {platform}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-2">
+                          <Label>Min Followers</Label>
+                          <Input
+                            type="number"
+                            placeholder="e.g., 10000"
+                            value={discoverForm.minFollowers ?? ''}
+                            onChange={(e) => setDiscoverForm(prev => ({ 
+                              ...prev, 
+                              minFollowers: e.target.value ? parseInt(e.target.value) : undefined 
+                            }))}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Max Followers</Label>
+                          <Input
+                            type="number"
+                            placeholder="e.g., 1000000"
+                            value={discoverForm.maxFollowers ?? ''}
+                            onChange={(e) => setDiscoverForm(prev => ({ 
+                              ...prev, 
+                              maxFollowers: e.target.value ? parseInt(e.target.value) : undefined 
+                            }))}
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Company-specific fields */}
+                  {discoverForm.leadType === 'company' && (
+                    <div className="space-y-2">
+                      <Label>Company Sizes</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {['1-10', '11-50', '51-200', '201-500', '500+'].map(size => (
+                          <Badge
+                            key={size}
+                            variant={discoverForm.targetCompanySizes.includes(size) ? 'default' : 'outline'}
+                            className="cursor-pointer"
+                            onClick={() => setDiscoverForm(prev => ({
+                              ...prev,
+                              targetCompanySizes: prev.targetCompanySizes.includes(size)
+                                ? prev.targetCompanySizes.filter(s => s !== size)
+                                : [...prev.targetCompanySizes, size],
+                            }))}
+                          >
+                            {size} employees
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Common fields */}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
-                      <Label>Target Industry</Label>
+                      <Label>Niche / Industry</Label>
                       <Input
-                        placeholder="e.g., SaaS, E-commerce"
-                        value={discoverForm.targetIndustry}
-                        onChange={(e) => setDiscoverForm(prev => ({ ...prev, targetIndustry: e.target.value }))}
+                        placeholder={discoverForm.leadType === 'person' ? 'e.g., Tech, Fitness' : 'e.g., SaaS, E-commerce'}
+                        value={discoverForm.targetNiche}
+                        onChange={(e) => setDiscoverForm(prev => ({ ...prev, targetNiche: e.target.value }))}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Max Leads</Label>
+                      <Label>Max Results</Label>
                       <Select
                         value={String(discoverForm.maxLeads)}
                         onValueChange={(v) => setDiscoverForm(prev => ({ ...prev, maxLeads: parseInt(v) }))}
@@ -273,20 +433,22 @@ export default function OutreachPage() {
                       </Select>
                     </div>
                   </div>
+
                   <div className="space-y-2">
-                    <Label>Target Locations (comma-separated)</Label>
+                    <Label>Locations (comma-separated)</Label>
                     <Input
                       placeholder="e.g., United States, Europe, Asia"
                       value={discoverForm.targetLocations}
                       onChange={(e) => setDiscoverForm(prev => ({ ...prev, targetLocations: e.target.value }))}
                     />
                   </div>
+
                   <div className="space-y-2">
-                    <Label>Ideal Customer Profile</Label>
+                    <Label>Additional Keywords</Label>
                     <Input
-                      placeholder="e.g., B2B companies with 50-200 employees"
-                      value={discoverForm.idealCustomerProfile}
-                      onChange={(e) => setDiscoverForm(prev => ({ ...prev, idealCustomerProfile: e.target.value }))}
+                      placeholder="e.g., startup, entrepreneur, developer"
+                      value={discoverForm.keywords}
+                      onChange={(e) => setDiscoverForm(prev => ({ ...prev, keywords: e.target.value }))}
                     />
                   </div>
                 </div>
@@ -326,25 +488,31 @@ export default function OutreachPage() {
                 </Card>
               ))}
             </div>
-          ) : leads.length === 0 ? (
+          ) : filteredLeads.length === 0 ? (
             <Card className="border-border/40">
               <CardContent className="p-8 text-center">
                 <UsersIcon />
-                <h3 className="font-medium mb-2 mt-4">No leads yet</h3>
+                <h3 className="font-medium mb-2 mt-4">
+                  {leads.length === 0 ? 'No leads yet' : 'No matching leads'}
+                </h3>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Discover potential customers using AI-powered web research.
+                  {leads.length === 0 
+                    ? 'Discover influencers or companies using AI-powered research.'
+                    : 'Try adjusting your filter.'}
                 </p>
-                <Button onClick={() => setShowDiscoverDialog(true)}>
-                  <SparkleIcon />
-                  <span className="ml-1.5">Discover Leads</span>
-                </Button>
+                {leads.length === 0 && (
+                  <Button onClick={() => setShowDiscoverDialog(true)}>
+                    <SparkleIcon />
+                    <span className="ml-1.5">Discover Leads</span>
+                  </Button>
+                )}
               </CardContent>
             </Card>
           ) : (
             <ScrollArea className="h-[500px]">
               <div className="space-y-2 pr-4">
                 <AnimatePresence>
-                  {leads.map((lead, index) => (
+                  {filteredLeads.map((lead, index) => (
                     <motion.div
                       key={lead.id}
                       initial={{ opacity: 0, y: 10 }}
@@ -361,8 +529,12 @@ export default function OutreachPage() {
                         <CardContent className="p-4">
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <h3 className="font-medium truncate">{lead.companyName}</h3>
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                <Badge variant="outline" className="text-xs">
+                                  {lead.leadType === 'person' ? <UserIcon /> : <BuildingIcon />}
+                                  <span className="ml-1 capitalize">{lead.leadType}</span>
+                                </Badge>
+                                <h3 className="font-medium truncate">{lead.displayName}</h3>
                                 <Badge variant="outline" className={cn('text-xs', STATUS_COLORS[lead.status])}>
                                   {lead.status}
                                 </Badge>
@@ -373,14 +545,24 @@ export default function OutreachPage() {
                                 )}
                               </div>
                               <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                                {lead.industry && <span>{lead.industry}</span>}
-                                {lead.location && <span>• {lead.location}</span>}
-                                {lead.companySize && <span>• {lead.companySize} employees</span>}
+                                {lead.leadType === 'person' ? (
+                                  <>
+                                    {lead.platform && <span className="capitalize">{lead.platform}</span>}
+                                    {lead.handle && <span>@{lead.handle.replace('@', '')}</span>}
+                                    {lead.followers && <span>• {formatFollowers(lead.followers)} followers</span>}
+                                    {lead.niche && <span>• {lead.niche}</span>}
+                                  </>
+                                ) : (
+                                  <>
+                                    {lead.industry && <span>{lead.industry}</span>}
+                                    {lead.location && <span>• {lead.location}</span>}
+                                    {lead.companySize && <span>• {lead.companySize} employees</span>}
+                                  </>
+                                )}
                               </div>
-                              {lead.contactName && (
-                                <p className="text-sm mt-1">
-                                  <span className="text-muted-foreground">Contact:</span> {lead.contactName}
-                                  {lead.contactTitle && ` (${lead.contactTitle})`}
+                              {lead.email && (
+                                <p className="text-sm mt-1 text-muted-foreground">
+                                  {lead.email}
                                 </p>
                               )}
                               <p className="text-xs text-muted-foreground mt-1">
@@ -469,14 +651,23 @@ export default function OutreachPage() {
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <h3 className="font-medium truncate">{campaign.name}</h3>
                             <Badge variant="outline" className="text-xs capitalize">
                               {campaign.status}
                             </Badge>
+                            <Badge variant="secondary" className="text-xs">
+                              {campaign.mode === 'single_template' ? '1 Template' : 'AI Personalized'}
+                            </Badge>
+                            <Badge variant="outline" className="text-xs">
+                              {campaign.targetLeadType === 'person' ? <UserIcon /> : <BuildingIcon />}
+                              <span className="ml-1 capitalize">{campaign.targetLeadType}s</span>
+                            </Badge>
                           </div>
                           <p className="text-sm text-muted-foreground truncate">
-                            {campaign.subjectTemplate}
+                            {campaign.mode === 'single_template' 
+                              ? campaign.subjectTemplate 
+                              : campaign.campaignGoal}
                           </p>
                           <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
                             <span>{campaign.stats.totalEmails || 0} emails</span>
