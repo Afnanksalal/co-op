@@ -430,35 +430,46 @@ html.mobile-app {
   --safe-area-bottom: env(safe-area-inset-bottom, 24px);
 }
 
+/* Body - no padding, header handles safe area */
 html.mobile-app body {
-  /* Apply safe area padding to body for ALL pages */
-  padding-top: var(--safe-area-top) !important;
+  padding-top: 0 !important;
   padding-bottom: var(--safe-area-bottom) !important;
-  
-  /* Smooth scrolling and touch optimizations */
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
 }
 
-/* Ensure main content areas respect safe area */
-html.mobile-app main {
-  min-height: calc(100vh - var(--safe-area-top) - var(--safe-area-bottom));
-}
-
-/* Fix header positioning in mobile app */
+/* Fixed header - extends into safe area with internal padding */
 html.mobile-app header {
-  top: var(--safe-area-top) !important;
+  top: 0 !important;
+  padding-top: var(--safe-area-top) !important;
+  height: calc(3.5rem + var(--safe-area-top)) !important;
+  /* Ensure header background extends to top edge */
+  background-clip: padding-box;
 }
 
-/* Fix fixed/sticky elements */
-html.mobile-app .fixed-top,
-html.mobile-app [class*="fixed"][class*="top-0"] {
-  top: var(--safe-area-top) !important;
+/* Slide-out menu - also extends into safe area */
+html.mobile-app aside[class*="fixed"][class*="left-0"] {
+  top: 0 !important;
+  padding-top: var(--safe-area-top) !important;
 }
 
-html.mobile-app .fixed-bottom,
-html.mobile-app [class*="fixed"][class*="bottom-0"] {
-  bottom: var(--safe-area-bottom) !important;
+/* Slide-out menu header - adjust for safe area padding on parent */
+html.mobile-app aside[class*="fixed"][class*="left-0"] > div:first-child {
+  margin-top: 0;
+}
+
+/* Main content - account for taller header */
+html.mobile-app main {
+  padding-top: calc(3.5rem + var(--safe-area-top)) !important;
+  min-height: calc(100vh - var(--safe-area-top) - var(--safe-area-bottom));
+  overflow: hidden;
+}
+
+/* Main content inner scroll container */
+html.mobile-app main > div {
+  height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Mobile app specific input handling */
@@ -526,17 +537,6 @@ html.mobile-app .chat-container > div:nth-child(2) {
   overflow-y: auto;
 }
 
-/* Prevent outer scroll in mobile app - content should fit viewport */
-html.mobile-app main {
-  overflow: hidden;
-}
-
-html.mobile-app main > div {
-  height: 100%;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
 /* ============================================
    RESPONSIVE UTILITIES FOR DASHBOARD PAGES
    ============================================ */
@@ -588,5 +588,255 @@ html.mobile-app .space-y-8 > * + * {
   
   .grid-cols-4 {
     gap: 0.375rem;
+  }
+}
+
+/* ============================================
+   PRODUCTION POLISH - Mobile & Desktop
+   ============================================ */
+
+/* Smooth page transitions */
+main {
+  transition: opacity 0.15s ease-out;
+}
+
+/* Better focus states for accessibility */
+:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* Prevent layout shift from scrollbar */
+html {
+  overflow-y: scroll;
+}
+
+/* Better text rendering */
+body {
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Ensure buttons have consistent sizing on mobile */
+@media (max-width: 640px) {
+  /* Consistent button heights */
+  .h-9, .h-10 {
+    min-height: 36px;
+  }
+  
+  /* Better badge sizing */
+  [class*="Badge"] {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+  
+  /* Ensure inputs don't zoom on iOS */
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+  
+  /* Better table responsiveness */
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Ensure dialogs are properly positioned on mobile */
+@media (max-width: 640px) {
+  [role="dialog"] > div {
+    max-height: calc(100vh - 4rem);
+    overflow-y: auto;
+  }
+  
+  /* Better sheet positioning */
+  [data-state="open"][role="dialog"] {
+    animation: slideUp 0.2s ease-out;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Loading skeleton animation */
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Better empty state styling */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1.5rem;
+  text-align: center;
+}
+
+/* Ensure consistent card borders */
+[class*="Card"] {
+  border-radius: var(--radius);
+}
+
+/* Better hover states for interactive cards */
+.card-interactive:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px -4px rgba(0, 0, 0, 0.1);
+}
+
+/* Ensure proper z-index stacking */
+.z-header { z-index: 40; }
+.z-sidebar { z-index: 40; }
+.z-overlay { z-index: 50; }
+.z-modal { z-index: 60; }
+.z-toast { z-index: 100; }
+
+/* Better mobile navigation */
+@media (max-width: 767px) {
+  /* Ensure nav items are easily tappable */
+  nav a, nav button {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+  
+  /* Better spacing for mobile lists */
+  .space-y-2 > * + * {
+    margin-top: 0.5rem;
+  }
+  
+  .space-y-3 > * + * {
+    margin-top: 0.75rem;
+  }
+}
+
+/* Ensure proper line heights for readability */
+p, li {
+  line-height: 1.6;
+}
+
+/* Better code block styling */
+pre {
+  border-radius: var(--radius);
+  padding: 1rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.875em;
+}
+
+/* Ensure images don't overflow */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Better form field focus states */
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px hsl(var(--ring));
+}
+
+/* Ensure proper truncation */
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Line clamp utilities */
+.line-clamp-1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Ensure proper aspect ratios */
+.aspect-square {
+  aspect-ratio: 1 / 1;
+}
+
+.aspect-video {
+  aspect-ratio: 16 / 9;
+}
+
+/* Better disabled state styling */
+:disabled, [disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Ensure proper word breaking */
+.break-words {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Mobile app specific - ensure content doesn't get cut off */
+html.mobile-app .max-w-4xl,
+html.mobile-app .max-w-5xl,
+html.mobile-app .max-w-6xl {
+  max-width: 100%;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* Ensure proper backdrop blur support */
+@supports (backdrop-filter: blur(10px)) {
+  .backdrop-blur-sm {
+    backdrop-filter: blur(4px);
+  }
+  .backdrop-blur {
+    backdrop-filter: blur(8px);
+  }
+  .backdrop-blur-lg {
+    backdrop-filter: blur(16px);
+  }
+}
+
+/* Fallback for browsers without backdrop-filter */
+@supports not (backdrop-filter: blur(10px)) {
+  .backdrop-blur-sm,
+  .backdrop-blur,
+  .backdrop-blur-lg {
+    background-color: hsl(var(--background) / 0.95);
   }
 }

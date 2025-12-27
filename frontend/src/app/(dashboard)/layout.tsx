@@ -209,7 +209,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <PremiumBackground />
 
       {/* Mobile Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 h-14 border-b border-border/40 bg-background/95 backdrop-blur-sm flex md:hidden items-center justify-between px-4">
+      <header className="fixed top-0 left-0 right-0 z-50 h-14 border-b border-border/40 bg-background/95 backdrop-blur-sm flex md:hidden items-end justify-between px-4 pb-2 pt-safe">
         <Button
           variant="ghost"
           size="icon"
@@ -243,7 +243,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ duration: 0.2, ease: [0.32, 0.72, 0, 1] }}
-              className="fixed top-0 left-0 bottom-0 z-[70] w-[280px] max-w-[85vw] bg-background border-r border-border/40 flex flex-col md:hidden hw-accelerate"
+              className="fixed top-0 left-0 bottom-0 z-[70] w-[280px] max-w-[85vw] bg-background border-r border-border/40 flex flex-col md:hidden hw-accelerate pt-safe"
             >
               {/* Mobile Menu Header */}
               <div className="h-14 flex items-center justify-between px-4 border-b border-border/40 shrink-0">

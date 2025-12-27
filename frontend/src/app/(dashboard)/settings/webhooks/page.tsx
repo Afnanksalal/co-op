@@ -177,16 +177,16 @@ export default function WebhooksPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6 md:space-y-8">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col sm:flex-row sm:items-start justify-between gap-4"
+        className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4"
       >
-        <div>
-          <h1 className="font-serif text-2xl sm:text-3xl font-medium tracking-tight mb-1 sm:mb-2">Webhooks</h1>
-          <p className="text-sm sm:text-base text-muted-foreground">Receive real-time notifications for events</p>
-          <p className="text-xs text-muted-foreground/70 mt-1">Pilot: 1 webhook, 10 triggers/day</p>
+        <div className="min-w-0">
+          <h1 className="font-serif text-xl sm:text-2xl md:text-3xl font-medium tracking-tight mb-0.5 sm:mb-1">Webhooks</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">Receive real-time notifications for events</p>
+          <p className="text-[10px] sm:text-xs text-muted-foreground/70 mt-0.5 sm:mt-1">Pilot: 1 webhook, 10 triggers/day</p>
         </div>
         <Dialog open={showDialog} onOpenChange={setShowDialog}>
           <DialogTrigger asChild>
@@ -253,10 +253,10 @@ export default function WebhooksPage() {
 
       {webhooks.length === 0 ? (
         <Card className="border-border/40">
-          <CardContent className="p-12 text-center">
-            <WebhooksLogo weight="light" className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="font-serif text-xl font-medium mb-2">No webhooks</h3>
-            <p className="text-muted-foreground mb-6">
+          <CardContent className="p-8 sm:p-12 text-center">
+            <WebhooksLogo weight="light" className="w-10 h-10 sm:w-12 sm:h-12 text-muted-foreground mx-auto mb-3 sm:mb-4" />
+            <h3 className="font-serif text-lg sm:text-xl font-medium mb-2">No webhooks</h3>
+            <p className="text-xs sm:text-sm text-muted-foreground mb-4 sm:mb-6">
               Add a webhook to receive real-time event notifications
             </p>
           </CardContent>

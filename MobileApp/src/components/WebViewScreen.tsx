@@ -62,26 +62,6 @@ export function WebViewScreen({ onError }: WebViewScreenProps): React.JSX.Elemen
       if (!document.documentElement.classList.contains('mobile-app')) {
         document.documentElement.classList.add('mobile-app');
       }
-      
-      // Also inject a style tag as backup for immediate effect
-      var existingStyle = document.getElementById('coop-mobile-safe-area');
-      if (!existingStyle) {
-        var s = document.createElement('style');
-        s.id = 'coop-mobile-safe-area';
-        s.textContent = \`
-          html.mobile-app body {
-            padding-top: ${top}px !important;
-            padding-bottom: ${bottom}px !important;
-          }
-        \`;
-        if (document.head) {
-          document.head.appendChild(s);
-        } else {
-          document.addEventListener('DOMContentLoaded', function() {
-            document.head.appendChild(s);
-          });
-        }
-      }
     })();true;`;
   }, [insets.top, insets.bottom]);
 
