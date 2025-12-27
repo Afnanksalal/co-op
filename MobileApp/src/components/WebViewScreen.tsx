@@ -34,17 +34,77 @@ export function WebViewScreen({ onError }: WebViewScreenProps): React.JSX.Elemen
       if (nextAppState === 'background' && webViewRef.current) {
         webViewRef.current.clearCache?.(false);
       }
+      
+      // When app comes to foreground, inject script to check auth and redirect
+      if (nextAppState === 'active' && webViewRef.current) {
+        console.log('[WebView] App came to foreground, checking auth state');
+        
+        // Inject script to check localStorage for auth and redirect if logged in
+        const checkAuthScript = `
+          (function() {
+            console.log('[WebView Inject] Checking auth state...');
+            var currentPath = window.location.pathname;
+            console.log('[WebView Inject] Current path:', currentPath);
+            
+            // Only check on login page
+            if (currentPath === '/login' || currentPath === '/') {
+              var keys = Object.keys(localStorage);
+              for (var i = 0; i < keys.length; i++) {
+                if (keys[i].includes('supabase') && keys[i].includes('auth')) {
+                  try {
+                    var data = JSON.parse(localStorage.getItem(keys[i]));
+                    if (data && data.access_token) {
+                      console.log('[WebView Inject] Found auth token, redirecting to dashboard');
+                      window.location.href = '/dashboard';
+                      return;
+                    }
+                  } catch(e) {
+                    console.log('[WebView Inject] Error parsing auth:', e);
+                  }
+                }
+              }
+              console.log('[WebView Inject] No auth token found');
+            }
+          })();
+          true;
+        `;
+        
+        // Small delay to let the WebView settle
+        setTimeout(() => {
+          webViewRef.current?.injectJavaScript(checkAuthScript);
+        }, 500);
+      }
     });
     return () => subscription.remove();
   }, []);
 
   const handleDeepLink = useCallback((url: string) => {
-    console.log('[WebView] Received deep link:', url);
+    console.log('[WebView] ========== DEEP LINK RECEIVED ==========');
+    console.log('[WebView] Raw URL:', url);
+    
     const webUrl = deepLinkToWebUrl(url);
-    console.log('[WebView] Converted to web URL:', webUrl);
+    console.log('[WebView] Converted web URL:', webUrl);
+    
     if (webUrl) {
+      console.log('[WebView] Updating WebView to:', webUrl);
+      
+      // Update state to trigger re-render
       setTargetUrl(webUrl);
-      setWebViewKey(prev => prev + 1);
+      setWebViewKey(k => k + 1);
+      
+      // Also try direct navigation as backup
+      setTimeout(() => {
+        if (webViewRef.current) {
+          console.log('[WebView] Injecting navigation script');
+          webViewRef.current.injectJavaScript(`
+            console.log('[Injected] Navigating to: ${webUrl}');
+            window.location.href = '${webUrl}';
+            true;
+          `);
+        }
+      }, 100);
+    } else {
+      console.log('[WebView] No web URL generated, ignoring');
     }
   }, []);
 
@@ -191,9 +251,15 @@ export function WebViewScreen({ onError }: WebViewScreenProps): React.JSX.Elemen
 
   // Re-inject CSS on each page load/navigation
   const handleLoadEnd = useCallback(() => {
+    console.log('[WebView] Load ended, current URL:', targetUrl);
     // Always re-inject to handle SPA navigation
     webViewRef.current?.injectJavaScript(injectedCSSScript);
-  }, [injectedCSSScript]);
+  }, [injectedCSSScript, targetUrl]);
+
+  // Log when targetUrl or key changes
+  useEffect(() => {
+    console.log('[WebView] State changed - targetUrl:', targetUrl, 'key:', webViewKey);
+  }, [targetUrl, webViewKey]);
 
   // Handle navigation state change (for SPA client-side routing)
   const handleNavigationStateChange = useCallback((navState: WebViewNavigation) => {

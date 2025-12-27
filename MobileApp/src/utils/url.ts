@@ -12,17 +12,18 @@ export function shouldOpenExternally(url: string): boolean {
   try {
     const urlObj = new URL(url);
     
-    // Don't open our own auth pages externally
+    // Google OAuth MUST open in system browser (Google blocks WebView)
+    if (OAUTH_DOMAINS.some(domain => urlObj.hostname.includes(domain))) {
+      return true;
+    }
+    
+    // Keep our domains in WebView
     if (ALLOWED_DOMAINS.some(domain => urlObj.hostname.includes(domain))) {
-      // But DO open the callback with mobile=true in external browser
-      // because it needs to exchange the code on the server
-      if (urlObj.pathname === '/auth/callback' && urlObj.searchParams.get('mobile') === 'true') {
-        return false; // Let it load in WebView, server will redirect
-      }
       return false;
     }
     
-    return OAUTH_DOMAINS.some(domain => urlObj.hostname.includes(domain));
+    // Open other external links in browser
+    return true;
   } catch {
     return false;
   }
@@ -112,63 +113,45 @@ export function isAuthDeepLink(deepLink: string): boolean {
  * Convert deep link to web URL
  */
 export function deepLinkToWebUrl(deepLink: string): string | null {
+  console.log('[URL] Converting deep link:', deepLink);
+  
   try {
-    // Handle coop:// scheme
-    if (deepLink.startsWith(`${APP_SCHEME}://`)) {
-      const path = deepLink.replace(`${APP_SCHEME}://`, '');
-      
-      // Handle auth callback with tokens - redirect to special page that will set session
-      // Match both 'auth/callback#...' and 'auth/callback?...' patterns
-      if (path.startsWith('auth/callback')) {
-        // Pass the full fragment/query to the web app
-        const hashIndex = deepLink.indexOf('#');
-        const queryIndex = deepLink.indexOf('?');
-        
-        // Prefer hash fragment (tokens), fall back to query params (errors)
-        if (hashIndex !== -1) {
-          const fragment = deepLink.substring(hashIndex);
-          return `${WEB_URL}/auth/mobile-callback${fragment}`;
-        } else if (queryIndex !== -1) {
-          // Convert query params to hash for consistency
-          const query = deepLink.substring(queryIndex + 1);
-          return `${WEB_URL}/auth/mobile-callback#${query}`;
-        }
-        
-        return `${WEB_URL}/auth/mobile-callback`;
-      }
-      
-      // Handle auth error deep links
-      if (path.startsWith('auth/error')) {
-        const queryIndex = deepLink.indexOf('?');
-        if (queryIndex !== -1) {
-          const query = deepLink.substring(queryIndex + 1);
-          const params = new URLSearchParams(query);
-          const message = params.get('message') || 'auth_failed';
-          return `${WEB_URL}/login?error=${encodeURIComponent(message)}`;
-        }
-        return `${WEB_URL}/login?error=auth_failed`;
-      }
-      
-      // Handle login deep link with error
-      if (path.startsWith('login')) {
-        const queryIndex = deepLink.indexOf('?');
-        if (queryIndex !== -1) {
-          const query = deepLink.substring(queryIndex);
-          return `${WEB_URL}/login${query}`;
-        }
-        return `${WEB_URL}/login`;
-      }
-      
-      return `${WEB_URL}/${path}`;
+    if (!deepLink.startsWith(`${APP_SCHEME}://`)) {
+      console.log('[URL] Not a coop:// URL');
+      return null;
     }
     
-    // Handle https:// links to our domain
-    if (deepLink.includes('co-op-dev.vercel.app') || deepLink.includes('co-op.vercel.app')) {
-      return deepLink;
+    // Extract everything after coop://
+    const afterScheme = deepLink.substring(`${APP_SCHEME}://`.length);
+    console.log('[URL] After scheme:', afterScheme);
+    
+    // For auth/callback, we need to preserve the hash fragment
+    if (afterScheme.startsWith('auth/callback')) {
+      const hashIndex = deepLink.indexOf('#');
+      if (hashIndex !== -1) {
+        const hash = deepLink.substring(hashIndex);
+        const result = `${WEB_URL}/auth/mobile-callback${hash}`;
+        console.log('[URL] Auth callback result:', result);
+        return result;
+      }
+      return `${WEB_URL}/auth/mobile-callback`;
     }
     
-    return null;
-  } catch {
+    // For auth/error
+    if (afterScheme.startsWith('auth/error')) {
+      const queryIndex = deepLink.indexOf('?');
+      if (queryIndex !== -1) {
+        const query = deepLink.substring(queryIndex);
+        return `${WEB_URL}/login${query}`;
+      }
+      return `${WEB_URL}/login?error=auth_failed`;
+    }
+    
+    // For other paths
+    const pathOnly = afterScheme.split('#')[0].split('?')[0];
+    return `${WEB_URL}/${pathOnly}`;
+  } catch (e) {
+    console.log('[URL] Error:', e);
     return null;
   }
 }

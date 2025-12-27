@@ -64,7 +64,13 @@
               "scheme": "https",
               "host": "co-op.vercel.app",
               "pathPrefix": "/auth/callback"
-            },
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        },
+        {
+          "action": "VIEW",
+          "data": [
             {
               "scheme": "coop"
             }

@@ -2,22 +2,21 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 
-// Mobile app scheme for deep linking
 const MOBILE_APP_SCHEME = 'coop';
 
-/**
- * Detect if request is from mobile app (only when explicitly set)
- */
-function shouldRedirectToMobileApp(searchParams: URLSearchParams): boolean {
-  return searchParams.get('mobile') === 'true';
+function isMobileRequest(searchParams: URLSearchParams, userAgent: string): boolean {
+  // Check explicit mobile param or user agent
+  return searchParams.get('mobile') === 'true' || 
+         userAgent.includes('CoOpMobile');
 }
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
   const next = searchParams.get('next') ?? '/dashboard';
+  const userAgent = request.headers.get('user-agent') || '';
   
-  const shouldRedirectToApp = shouldRedirectToMobileApp(searchParams);
+  const isMobile = isMobileRequest(searchParams, userAgent);
   
   // Handle OAuth error responses
   const errorParam = searchParams.get('error');
@@ -25,9 +24,8 @@ export async function GET(request: Request) {
   if (errorParam) {
     const errorMsg = errorDescription || errorParam;
     
-    if (shouldRedirectToApp) {
-      // For mobile: redirect to a page that will trigger the deep link
-      return NextResponse.redirect(`${origin}/auth/mobile-redirect?error=${encodeURIComponent(errorMsg)}`);
+    if (isMobile) {
+      return NextResponse.redirect(`${MOBILE_APP_SCHEME}://auth/error?message=${encodeURIComponent(errorMsg)}`);
     }
     
     return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(errorMsg)}`);
@@ -58,15 +56,15 @@ export async function GET(request: Request) {
     if (!error && data.session) {
       const { session } = data;
       
-      if (shouldRedirectToApp) {
-        // For mobile: redirect to a page that will handle the deep link
+      if (isMobile) {
+        // For mobile: Pass tokens via deep link
         const tokenParams = new URLSearchParams({
           access_token: session.access_token,
           refresh_token: session.refresh_token,
           expires_at: String(session.expires_at || ''),
         });
         
-        return NextResponse.redirect(`${origin}/auth/mobile-redirect?${tokenParams.toString()}`);
+        return NextResponse.redirect(`${MOBILE_APP_SCHEME}://auth/callback#${tokenParams.toString()}`);
       }
       
       // For web: Redirect to dashboard
@@ -76,16 +74,16 @@ export async function GET(request: Request) {
     if (error) {
       console.error('Auth callback error:', error.message);
       
-      if (shouldRedirectToApp) {
-        return NextResponse.redirect(`${origin}/auth/mobile-redirect?error=${encodeURIComponent(error.message)}`);
+      if (isMobile) {
+        return NextResponse.redirect(`${MOBILE_APP_SCHEME}://auth/error?message=${encodeURIComponent(error.message)}`);
       }
       
       return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(error.message || 'auth_failed')}`);
     }
   }
 
-  if (shouldRedirectToApp) {
-    return NextResponse.redirect(`${origin}/auth/mobile-redirect?error=auth_failed`);
+  if (isMobile) {
+    return NextResponse.redirect(`${MOBILE_APP_SCHEME}://auth/error?message=no_code`);
   }
   
   return NextResponse.redirect(`${origin}/login?error=auth_failed`);

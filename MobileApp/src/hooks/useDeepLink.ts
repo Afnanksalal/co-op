@@ -4,57 +4,106 @@
  */
 
 import { useEffect, useRef, useCallback } from 'react';
-import { Linking, AppState, AppStateStatus } from 'react-native';
+import { Linking, AppState, AppStateStatus, Platform } from 'react-native';
 
 export function useDeepLink(onDeepLink: (url: string) => void): void {
   const appState = useRef(AppState.currentState);
   const lastProcessedUrl = useRef<string | null>(null);
+  const lastProcessedTime = useRef<number>(0);
 
-  // Memoize the handler to prevent unnecessary re-subscriptions
-  const handleUrl = useCallback((url: string | null) => {
-    if (!url) return;
+  const handleUrl = useCallback((url: string | null, source: string) => {
+    console.log(`[DeepLink] handleUrl called from ${source}:`, url);
     
-    console.log('[DeepLink] Received URL:', url);
-    
-    // Prevent processing the same URL twice (can happen with app state changes)
-    if (lastProcessedUrl.current === url) {
-      console.log('[DeepLink] URL already processed, skipping');
+    if (!url) {
+      console.log('[DeepLink] No URL received');
       return;
     }
-    lastProcessedUrl.current = url;
     
-    // Reset after a short delay to allow re-processing if user tries again
+    // Only process coop:// URLs
+    if (!url.startsWith('coop://')) {
+      console.log('[DeepLink] Not a coop:// URL, ignoring:', url);
+      return;
+    }
+    
+    const now = Date.now();
+    
+    // Prevent processing the same URL within 3 seconds
+    if (lastProcessedUrl.current === url && (now - lastProcessedTime.current) < 3000) {
+      console.log('[DeepLink] URL processed recently, skipping');
+      return;
+    }
+    
+    console.log('[DeepLink] Processing URL:', url);
+    lastProcessedUrl.current = url;
+    lastProcessedTime.current = now;
+    
+    // Call the handler
+    onDeepLink(url);
+    
+    // Clear after 10 seconds to allow re-processing
     setTimeout(() => {
       if (lastProcessedUrl.current === url) {
         lastProcessedUrl.current = null;
       }
-    }, 2000);
-    
-    onDeepLink(url);
+    }, 10000);
   }, [onDeepLink]);
 
   useEffect(() => {
-    // Handle deep link when app is already open
+    console.log('[DeepLink] Setting up listeners, Platform:', Platform.OS);
+    
+    // Handle deep link when app receives URL event (app already running)
     const linkSubscription = Linking.addEventListener('url', ({ url }) => {
-      handleUrl(url);
+      console.log('[DeepLink] ===== URL EVENT =====');
+      console.log('[DeepLink] URL:', url);
+      handleUrl(url, 'url_event');
     });
 
     // Handle deep link when app is opened from closed state
-    Linking.getInitialURL().then(handleUrl);
-
-    // Re-check for deep links when app comes to foreground
-    // This handles OAuth callbacks that might have been missed
-    const appStateSubscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
-      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-        // Small delay to ensure the deep link is available
-        setTimeout(() => {
-          Linking.getInitialURL().then(handleUrl);
-        }, 100);
+    const checkInitialUrl = async () => {
+      try {
+        const url = await Linking.getInitialURL();
+        console.log('[DeepLink] Initial URL check:', url);
+        if (url) {
+          handleUrl(url, 'initial_url');
+        }
+      } catch (e) {
+        console.log('[DeepLink] Error getting initial URL:', e);
       }
+    };
+    
+    checkInitialUrl();
+
+    // Re-check when app comes to foreground
+    const appStateSubscription = AppState.addEventListener('change', async (nextAppState: AppStateStatus) => {
+      const prevState = appState.current;
+      console.log('[DeepLink] App state:', prevState, '->', nextAppState);
+      
+      if (prevState.match(/inactive|background/) && nextAppState === 'active') {
+        console.log('[DeepLink] App came to foreground');
+        
+        // On Android, we might need to check for pending intents
+        // On iOS, the URL event should fire automatically
+        if (Platform.OS === 'android') {
+          // Small delay to let the system process the intent
+          setTimeout(async () => {
+            try {
+              const url = await Linking.getInitialURL();
+              console.log('[DeepLink] URL after foreground (Android):', url);
+              if (url) {
+                handleUrl(url, 'foreground_android');
+              }
+            } catch (e) {
+              console.log('[DeepLink] Error:', e);
+            }
+          }, 100);
+        }
+      }
+      
       appState.current = nextAppState;
     });
 
     return () => {
+      console.log('[DeepLink] Cleaning up listeners');
       linkSubscription.remove();
       appStateSubscription.remove();
     };
