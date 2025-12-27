@@ -1110,6 +1110,37 @@ class ApiClient {
   async getCampaignStats(campaignId: string): Promise<import('./types').CampaignStats> {
     return this.get<import('./types').CampaignStats>(`/outreach/campaigns/${campaignId}/stats`);
   }
+
+  async getCampaignEmail(campaignId: string, emailId: string): Promise<import('./types').CampaignEmail> {
+    return this.get<import('./types').CampaignEmail>(`/outreach/campaigns/${campaignId}/emails/${emailId}`);
+  }
+
+  async updateCampaignEmail(
+    campaignId: string, 
+    emailId: string, 
+    data: { subject?: string; body?: string }
+  ): Promise<import('./types').CampaignEmail> {
+    return this.patch<import('./types').CampaignEmail>(`/outreach/campaigns/${campaignId}/emails/${emailId}`, data);
+  }
+
+  async regenerateCampaignEmail(
+    campaignId: string, 
+    emailId: string, 
+    customInstructions?: string
+  ): Promise<import('./types').CampaignEmail> {
+    return this.post<import('./types').CampaignEmail>(
+      `/outreach/campaigns/${campaignId}/emails/${emailId}/regenerate`, 
+      { customInstructions }
+    );
+  }
+
+  async deleteCampaignEmail(campaignId: string, emailId: string): Promise<void> {
+    await this.delete(`/outreach/campaigns/${campaignId}/emails/${emailId}`);
+  }
+
+  async sendSingleCampaignEmail(campaignId: string, emailId: string): Promise<{ success: boolean }> {
+    return this.post<{ success: boolean }>(`/outreach/campaigns/${campaignId}/emails/${emailId}/send`);
+  }
 }
 
 export const api = new ApiClient();

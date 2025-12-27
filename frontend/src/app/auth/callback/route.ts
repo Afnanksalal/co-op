@@ -53,24 +53,38 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = await createClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     
-    if (!error) {
-      const { data: { user } } = await supabase.auth.getUser();
+    if (!error && data.session) {
+      const { session } = data;
       
-      if (user) {
-        if (shouldRedirectToApp) {
-          // Redirect back to mobile app - it will reload the WebView
-          // The WebView will now have the auth session via cookies
-          return NextResponse.redirect(`${MOBILE_APP_SCHEME}://${next.replace(/^\//, '')}`);
-        }
+      if (shouldRedirectToApp) {
+        // For mobile: Pass tokens via URL fragment so the WebView can pick them up
+        // The WebView will extract these and store in localStorage for Supabase client
+        const tokenParams = new URLSearchParams({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+          expires_at: String(session.expires_at || ''),
+          token_type: session.token_type || 'bearer',
+        });
         
-        return NextResponse.redirect(`${origin}${next}`);
+        // Use fragment (#) so tokens aren't sent to server on subsequent requests
+        return NextResponse.redirect(`${MOBILE_APP_SCHEME}://auth/callback#${tokenParams.toString()}`);
       }
+      
+      return NextResponse.redirect(`${origin}${next}`);
     }
     
     if (error) {
       console.error('Auth callback error:', error.message);
+      
+      // Pass specific error to mobile app
+      if (shouldRedirectToApp) {
+        const errorMsg = error.message || 'Failed to exchange code for session';
+        return NextResponse.redirect(`${MOBILE_APP_SCHEME}://auth/error?message=${encodeURIComponent(errorMsg)}`);
+      }
+      
+      return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(error.message || 'auth_failed')}`);
     }
   }
 

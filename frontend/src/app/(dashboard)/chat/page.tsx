@@ -25,7 +25,7 @@ import {
   BookmarkSimple,
   DownloadSimple,
   Paperclip,
-
+  X,
   FilePdf,
 } from '@phosphor-icons/react';
 import { api } from '@/lib/api/client';
@@ -1118,7 +1118,7 @@ export default function ChatPage() {
                             {message.sources && message.sources.length > 0 && (
                               <div className="p-3 rounded-lg bg-muted/30 border border-border/40">
                                 <p className="text-xs font-medium text-muted-foreground mb-2">Sources ({message.sources.length})</p>
-                                <div className="space-y-1.5">
+                                <div className="space-y-1.5 overflow-hidden">
                                   {message.sources.map((source, i) => {
                                     // Extract domain from URL for display
                                     let displayText = source;
@@ -1131,20 +1131,20 @@ export default function ChatPage() {
                                     }
                                     const isUrl = source.startsWith('http');
                                     return (
-                                      <div key={i} className="flex items-center gap-2 text-xs">
+                                      <div key={i} className="flex items-start gap-2 text-xs min-w-0">
                                         <span className="text-muted-foreground shrink-0">{i + 1}.</span>
                                         {isUrl ? (
                                           <a
                                             href={source}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="text-primary hover:underline truncate"
+                                            className="text-primary hover:underline break-all overflow-wrap-anywhere"
                                             title={source}
                                           >
                                             {displayText}
                                           </a>
                                         ) : (
-                                          <span className="text-muted-foreground truncate" title={source}>
+                                          <span className="text-muted-foreground break-all overflow-wrap-anywhere" title={source}>
                                             {displayText}
                                           </span>
                                         )}
@@ -1173,22 +1173,33 @@ export default function ChatPage() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Follow-up Suggestions */}
+      {/* Follow-up Suggestions - Dismissible */}
       {followUpSuggestions.length > 0 && messages.length > 0 && !isLoading && (
         <div className="pb-2 shrink-0">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-xs text-muted-foreground">Follow-up:</span>
-            {lastUserPrompt && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleRegenerate}
-                className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground touch-manipulation active:scale-95"
-              >
-                <ArrowClockwise weight="regular" className="w-3 h-3 mr-1" />
-                Regenerate
-              </Button>
-            )}
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Follow-up:</span>
+              {lastUserPrompt && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleRegenerate}
+                  className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground touch-manipulation active:scale-95"
+                >
+                  <ArrowClockwise weight="regular" className="w-3 h-3 mr-1" />
+                  Regenerate
+                </Button>
+              )}
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setFollowUpSuggestions([])}
+              className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground touch-manipulation active:scale-95"
+              title="Dismiss suggestions"
+            >
+              <X weight="regular" className="w-3.5 h-3.5" />
+            </Button>
           </div>
           <div className="flex flex-wrap gap-2">
             {followUpSuggestions.map((suggestion, i) => (

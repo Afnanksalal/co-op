@@ -25,6 +25,8 @@ import {
   CampaignEmailResponseDto,
   CampaignStatsDto,
   EmailPreviewDto,
+  UpdateCampaignEmailDto,
+  RegenerateEmailDto,
 } from './dto/campaign.dto';
 
 @ApiTags('Outreach - Campaigns')
@@ -146,5 +148,73 @@ export class CampaignsController {
     @Param('id', ParseUUIDPipe) campaignId: string,
   ): Promise<CampaignStatsDto> {
     return this.campaignsService.getStats(userId, campaignId);
+  }
+
+  @Get(':id/emails/:emailId')
+  @RateLimit(RateLimitPresets.READ)
+  @ApiOperation({ summary: 'Get a single campaign email' })
+  @ApiParam({ name: 'id', type: 'string' })
+  @ApiParam({ name: 'emailId', type: 'string' })
+  async getEmail(
+    @CurrentUser('id') userId: string,
+    @Param('id', ParseUUIDPipe) campaignId: string,
+    @Param('emailId', ParseUUIDPipe) emailId: string,
+  ): Promise<CampaignEmailResponseDto> {
+    return this.campaignsService.getEmail(userId, campaignId, emailId);
+  }
+
+  @Patch(':id/emails/:emailId')
+  @RateLimit(RateLimitPresets.STANDARD)
+  @ApiOperation({ summary: 'Update a campaign email (subject/body)' })
+  @ApiParam({ name: 'id', type: 'string' })
+  @ApiParam({ name: 'emailId', type: 'string' })
+  async updateEmail(
+    @CurrentUser('id') userId: string,
+    @Param('id', ParseUUIDPipe) campaignId: string,
+    @Param('emailId', ParseUUIDPipe) emailId: string,
+    @Body() dto: UpdateCampaignEmailDto,
+  ): Promise<CampaignEmailResponseDto> {
+    return this.campaignsService.updateEmail(userId, campaignId, emailId, dto);
+  }
+
+  @Post(':id/emails/:emailId/regenerate')
+  @RateLimit({ limit: 20, ttl: 3600 }) // 20 regenerations per hour
+  @ApiOperation({ summary: 'Regenerate a campaign email using AI' })
+  @ApiParam({ name: 'id', type: 'string' })
+  @ApiParam({ name: 'emailId', type: 'string' })
+  async regenerateEmail(
+    @CurrentUser('id') userId: string,
+    @Param('id', ParseUUIDPipe) campaignId: string,
+    @Param('emailId', ParseUUIDPipe) emailId: string,
+    @Body() dto: RegenerateEmailDto,
+  ): Promise<CampaignEmailResponseDto> {
+    return this.campaignsService.regenerateEmail(userId, campaignId, emailId, dto);
+  }
+
+  @Delete(':id/emails/:emailId')
+  @RateLimit(RateLimitPresets.STANDARD)
+  @ApiOperation({ summary: 'Delete a campaign email' })
+  @ApiParam({ name: 'id', type: 'string' })
+  @ApiParam({ name: 'emailId', type: 'string' })
+  async deleteEmail(
+    @CurrentUser('id') userId: string,
+    @Param('id', ParseUUIDPipe) campaignId: string,
+    @Param('emailId', ParseUUIDPipe) emailId: string,
+  ): Promise<{ success: boolean }> {
+    await this.campaignsService.deleteEmail(userId, campaignId, emailId);
+    return { success: true };
+  }
+
+  @Post(':id/emails/:emailId/send')
+  @RateLimit({ limit: 50, ttl: 3600 }) // 50 individual sends per hour
+  @ApiOperation({ summary: 'Send a single campaign email' })
+  @ApiParam({ name: 'id', type: 'string' })
+  @ApiParam({ name: 'emailId', type: 'string' })
+  async sendSingleEmail(
+    @CurrentUser('id') userId: string,
+    @Param('id', ParseUUIDPipe) campaignId: string,
+    @Param('emailId', ParseUUIDPipe) emailId: string,
+  ): Promise<{ success: boolean }> {
+    return this.campaignsService.sendSingleEmail(userId, campaignId, emailId);
   }
 }

@@ -576,11 +576,11 @@ export default function AgentPage() {
                 >
                   {/* Sources */}
                   {finalResult.output.sources.length > 0 && (
-                    <div className="p-3 rounded-lg bg-muted/30 border border-border/40">
+                    <div className="p-3 rounded-lg bg-muted/30 border border-border/40 overflow-hidden">
                       <p className="text-xs font-medium text-muted-foreground mb-2">Sources</p>
-                      <div className="flex flex-wrap gap-1">
+                      <div className="flex flex-wrap gap-1.5">
                         {finalResult.output.sources.map((source, i) => (
-                          <Badge key={i} variant="outline" className="text-xs">
+                          <Badge key={i} variant="outline" className="text-xs max-w-full break-all">
                             {source}
                           </Badge>
                         ))}

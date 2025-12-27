@@ -151,7 +151,7 @@ export default function UsagePage() {
 
   if (hasError) {
     return (
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         <ErrorState onRetry={fetchData} />
       </div>
     );

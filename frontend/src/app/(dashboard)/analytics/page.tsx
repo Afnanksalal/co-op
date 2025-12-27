@@ -243,7 +243,7 @@ export default function AnalyticsPage() {
   const retrySuccessRate = retryAttempts > 0 ? (retrySuccesses / retryAttempts) * 100 : 100;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
+    <div className="max-w-5xl mx-auto space-y-8">
       <motion.div 
         initial={{ opacity: 0, y: 20 }} 
         animate={{ opacity: 1, y: 0 }}

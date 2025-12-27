@@ -24,6 +24,8 @@ import {
   CampaignEmailResponseDto,
   CampaignStatsDto,
   EmailPreviewDto,
+  UpdateCampaignEmailDto,
+  RegenerateEmailDto,
 } from './dto/campaign.dto';
 
 const PILOT_CAMPAIGN_LIMIT = 5;
@@ -520,6 +522,272 @@ export class CampaignsService {
     };
   }
 
+  /**
+   * Get a single email by ID
+   */
+  async getEmail(userId: string, campaignId: string, emailId: string): Promise<CampaignEmailResponseDto> {
+    const [campaign] = await this.db
+      .select()
+      .from(campaigns)
+      .where(and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId)));
+
+    if (!campaign) {
+      throw new NotFoundException('Campaign not found');
+    }
+
+    const [email] = await this.db
+      .select()
+      .from(campaignEmails)
+      .where(and(eq(campaignEmails.id, emailId), eq(campaignEmails.campaignId, campaignId)));
+
+    if (!email) {
+      throw new NotFoundException('Email not found');
+    }
+
+    const lead = await this.leadsService.getLeadById(email.leadId);
+    return this.toEmailResponseDto(email, lead);
+  }
+
+  /**
+   * Update a campaign email (subject/body)
+   */
+  async updateEmail(
+    userId: string,
+    campaignId: string,
+    emailId: string,
+    dto: UpdateCampaignEmailDto,
+  ): Promise<CampaignEmailResponseDto> {
+    const [campaign] = await this.db
+      .select()
+      .from(campaigns)
+      .where(and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId)));
+
+    if (!campaign) {
+      throw new NotFoundException('Campaign not found');
+    }
+
+    const [email] = await this.db
+      .select()
+      .from(campaignEmails)
+      .where(and(eq(campaignEmails.id, emailId), eq(campaignEmails.campaignId, campaignId)));
+
+    if (!email) {
+      throw new NotFoundException('Email not found');
+    }
+
+    if (email.status !== 'pending') {
+      throw new BadRequestException('Cannot edit an email that has already been sent');
+    }
+
+    const updateData: Partial<CampaignEmail> = {};
+    if (dto.subject !== undefined) updateData.subject = dto.subject;
+    if (dto.body !== undefined) updateData.body = dto.body;
+
+    const [updated] = await this.db
+      .update(campaignEmails)
+      .set(updateData)
+      .where(eq(campaignEmails.id, emailId))
+      .returning();
+
+    const lead = await this.leadsService.getLeadById(updated.leadId);
+    return this.toEmailResponseDto(updated, lead);
+  }
+
+  /**
+   * Regenerate a campaign email using AI
+   */
+  async regenerateEmail(
+    userId: string,
+    campaignId: string,
+    emailId: string,
+    dto: RegenerateEmailDto,
+  ): Promise<CampaignEmailResponseDto> {
+    const [campaign] = await this.db
+      .select()
+      .from(campaigns)
+      .where(and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId)));
+
+    if (!campaign) {
+      throw new NotFoundException('Campaign not found');
+    }
+
+    const [email] = await this.db
+      .select()
+      .from(campaignEmails)
+      .where(and(eq(campaignEmails.id, emailId), eq(campaignEmails.campaignId, campaignId)));
+
+    if (!email) {
+      throw new NotFoundException('Email not found');
+    }
+
+    if (email.status !== 'pending') {
+      throw new BadRequestException('Cannot regenerate an email that has already been sent');
+    }
+
+    const lead = await this.leadsService.getLeadById(email.leadId);
+    if (!lead) {
+      throw new NotFoundException('Lead not found');
+    }
+
+    // Get startup for variables
+    const [startup] = await this.db
+      .select()
+      .from(startups)
+      .where(eq(startups.id, campaign.startupId));
+
+    let subject: string;
+    let body: string;
+
+    if (campaign.mode === 'single_template') {
+      // For template mode, just re-apply variables
+      const variables = this.buildVariables(lead, startup);
+      subject = this.applyVariables(campaign.subjectTemplate ?? '', variables);
+      body = this.applyVariables(campaign.bodyTemplate ?? '', variables);
+    } else {
+      // AI personalized - regenerate with optional custom instructions
+      const generated = await this.generatePersonalizedEmail(
+        campaign, 
+        lead, 
+        startup, 
+        dto.customInstructions
+      );
+      subject = generated.subject;
+      body = generated.body;
+    }
+
+    const [updated] = await this.db
+      .update(campaignEmails)
+      .set({ subject, body })
+      .where(eq(campaignEmails.id, emailId))
+      .returning();
+
+    return this.toEmailResponseDto(updated, lead);
+  }
+
+  /**
+   * Delete a single campaign email
+   */
+  async deleteEmail(userId: string, campaignId: string, emailId: string): Promise<void> {
+    const [campaign] = await this.db
+      .select()
+      .from(campaigns)
+      .where(and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId)));
+
+    if (!campaign) {
+      throw new NotFoundException('Campaign not found');
+    }
+
+    const [email] = await this.db
+      .select()
+      .from(campaignEmails)
+      .where(and(eq(campaignEmails.id, emailId), eq(campaignEmails.campaignId, campaignId)));
+
+    if (!email) {
+      throw new NotFoundException('Email not found');
+    }
+
+    if (email.status !== 'pending') {
+      throw new BadRequestException('Cannot delete an email that has already been sent');
+    }
+
+    await this.db.delete(campaignEmails).where(eq(campaignEmails.id, emailId));
+
+    // Update campaign stats
+    const totalEmails = await this.db
+      .select()
+      .from(campaignEmails)
+      .where(eq(campaignEmails.campaignId, campaignId));
+
+    await this.db
+      .update(campaigns)
+      .set({
+        stats: { ...campaign.stats, totalEmails: totalEmails.length },
+        updatedAt: new Date(),
+      })
+      .where(eq(campaigns.id, campaignId));
+  }
+
+  /**
+   * Send a single email
+   */
+  async sendSingleEmail(userId: string, campaignId: string, emailId: string): Promise<{ success: boolean }> {
+    const [campaign] = await this.db
+      .select()
+      .from(campaigns)
+      .where(and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId)));
+
+    if (!campaign) {
+      throw new NotFoundException('Campaign not found');
+    }
+
+    const [email] = await this.db
+      .select()
+      .from(campaignEmails)
+      .where(and(eq(campaignEmails.id, emailId), eq(campaignEmails.campaignId, campaignId)));
+
+    if (!email) {
+      throw new NotFoundException('Email not found');
+    }
+
+    if (email.status !== 'pending') {
+      throw new BadRequestException('Email has already been sent or failed');
+    }
+
+    const lead = await this.leadsService.getLeadById(email.leadId);
+    if (!lead || !lead.email) {
+      throw new BadRequestException('Lead has no email address');
+    }
+
+    try {
+      const success = await this.emailService.send({
+        to: lead.email,
+        subject: email.subject,
+        html: this.formatEmailHtml(email.body, email.trackingId!, campaign.settings?.includeUnsubscribeLink ?? true),
+        text: email.body,
+      });
+
+      if (success) {
+        await this.db
+          .update(campaignEmails)
+          .set({ status: 'sent', sentAt: new Date() })
+          .where(eq(campaignEmails.id, email.id));
+
+        await this.db
+          .update(leads)
+          .set({ status: 'contacted', updatedAt: new Date() })
+          .where(eq(leads.id, lead.id));
+
+        // Update campaign stats
+        const currentStats = campaign.stats ?? {};
+        await this.db
+          .update(campaigns)
+          .set({
+            stats: { ...currentStats, sent: (currentStats.sent ?? 0) + 1 },
+            updatedAt: new Date(),
+          })
+          .where(eq(campaigns.id, campaignId));
+
+        return { success: true };
+      } else {
+        await this.db
+          .update(campaignEmails)
+          .set({ status: 'failed', errorMessage: 'Send failed' })
+          .where(eq(campaignEmails.id, email.id));
+        return { success: false };
+      }
+    } catch (error) {
+      this.logger.error(`Failed to send email ${email.id}:`, error);
+      await this.db
+        .update(campaignEmails)
+        .set({ 
+          status: 'failed', 
+          errorMessage: error instanceof Error ? error.message : 'Unknown error' 
+        })
+        .where(eq(campaignEmails.id, email.id));
+      throw error;
+    }
+  }
+
   // Private helpers
 
   private buildVariables(lead: Lead, startup: typeof startups.$inferSelect | undefined): Record<string, string> {
@@ -575,6 +843,7 @@ export class CampaignsService {
     campaign: Campaign,
     lead: Lead,
     startup: typeof startups.$inferSelect | undefined,
+    customInstructions?: string,
   ): Promise<{ subject: string; body: string }> {
     const isPerson = lead.leadType === 'person';
     const leadInfo = isPerson
@@ -586,6 +855,10 @@ Niche: ${lead.niche ?? 'Unknown'}`
       : `Company: ${lead.companyName ?? 'Unknown'}
 Industry: ${lead.industry ?? 'Unknown'}
 Size: ${lead.companySize ?? 'Unknown'}`;
+
+    const customPart = customInstructions 
+      ? `\n\nADDITIONAL INSTRUCTIONS: ${customInstructions}` 
+      : '';
 
     const prompt = `Write a personalized cold email for outreach.
 
@@ -602,7 +875,7 @@ Description: ${lead.description ?? 'No description'}
 
 CAMPAIGN GOAL: ${campaign.campaignGoal}
 TONE: ${campaign.tone ?? 'professional'}
-CALL TO ACTION: ${campaign.callToAction ?? 'Schedule a quick call'}
+CALL TO ACTION: ${campaign.callToAction ?? 'Schedule a quick call'}${customPart}
 
 Write a highly personalized email that:
 1. Opens with something specific about THEM (not generic)

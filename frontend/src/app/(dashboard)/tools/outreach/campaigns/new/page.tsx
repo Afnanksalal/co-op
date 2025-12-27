@@ -252,18 +252,18 @@ export default function NewCampaignPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center gap-4"
+        className="flex items-center gap-3 sm:gap-4"
       >
-        <Button variant="ghost" size="icon" onClick={() => router.back()}>
+        <Button variant="ghost" size="icon" onClick={() => router.back()} className="shrink-0">
           <ArrowLeftIcon />
         </Button>
         <div>
-          <h1 className="font-serif text-2xl font-medium tracking-tight">Create Campaign</h1>
-          <p className="text-sm text-muted-foreground">Step {step} of 3</p>
+          <h1 className="font-serif text-xl sm:text-2xl font-medium tracking-tight">Create Campaign</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">Step {step} of 3</p>
         </div>
       </motion.div>
 

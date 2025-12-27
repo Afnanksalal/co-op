@@ -269,3 +269,24 @@ export class EmailPreviewDto {
   @ApiProperty()
   variables: Record<string, string>;
 }
+
+export class UpdateCampaignEmailDto {
+  @ApiPropertyOptional({ description: 'Updated email subject' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  subject?: string;
+
+  @ApiPropertyOptional({ description: 'Updated email body' })
+  @IsOptional()
+  @IsString()
+  body?: string;
+}
+
+export class RegenerateEmailDto {
+  @ApiPropertyOptional({ description: 'Custom instructions for regeneration' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  customInstructions?: string;
+}
