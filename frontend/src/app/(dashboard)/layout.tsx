@@ -364,7 +364,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           sidebarCollapsed ? 'md:ml-[72px]' : 'md:ml-[260px]'
         )}
       >
-        <div className="h-full md:min-h-screen px-4 py-4 sm:px-6 md:px-8 md:py-8 mx-auto">
+        <div className="h-full md:min-h-screen px-4 py-4 sm:px-6 md:px-8 md:py-8">
           <ErrorBoundary>{children}</ErrorBoundary>
         </div>
       </main>

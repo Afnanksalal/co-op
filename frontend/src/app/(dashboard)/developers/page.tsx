@@ -109,13 +109,9 @@ const a2aSteps = [
 
 export default function DevelopersPage() {
   return (
-    <div className="w-full max-w-4xl mx-auto pb-8">
+    <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6 pb-8">
       {/* Page Header */}
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }} 
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-4 sm:mb-6"
-      >
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
         <h1 className="font-serif text-xl sm:text-2xl md:text-3xl font-medium tracking-tight">Developer Docs</h1>
         <p className="text-muted-foreground text-xs sm:text-sm mt-1">
           Integrate Co-Op&apos;s AI agents via REST API, MCP, or A2A.
@@ -127,7 +123,7 @@ export default function DevelopersPage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="grid grid-cols-3 gap-2 sm:gap-4 mb-4 sm:mb-6"
+        className="grid grid-cols-3 gap-2 sm:gap-4"
       >
         <Link href="/settings/api-keys" className="block">
           <Card className="border-border/40 hover:border-border transition-colors h-full">
@@ -175,10 +171,9 @@ export default function DevelopersPage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
-        className="mb-4 sm:mb-6"
       >
         <Tabs defaultValue="rest" className="w-full">
-          <TabsList className="w-full grid grid-cols-3 h-10 mb-4 sm:mb-6">
+          <TabsList className="w-full grid grid-cols-3 h-10 mb-4">
             <TabsTrigger value="rest" className="text-xs sm:text-sm gap-1.5">
               <Code weight="regular" className="w-4 h-4 hidden sm:block" />
               REST
@@ -194,7 +189,7 @@ export default function DevelopersPage() {
           </TabsList>
 
           {/* REST API Tab */}
-          <TabsContent value="rest" className="mt-0">
+          <TabsContent value="rest">
             <Card className="border-border/40">
               <CardHeader className="p-3 sm:p-6 pb-2 sm:pb-4">
                 <CardTitle className="font-serif text-base sm:text-xl">REST API</CardTitle>
@@ -278,7 +273,7 @@ curl -N ${API_URL}/agents/stream/<taskId>`} />
           </TabsContent>
 
           {/* MCP Tab */}
-          <TabsContent value="mcp" className="mt-0">
+          <TabsContent value="mcp">
             <Card className="border-border/40">
               <CardHeader className="p-3 sm:p-6 pb-2 sm:pb-4">
                 <CardTitle className="font-serif text-base sm:text-xl">MCP Protocol</CardTitle>
@@ -369,7 +364,7 @@ curl -N ${API_URL}/agents/stream/<taskId>`} />
           </TabsContent>
 
           {/* A2A Tab */}
-          <TabsContent value="a2a" className="mt-0">
+          <TabsContent value="a2a">
             <Card className="border-border/40">
               <CardHeader className="p-3 sm:p-6 pb-2 sm:pb-4">
                 <CardTitle className="font-serif text-base sm:text-xl">A2A Protocol</CardTitle>
@@ -442,12 +437,11 @@ curl -N ${API_URL}/agents/stream/<taskId>`} />
         </Tabs>
       </motion.div>
 
-      {/* Available Agents */}
+      {/* Available Agents - OUTSIDE of Tabs */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
-        className="mb-4 sm:mb-6"
       >
         <Card className="border-border/40">
           <CardHeader className="p-3 sm:p-6 pb-2 sm:pb-4">
@@ -481,7 +475,7 @@ curl -N ${API_URL}/agents/stream/<taskId>`} />
         </Card>
       </motion.div>
 
-      {/* LLM Council */}
+      {/* LLM Council - OUTSIDE of Tabs */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
