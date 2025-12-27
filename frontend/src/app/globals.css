@@ -384,15 +384,6 @@ html.menu-open body {
 
 /* Mobile input improvements */
 @media (max-width: 640px) {
-  /* Larger touch targets - exclude switches which have their own sizing */
-  button:not([role="switch"]), 
-  [role="button"],
-  input[type="submit"],
-  input[type="button"] {
-    min-height: 44px;
-    min-width: 44px;
-  }
-  
   /* Better textarea sizing on mobile */
   textarea {
     font-size: 16px !important; /* Prevents iOS zoom on focus */
@@ -851,25 +842,11 @@ html.mobile-app .max-w-6xl {
 
 /* Better touch targets on mobile */
 @media (max-width: 640px) {
-  /* Ensure all interactive elements have proper touch targets */
-  button,
-  [role="button"],
-  a {
-    min-height: 36px;
-  }
-  
   /* Better input sizing */
   input,
   select,
   textarea {
     min-height: 40px;
-  }
-  
-  /* Ensure tabs are properly sized */
-  [role="tablist"] button {
-    min-height: 40px;
-    padding-left: 0.75rem;
-    padding-right: 0.75rem;
   }
   
   /* Better badge sizing on mobile */

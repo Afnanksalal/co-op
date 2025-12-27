@@ -469,8 +469,8 @@ export default function OutreachPage() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="grid w-full grid-cols-2 max-w-md">
-          <TabsTrigger value="leads" className="gap-2"><UsersIcon />Leads ({leads.length})</TabsTrigger>
-          <TabsTrigger value="campaigns" className="gap-2"><EnvelopeIcon />Campaigns ({campaigns.length})</TabsTrigger>
+          <TabsTrigger value="leads">Leads ({leads.length})</TabsTrigger>
+          <TabsTrigger value="campaigns">Campaigns ({campaigns.length})</TabsTrigger>
         </TabsList>
 
         {/* LEADS TAB */}

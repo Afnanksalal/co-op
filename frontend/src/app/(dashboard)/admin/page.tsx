@@ -440,19 +440,10 @@ export default function AdminPage() {
       </motion.div>
 
       <Tabs defaultValue="rag" className="space-y-4 sm:space-y-6">
-        <TabsList className="grid w-full grid-cols-3 h-10 sm:h-11 p-1 bg-muted/50">
-          <TabsTrigger value="rag" className="gap-1.5 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm">
-            <FileText weight="regular" className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span>RAG</span>
-          </TabsTrigger>
-          <TabsTrigger value="mcp" className="gap-1.5 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm">
-            <HardDrives weight="regular" className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span>MCP</span>
-          </TabsTrigger>
-          <TabsTrigger value="investors" className="gap-1.5 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm">
-            <Buildings weight="regular" className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span>Investors</span>
-          </TabsTrigger>
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="rag">RAG</TabsTrigger>
+          <TabsTrigger value="mcp">MCP</TabsTrigger>
+          <TabsTrigger value="investors">Investors</TabsTrigger>
         </TabsList>
 
 

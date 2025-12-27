@@ -72,23 +72,11 @@ export default function CalculatorsPage() {
       </motion.div>
 
       <Tabs defaultValue="runway" className="space-y-4 sm:space-y-6">
-        <TabsList className="grid w-full grid-cols-4 h-9 sm:h-10">
-          <TabsTrigger value="runway" className="text-[10px] sm:text-sm px-1 sm:px-3">
-            <CoinsIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5 hidden sm:inline" />
-            Runway
-          </TabsTrigger>
-          <TabsTrigger value="burnrate" className="text-[10px] sm:text-sm px-1 sm:px-3">
-            <TrendUpIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5 hidden sm:inline" />
-            Burn
-          </TabsTrigger>
-          <TabsTrigger value="valuation" className="text-[10px] sm:text-sm px-1 sm:px-3">
-            <ChartLineUpIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5 hidden sm:inline" />
-            Value
-          </TabsTrigger>
-          <TabsTrigger value="uniteconomics" className="text-[10px] sm:text-sm px-1 sm:px-3">
-            <CalculatorIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5 hidden sm:inline" />
-            Unit
-          </TabsTrigger>
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="runway">Runway</TabsTrigger>
+          <TabsTrigger value="burnrate">Burn</TabsTrigger>
+          <TabsTrigger value="valuation">Value</TabsTrigger>
+          <TabsTrigger value="uniteconomics">Unit</TabsTrigger>
         </TabsList>
 
         <TabsContent value="runway">
