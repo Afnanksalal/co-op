@@ -101,6 +101,7 @@ export class SecureDocumentsService {
       
       // Embed each chunk via RAG service (encryption happens in RAG service)
       let successCount = 0;
+      let lastError = '';
       for (let i = 0; i < chunks.length; i++) {
         if (this.userDocsRag.isAvailable()) {
           const vectorId = await this.userDocsRag.embedChunk(
@@ -110,12 +111,35 @@ export class SecureDocumentsService {
             chunks[i], // Plaintext - RAG service encrypts before storage
             file.originalname,
           );
-          if (vectorId) successCount++;
+          if (vectorId) {
+            successCount++;
+          } else {
+            lastError = 'Embedding returned null - check RAG service logs';
+          }
+        } else {
+          lastError = 'RAG service not available';
         }
       }
 
-      if (successCount === 0 && this.userDocsRag.isAvailable()) {
-        throw new BadRequestException('Failed to embed document chunks');
+      // If RAG is not available, still allow document upload (just won't have semantic search)
+      if (!this.userDocsRag.isAvailable()) {
+        this.logger.warn(`RAG service not available - document ${documentId} uploaded without embeddings`);
+        // Update document status to ready anyway
+        const [updated] = await this.db
+          .update(userDocuments)
+          .set({
+            status: 'ready',
+            chunkCount: chunks.length,
+            updatedAt: new Date(),
+          })
+          .where(eq(userDocuments.id, documentId))
+          .returning();
+
+        return this.toResponse(updated);
+      }
+
+      if (successCount === 0) {
+        throw new BadRequestException(`Failed to embed document chunks: ${lastError || 'Unknown error'}`);
       }
 
       // Update document status

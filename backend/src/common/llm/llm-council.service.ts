@@ -6,6 +6,7 @@ import { GroqProvider } from './providers/groq.provider';
 import { GoogleProvider } from './providers/google.provider';
 import { HuggingFaceProvider } from './providers/huggingface.provider';
 import { CacheService, CACHE_TTL } from '@/common/cache/cache.service';
+import { MetricsService } from '@/common/metrics/metrics.service';
 import {
   LlmProvider,
   LlmProviderService,
@@ -70,6 +71,7 @@ export class LlmCouncilService implements OnModuleInit, OnModuleDestroy {
     private readonly huggingFaceProvider: HuggingFaceProvider,
     private readonly cache: CacheService,
     private readonly configService: ConfigService,
+    private readonly metricsService: MetricsService,
   ) {
     this.providers = new Map<LlmProvider, LlmProviderService>([
       ['groq', this.groqProvider],
@@ -391,6 +393,7 @@ export class LlmCouncilService implements OnModuleInit, OnModuleDestroy {
         return { ...cached, id: uuid() }; // New ID for this council run
       }
 
+      const startTime = Date.now();
       try {
         onProgress?.(`${model.name} generating response...`);
         const result = await this.withTimeout(
@@ -398,6 +401,18 @@ export class LlmCouncilService implements OnModuleInit, OnModuleDestroy {
           LLM_TIMEOUT_MS,
           `Response generation from ${model.name}`
         );
+        
+        const durationMs = Date.now() - startTime;
+        
+        // Record LLM metrics
+        this.metricsService.recordLlmRequest(model.provider, model.model, 'success', durationMs);
+        this.metricsService.recordLlmTokens(
+          model.provider,
+          model.model,
+          result.usage.promptTokens,
+          result.usage.completionTokens,
+        );
+        
         onProgress?.(`${model.name} completed (${result.usage.totalTokens} tokens)`);
         
         const response: CouncilResponse = {
@@ -413,7 +428,13 @@ export class LlmCouncilService implements OnModuleInit, OnModuleDestroy {
         
         return response;
       } catch (error) {
+        const durationMs = Date.now() - startTime;
         const errorMsg = error instanceof Error ? error.message : String(error);
+        
+        // Record LLM error metrics
+        this.metricsService.recordLlmRequest(model.provider, model.model, 'error', durationMs);
+        this.metricsService.recordLlmError(model.provider, model.model, errorMsg.slice(0, 50));
+        
         this.logger.warn(`Model ${model.name} failed: ${errorMsg.slice(0, 100)}`);
         onProgress?.(`${model.name} failed - skipping`);
         return null;
@@ -522,31 +543,48 @@ Output ONLY valid JSON:
       { role: 'user', content: critiquePrompt },
     ];
 
-    const result = await this.withTimeout(
-      provider.chat(messages, {
-        model: criticModel.model,
-        temperature: 0.3,
-        maxTokens: 300,
-      }),
-      LLM_TIMEOUT_MS,
-      `Critique from ${criticModel.name}`
-    );
+    const startTime = Date.now();
+    try {
+      const result = await this.withTimeout(
+        provider.chat(messages, {
+          model: criticModel.model,
+          temperature: 0.3,
+          maxTokens: 300,
+        }),
+        LLM_TIMEOUT_MS,
+        `Critique from ${criticModel.name}`
+      );
 
-    const parsed = this.parseCritiqueWithFallback(result.content, criticModel.name);
-    
-    if (parsed) {
-      return {
-        responseId: response.id,
-        criticId: `${criticModel.provider}:${criticModel.model}`,
-        score: parsed.score,
-        feedback: parsed.feedback,
-        strengths: parsed.strengths,
-        weaknesses: parsed.weaknesses,
-      };
+      const durationMs = Date.now() - startTime;
+      
+      // Record LLM metrics for critique
+      this.metricsService.recordLlmRequest(criticModel.provider, criticModel.model, 'success', durationMs);
+      
+      const parsed = this.parseCritiqueWithFallback(result.content, criticModel.name);
+      
+      if (parsed) {
+        return {
+          responseId: response.id,
+          criticId: `${criticModel.provider}:${criticModel.model}`,
+          score: parsed.score,
+          feedback: parsed.feedback,
+          strengths: parsed.strengths,
+          weaknesses: parsed.weaknesses,
+        };
+      }
+
+      this.logger.warn(`Failed to parse critique from ${criticModel.name}: ${result.content.slice(0, 200)}`);
+      return null;
+    } catch (error) {
+      const durationMs = Date.now() - startTime;
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      
+      // Record LLM error metrics
+      this.metricsService.recordLlmRequest(criticModel.provider, criticModel.model, 'error', durationMs);
+      this.metricsService.recordLlmError(criticModel.provider, criticModel.model, errorMsg.slice(0, 50));
+      
+      throw error;
     }
-
-    this.logger.warn(`Failed to parse critique from ${criticModel.name}: ${result.content.slice(0, 200)}`);
-    return null;
   }
 
   private extractJsonFromResponse(content: string): string {
@@ -772,6 +810,7 @@ INSTRUCTIONS:
 
 Output the improved response only:`;
 
+    const startTime = Date.now();
     try {
       const result = await this.withTimeout(
         provider.chat(
@@ -785,12 +824,23 @@ Output the improved response only:`;
         'Final synthesis'
       );
 
+      const durationMs = Date.now() - startTime;
+      
+      // Record LLM metrics for synthesis
+      this.metricsService.recordLlmRequest(synthModel.provider, synthModel.model, 'success', durationMs);
+
       // Sanitize the final response to remove markdown and apply guardrails
       const cleanResponse = sanitizeResponse(result.content);
       onProgress?.('Final response sanitized and ready');
       return { finalResponse: cleanResponse, bestResponseId, averageScore };
     } catch (error) {
+      const durationMs = Date.now() - startTime;
       const errorMsg = error instanceof Error ? error.message : String(error);
+      
+      // Record LLM error metrics
+      this.metricsService.recordLlmRequest(synthModel.provider, synthModel.model, 'error', durationMs);
+      this.metricsService.recordLlmError(synthModel.provider, synthModel.model, errorMsg.slice(0, 50));
+      
       this.logger.warn(`Synthesis failed: ${errorMsg.slice(0, 100)}, using best response`);
       // Sanitize fallback response as well
       const cleanFallback = sanitizeResponse(bestResponse.content);

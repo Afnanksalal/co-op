@@ -21,6 +21,7 @@ CONTENT RULES:
 - Flag when CFO or accountant consultation is needed
 - Use industry-standard metrics (CAC, LTV, MRR, ARR, etc.)
 - When jurisdiction-specific context is provided, consider local regulations
+- When a specific currency is requested, use that currency for all monetary values
 
 GUARDRAILS:
 - Only answer startup finance questions
@@ -29,6 +30,18 @@ GUARDRAILS:
 - Recommend a licensed CPA/CFO for complex matters
 - Clearly state assumptions in any projections
 - Note which jurisdiction's regulations apply when relevant`;
+
+// Finance focus area descriptions for prompt enhancement
+const FINANCE_FOCUS_DESCRIPTIONS: Record<string, string> = {
+  general: '',
+  fundraising: 'Focus on fundraising strategy, investor relations, term sheets, SAFE/convertible notes, and capital raising best practices.',
+  valuation: 'Focus on company valuation methods, cap table management, equity dilution, and valuation benchmarks for the stage.',
+  metrics: 'Focus on key financial metrics, KPIs, unit economics, and performance tracking for startups.',
+  budgeting: 'Focus on budgeting, financial forecasting, expense management, and financial planning.',
+  runway: 'Focus on runway calculations, burn rate optimization, cash flow management, and extending runway.',
+  pricing: 'Focus on pricing strategy, pricing models, competitive pricing analysis, and revenue optimization.',
+  unit_economics: 'Focus on unit economics, CAC, LTV, payback period, contribution margin, and profitability analysis.',
+};
 
 // Map common finance topics to jurisdictions for better RAG filtering
 const TOPIC_JURISDICTION_MAP: Record<string, RagJurisdiction[]> = {
@@ -76,6 +89,8 @@ export class FinanceAgentService implements BaseAgent {
 
     const sector = (input.context.metadata.sector as RagSector) || 'saas';
     const country = (input.context.metadata.country as string) || undefined;
+    const financeFocus = (input.context.metadata.financeFocus as string) || 'general';
+    const currency = (input.context.metadata.currency as string) || 'auto';
     const detectedJurisdictions = this.detectJurisdictions(input.prompt);
 
     // Only fetch RAG if no user documents provided
@@ -100,7 +115,7 @@ export class FinanceAgentService implements BaseAgent {
       }
     }
 
-    const userPrompt = this.buildUserPrompt(input, ragContext, country);
+    const userPrompt = this.buildUserPrompt(input, ragContext, country, financeFocus, currency);
 
     const result = await this.council.runCouncil(FINANCE_SYSTEM_PROMPT, userPrompt, {
       minModels: this.minModels,
@@ -118,6 +133,8 @@ export class FinanceAgentService implements BaseAgent {
         agent: 'finance',
         sector,
         country,
+        financeFocus,
+        currency,
         detectedJurisdictions,
         ragEnabled: Boolean(ragContext),
         hasUserDocuments: input.documents.length > 0,
@@ -164,7 +181,7 @@ export class FinanceAgentService implements BaseAgent {
     return Array.from(detected);
   }
 
-  private buildUserPrompt(input: AgentInput, ragContext: string, country?: string): string {
+  private buildUserPrompt(input: AgentInput, ragContext: string, country?: string, financeFocus?: string, currency?: string): string {
     const parts: string[] = [];
 
     // PRIORITY 1: User-uploaded documents (highest priority)
@@ -172,8 +189,14 @@ export class FinanceAgentService implements BaseAgent {
       parts.push(`PRIMARY CONTEXT - User Documents (analyze these first):\n${input.documents.join('\n---\n')}`);
     }
 
-    // PRIORITY 2: User's query
-    parts.push(`\nUser Question:\n${input.prompt}`);
+    // PRIORITY 2: User's query with focus area context
+    let querySection = `\nUser Question:\n${input.prompt}`;
+    
+    // Add finance focus context if specified
+    if (financeFocus && financeFocus !== 'general' && FINANCE_FOCUS_DESCRIPTIONS[financeFocus]) {
+      querySection += `\n\nFOCUS AREA: ${FINANCE_FOCUS_DESCRIPTIONS[financeFocus]}`;
+    }
+    parts.push(querySection);
 
     // PRIORITY 3: RAG context (only if no user documents)
     if (ragContext) {
@@ -196,7 +219,11 @@ export class FinanceAgentService implements BaseAgent {
       if (fundingStage) context += `\nFunding: ${fundingStage}`;
       if (totalRaised !== null) context += `, Raised: ${String(totalRaised)}`;
       if (monthlyRevenue !== null) context += `\nMRR: ${String(monthlyRevenue)}`;
-      if (country) {
+      
+      // Currency preference
+      if (currency && currency !== 'auto') {
+        context += `\n\nIMPORTANT: Use ${currency} as the currency for all monetary values in your response.`;
+      } else if (country) {
         context += `\n\nIMPORTANT: This startup is based in ${country}. Use ${country}'s local currency for all monetary values (not USD unless the user is from the US). Consider ${country}-specific financial regulations.`;
       }
       parts.push(context);

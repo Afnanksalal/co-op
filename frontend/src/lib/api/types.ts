@@ -183,6 +183,10 @@ export interface RunAgentRequest {
   sessionId: string;
   startupId: string;
   documents: string[];
+  region?: RagRegion;
+  jurisdiction?: RagJurisdiction;
+  financeFocus?: string;
+  currency?: string;
 }
 
 export interface QueueTaskResponse {

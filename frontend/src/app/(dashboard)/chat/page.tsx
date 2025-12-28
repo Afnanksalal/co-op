@@ -31,13 +31,78 @@ import {
 import { api } from '@/lib/api/client';
 import { useUser } from '@/lib/hooks';
 import { useChatStore, useSessionStore } from '@/lib/store';
-import type { AgentType, Session, SecureDocument, StreamEvent } from '@/lib/api/types';
+import type { AgentType, Session, SecureDocument, StreamEvent, RagRegion, RagJurisdiction } from '@/lib/api/types';
 import { cn, generateId, copyToClipboard } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+
+// Jurisdiction options for Legal agent
+const REGION_OPTIONS: { value: RagRegion; label: string }[] = [
+  { value: 'global', label: 'Global' },
+  { value: 'us', label: 'US' },
+  { value: 'eu', label: 'EU' },
+  { value: 'uk', label: 'UK' },
+  { value: 'india', label: 'India' },
+  { value: 'canada', label: 'Canada' },
+  { value: 'apac', label: 'APAC' },
+  { value: 'latam', label: 'LATAM' },
+  { value: 'mena', label: 'MENA' },
+];
+
+const JURISDICTION_OPTIONS: { value: RagJurisdiction; label: string; region?: RagRegion }[] = [
+  { value: 'general', label: 'General' },
+  { value: 'gdpr', label: 'GDPR', region: 'eu' },
+  { value: 'ccpa', label: 'CCPA', region: 'us' },
+  { value: 'lgpd', label: 'LGPD', region: 'latam' },
+  { value: 'pipeda', label: 'PIPEDA', region: 'canada' },
+  { value: 'pdpa', label: 'PDPA', region: 'apac' },
+  { value: 'dpdp', label: 'DPDP', region: 'india' },
+  { value: 'sec', label: 'SEC', region: 'us' },
+  { value: 'finra', label: 'FINRA', region: 'us' },
+  { value: 'fca', label: 'FCA', region: 'uk' },
+  { value: 'sebi', label: 'SEBI', region: 'india' },
+  { value: 'mas', label: 'MAS', region: 'apac' },
+  { value: 'esma', label: 'ESMA', region: 'eu' },
+  { value: 'hipaa', label: 'HIPAA', region: 'us' },
+  { value: 'pci_dss', label: 'PCI-DSS' },
+  { value: 'sox', label: 'SOX', region: 'us' },
+  { value: 'aml_kyc', label: 'AML/KYC' },
+  { value: 'dmca', label: 'DMCA', region: 'us' },
+  { value: 'patent', label: 'Patent' },
+  { value: 'trademark', label: 'Trademark' },
+  { value: 'copyright', label: 'Copyright' },
+  { value: 'employment', label: 'Employment' },
+  { value: 'corporate', label: 'Corporate' },
+  { value: 'contracts', label: 'Contracts' },
+  { value: 'tax', label: 'Tax' },
+];
+
+// Finance focus options
+const FINANCE_FOCUS_OPTIONS: { value: string; label: string }[] = [
+  { value: 'general', label: 'General' },
+  { value: 'fundraising', label: 'Fundraising' },
+  { value: 'valuation', label: 'Valuation' },
+  { value: 'metrics', label: 'Metrics' },
+  { value: 'budgeting', label: 'Budgeting' },
+  { value: 'runway', label: 'Runway' },
+  { value: 'pricing', label: 'Pricing' },
+  { value: 'unit_economics', label: 'Unit Econ' },
+];
+
+const CURRENCY_OPTIONS: { value: string; label: string }[] = [
+  { value: 'auto', label: 'Auto' },
+  { value: 'USD', label: 'USD' },
+  { value: 'EUR', label: 'EUR' },
+  { value: 'GBP', label: 'GBP' },
+  { value: 'INR', label: 'INR' },
+  { value: 'CAD', label: 'CAD' },
+  { value: 'AUD', label: 'AUD' },
+  { value: 'SGD', label: 'SGD' },
+];
 
 const agentConfig: Record<AgentType, { name: string; icon: typeof Scales; color: string }> = {
   legal: { name: 'Legal', icon: Scales, color: 'text-blue-500' },
@@ -81,6 +146,20 @@ export default function ChatPage() {
   const [uploadedDocs, setUploadedDocs] = useState<SecureDocument[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isCreatingSession, setIsCreatingSession] = useState(false); // Prevent race condition
+  
+  // Jurisdiction state for Legal agent
+  const [selectedRegion, setSelectedRegion] = useState<RagRegion>('global');
+  const [selectedJurisdiction, setSelectedJurisdiction] = useState<RagJurisdiction>('general');
+  
+  // Finance params state
+  const [financeFocus, setFinanceFocus] = useState('general');
+  const [currency, setCurrency] = useState('auto');
+  
+  // Filter jurisdictions based on selected region
+  const filteredJurisdictions = JURISDICTION_OPTIONS.filter(
+    (j) => !j.region || j.region === selectedRegion || selectedRegion === 'global'
+  );
+  
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const sessionInitRef = useRef(false);
@@ -270,6 +349,19 @@ export default function ChatPage() {
     try {
       // Build request with document IDs
       const documentIds = uploadedDocs.map(d => d.id);
+      
+      // Include jurisdiction info for legal agent
+      const jurisdictionMetadata = selectedAgent === 'legal' ? {
+        region: selectedRegion,
+        jurisdiction: selectedJurisdiction,
+      } : {};
+      
+      // Include finance params for finance agent
+      const financeMetadata = selectedAgent === 'finance' ? {
+        financeFocus,
+        currency,
+      } : {};
+      
       const request = isMultiAgent
         ? {
             agents: ['legal', 'finance', 'investor', 'competitor'],
@@ -284,6 +376,8 @@ export default function ChatPage() {
             sessionId: sessionToUse.id,
             startupId: user.startup.id,
             documents: documentIds,
+            ...jurisdictionMetadata,
+            ...financeMetadata,
           };
 
       const { taskId } = await api.queueAgent(request);
@@ -857,6 +951,71 @@ export default function ChatPage() {
               </button>
             );
           })}
+          
+          {/* Jurisdiction Selector for Legal Agent */}
+          {selectedAgent === 'legal' && (
+            <>
+              <div className="w-px h-5 bg-border/40 shrink-0" />
+              <Select value={selectedRegion} onValueChange={(v) => {
+                setSelectedRegion(v as RagRegion);
+                setSelectedJurisdiction('general');
+              }}>
+                <SelectTrigger className="w-[80px] sm:w-[100px] h-8 text-xs shrink-0">
+                  <SelectValue placeholder="Region" />
+                </SelectTrigger>
+                <SelectContent>
+                  {REGION_OPTIONS.map((r) => (
+                    <SelectItem key={r.value} value={r.value} className="text-xs">
+                      {r.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={selectedJurisdiction} onValueChange={(v) => setSelectedJurisdiction(v as RagJurisdiction)}>
+                <SelectTrigger className="w-[90px] sm:w-[120px] h-8 text-xs shrink-0">
+                  <SelectValue placeholder="Law" />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredJurisdictions.map((j) => (
+                    <SelectItem key={j.value} value={j.value} className="text-xs">
+                      {j.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
+          )}
+          
+          {/* Finance Params Selector for Finance Agent */}
+          {selectedAgent === 'finance' && (
+            <>
+              <div className="w-px h-5 bg-border/40 shrink-0" />
+              <Select value={financeFocus} onValueChange={setFinanceFocus}>
+                <SelectTrigger className="w-[90px] sm:w-[110px] h-8 text-xs shrink-0">
+                  <SelectValue placeholder="Focus" />
+                </SelectTrigger>
+                <SelectContent>
+                  {FINANCE_FOCUS_OPTIONS.map((f) => (
+                    <SelectItem key={f.value} value={f.value} className="text-xs">
+                      {f.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={currency} onValueChange={setCurrency}>
+                <SelectTrigger className="w-[70px] sm:w-[80px] h-8 text-xs shrink-0">
+                  <SelectValue placeholder="$" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CURRENCY_OPTIONS.map((c) => (
+                    <SelectItem key={c.value} value={c.value} className="text-xs">
+                      {c.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
+          )}
         </div>
       </div>
 

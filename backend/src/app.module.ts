@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 
 import { envSchema } from './config/env.config';
 
@@ -20,6 +21,9 @@ import { ResearchModule } from './common/research/research.module';
 import { RetryModule } from './common/retry/retry.module';
 import { StreamingModule } from './common/streaming/streaming.module';
 import { EmailModule } from './common/email/email.module';
+
+// Interceptors
+import { HttpMetricsInterceptor } from './common/interceptors/http-metrics.interceptor';
 
 // Feature modules
 import { HealthModule } from './modules/health/health.module';
@@ -92,6 +96,12 @@ import { OutreachModule } from './modules/outreach/outreach.module';
     InvestorsModule,
     SecureDocumentsModule,
     OutreachModule,
+  ],
+  providers: [
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: HttpMetricsInterceptor,
+    },
   ],
 })
 export class AppModule {}

@@ -1,18 +1,18 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from '@/components/motion';
 import { api } from '@/lib/api/client';
 import { useUser } from '@/lib/hooks';
-import type { AgentType, AgentPhaseResult, RagRegion, RagJurisdiction } from '@/lib/api/types';
+import type { AgentType, AgentPhaseResult, RagRegion, RagJurisdiction, SecureDocument } from '@/lib/api/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { copyToClipboard } from '@/lib/utils';
+import { copyToClipboard, cn } from '@/lib/utils';
 
 // SVG Icons to avoid Phosphor deprecation warnings
 const ScalesIcon = ({ weight = 'regular', className }: { weight?: string; className?: string }) => (
@@ -98,6 +98,18 @@ const PaperclipIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
+const FilePdfIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" className={className} width="16" height="16" fill="currentColor" viewBox="0 0 256 256">
+    <path d="M224,152a8,8,0,0,1-8,8H192v16h16a8,8,0,0,1,0,16H192v16a8,8,0,0,1-16,0V152a8,8,0,0,1,8-8h32A8,8,0,0,1,224,152ZM92,172a28,28,0,0,1-28,28H56v8a8,8,0,0,1-16,0V152a8,8,0,0,1,8-8H64A28,28,0,0,1,92,172Zm-16,0a12,12,0,0,0-12-12H56v24h8A12,12,0,0,0,76,172Zm88,8a36,36,0,0,1-36,36H112a8,8,0,0,1-8-8V152a8,8,0,0,1,8-8h16A36,36,0,0,1,164,180Zm-16,0a20,20,0,0,0-20-20h-8v40h8A20,20,0,0,0,148,180ZM40,112V40A16,16,0,0,1,56,24h96a8,8,0,0,1,5.66,2.34l56,56A8,8,0,0,1,216,88v24a8,8,0,0,1-16,0V96H152a8,8,0,0,1-8-8V40H56v72a8,8,0,0,1-16,0ZM160,80h28.69L160,51.31Z"/>
+  </svg>
+);
+
+const XIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" className={className} width="12" height="12" fill="currentColor" viewBox="0 0 256 256">
+    <path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/>
+  </svg>
+);
+
 // Jurisdiction options for Legal agent
 const REGION_OPTIONS: { value: RagRegion; label: string }[] = [
   { value: 'global', label: 'Global (General)' },
@@ -144,6 +156,29 @@ const JURISDICTION_OPTIONS: { value: RagJurisdiction; label: string; region?: Ra
   { value: 'tax', label: 'Tax Regulations' },
 ];
 
+// Finance focus options
+const FINANCE_FOCUS_OPTIONS: { value: string; label: string }[] = [
+  { value: 'general', label: 'General Finance' },
+  { value: 'fundraising', label: 'Fundraising & Investment' },
+  { value: 'valuation', label: 'Valuation & Cap Table' },
+  { value: 'metrics', label: 'Metrics & KPIs' },
+  { value: 'budgeting', label: 'Budgeting & Forecasting' },
+  { value: 'runway', label: 'Runway & Burn Rate' },
+  { value: 'pricing', label: 'Pricing Strategy' },
+  { value: 'unit_economics', label: 'Unit Economics' },
+];
+
+const CURRENCY_OPTIONS: { value: string; label: string }[] = [
+  { value: 'auto', label: 'Auto (Based on Location)' },
+  { value: 'USD', label: 'USD ($)' },
+  { value: 'EUR', label: 'EUR (€)' },
+  { value: 'GBP', label: 'GBP (£)' },
+  { value: 'INR', label: 'INR (₹)' },
+  { value: 'CAD', label: 'CAD (C$)' },
+  { value: 'AUD', label: 'AUD (A$)' },
+  { value: 'SGD', label: 'SGD (S$)' },
+];
+
 type IconComponent = React.FC<{ weight?: string; className?: string }>;
 
 const agentConfig: Record<
@@ -154,6 +189,7 @@ const agentConfig: Record<
     icon: IconComponent;
     examples: string[];
     hasJurisdiction?: boolean;
+    hasFinanceParams?: boolean;
   }
 > = {
   legal: {
@@ -178,6 +214,7 @@ const agentConfig: Record<
       'How should I structure my cap table?',
       'What is a reasonable valuation for my stage?',
     ],
+    hasFinanceParams: true,
   },
   investor: {
     name: 'Investor Agent',
@@ -221,41 +258,71 @@ export default function AgentPage() {
   const [selectedRegion, setSelectedRegion] = useState<RagRegion>('global');
   const [selectedJurisdiction, setSelectedJurisdiction] = useState<RagJurisdiction>('general');
   
-  // File upload state
-  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  // Finance params state
+  const [financeFocus, setFinanceFocus] = useState('general');
+  const [currency, setCurrency] = useState('auto');
+  
+  // File upload state - using SecureDocument like chat page
+  const [uploadedDocs, setUploadedDocs] = useState<SecureDocument[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Filter jurisdictions based on selected region
   const filteredJurisdictions = JURISDICTION_OPTIONS.filter(
     (j) => !j.region || j.region === selectedRegion || selectedRegion === 'global'
   );
 
-  const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Document upload handlers - same as chat page
+  const handleFileSelect = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    
+
     const file = files[0];
     const maxSize = 10 * 1024 * 1024; // 10MB
-    
+
     if (file.size > maxSize) {
-      toast.error('File too large (max 10MB)');
+      toast.error('File too large. Maximum size is 10MB.');
       return;
     }
-    
+
     // Only PDF files are supported
     const ext = file.name.split('.').pop()?.toLowerCase();
     if (file.type !== 'application/pdf' && ext !== 'pdf') {
       toast.error('Only PDF files are supported');
       return;
     }
-    
-    setUploadedFiles((prev) => [...prev, file]);
-    toast.success(`Added: ${file.name}`);
-    e.target.value = '';
-  }, []);
 
-  const removeFile = useCallback((index: number) => {
-    setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
+    setIsUploading(true);
+    try {
+      const doc = await api.uploadSecureDocument(file, sessionId ?? undefined);
+      setUploadedDocs(prev => [...prev, doc]);
+      toast.success(`${file.name} uploaded and ready`);
+    } catch (error) {
+      console.error('Failed to upload document:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to upload document';
+      toast.error(errorMessage);
+    }
+    setIsUploading(false);
+    
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }, [sessionId]);
+
+  const handleRemoveDoc = useCallback(async (docId: string) => {
+    try {
+      await api.deleteSecureDocument(docId);
+      setUploadedDocs(prev => prev.filter(d => d.id !== docId));
+      toast.success('Document removed');
+    } catch (error) {
+      console.error('Failed to remove document:', error);
+      toast.error('Failed to remove document');
+    }
   }, []);
 
   const config = agentConfig[agentType];
@@ -301,6 +368,13 @@ export default function AgentPage() {
     e.preventDefault();
     if (!prompt.trim() || !user?.startup || isLoading) return;
 
+    // Check if any documents are still processing
+    const processingDocs = uploadedDocs.filter(d => d.status === 'processing');
+    if (processingDocs.length > 0) {
+      toast.error('Please wait for documents to finish processing');
+      return;
+    }
+
     setIsLoading(true);
     setResults(null);
     const userPrompt = prompt.trim();
@@ -317,23 +391,8 @@ export default function AgentPage() {
         setSessionId(currentSessionId);
       }
 
-      // Upload files and get document IDs using secure documents
-      const documentIds: string[] = [];
-      if (uploadedFiles.length > 0) {
-        setIsUploading(true);
-        for (const file of uploadedFiles) {
-          try {
-            const doc = await api.uploadSecureDocument(file, currentSessionId);
-            documentIds.push(doc.id);
-          } catch (error) {
-            console.error('Failed to upload file:', file.name, error);
-            const errorMessage = error instanceof Error ? error.message : 'Upload failed';
-            toast.error(`Failed to upload ${file.name}: ${errorMessage}`);
-          }
-        }
-        setIsUploading(false);
-        setUploadedFiles([]); // Clear uploaded files after processing
-      }
+      // Get document IDs from already-uploaded docs
+      const documentIds = uploadedDocs.map(d => d.id);
 
       // Save user message to database
       await api.addSessionMessage(currentSessionId, {
@@ -345,6 +404,9 @@ export default function AgentPage() {
       const metadata = config.hasJurisdiction ? {
         region: selectedRegion,
         jurisdiction: selectedJurisdiction,
+      } : config.hasFinanceParams ? {
+        financeFocus,
+        currency,
       } : {};
 
       const { taskId } = await api.queueAgent({
@@ -452,6 +514,36 @@ export default function AgentPage() {
                 {filteredJurisdictions.map((j) => (
                   <SelectItem key={j.value} value={j.value} className="text-xs">
                     {j.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        
+        {/* Finance Params Selector - inline single row */}
+        {config.hasFinanceParams && (
+          <div className="flex items-center gap-2 ml-10 sm:ml-14">
+            <Select value={financeFocus} onValueChange={setFinanceFocus}>
+              <SelectTrigger className="w-[140px] sm:w-[160px] h-8 text-xs">
+                <SelectValue placeholder="Focus Area" />
+              </SelectTrigger>
+              <SelectContent>
+                {FINANCE_FOCUS_OPTIONS.map((f) => (
+                  <SelectItem key={f.value} value={f.value} className="text-xs">
+                    {f.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={currency} onValueChange={setCurrency}>
+              <SelectTrigger className="w-[100px] sm:w-[120px] h-8 text-xs">
+                <SelectValue placeholder="Currency" />
+              </SelectTrigger>
+              <SelectContent>
+                {CURRENCY_OPTIONS.map((c) => (
+                  <SelectItem key={c.value} value={c.value} className="text-xs">
+                    {c.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -613,32 +705,60 @@ export default function AgentPage() {
 
       {/* Input - fixed at bottom with padding */}
       <div className="pt-3 sm:pt-4 pb-3 sm:pb-4 border-t border-border/40 shrink-0">
-        <form onSubmit={handleSubmit}>
-          {/* Uploaded files preview */}
-          {uploadedFiles.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-2">
-              {uploadedFiles.map((file, i) => (
-                <Badge key={i} variant="secondary" className="text-xs gap-1">
-                  {file.name.length > 20 ? `${file.name.slice(0, 20)}...` : file.name}
-                  <button type="button" onClick={() => removeFile(i)} className="ml-1 hover:text-destructive">×</button>
+        {/* Uploaded Documents */}
+        {uploadedDocs.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-2">
+            {uploadedDocs.map((doc) => {
+              const isProcessing = doc.status === 'processing';
+              return (
+                <Badge 
+                  key={doc.id} 
+                  variant={isProcessing ? 'outline' : 'secondary'} 
+                  className={cn('text-xs gap-1', isProcessing && 'animate-pulse')}
+                >
+                  {isProcessing ? (
+                    <CircleNotchIcon className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <FilePdfIcon className="w-3.5 h-3.5" />
+                  )}
+                  <span className="max-w-[100px] truncate">{doc.originalName}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveDoc(doc.id)}
+                    className="ml-1 hover:text-destructive"
+                    disabled={isProcessing}
+                  >
+                    <XIcon className="w-3 h-3" />
+                  </button>
                 </Badge>
-              ))}
-            </div>
-          )}
+              );
+            })}
+          </div>
+        )}
+        
+        <form onSubmit={handleSubmit}>
           <div className="relative flex items-end gap-2">
             {/* File upload button */}
-            <label className="cursor-pointer shrink-0">
-              <input
-                type="file"
-                className="hidden"
-                accept=".pdf,application/pdf"
-                onChange={handleFileUpload}
-                disabled={isLoading || isUploading}
-              />
-              <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground flex items-center justify-center transition-colors">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,application/pdf"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+            <div 
+              onClick={handleFileSelect}
+              className={cn(
+                "h-8 w-8 sm:h-9 sm:w-9 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground flex items-center justify-center transition-colors cursor-pointer",
+                (isLoading || isUploading) && "opacity-50 pointer-events-none"
+              )}
+            >
+              {isUploading ? (
+                <CircleNotchIcon className="w-4 h-4 animate-spin" />
+              ) : (
                 <PaperclipIcon className="w-4 h-4 text-muted-foreground" />
-              </div>
-            </label>
+              )}
+            </div>
             <div className="relative flex-1">
               <Textarea
                 value={prompt}

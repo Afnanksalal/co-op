@@ -96,8 +96,18 @@ export class LegalAgentService implements BaseAgent {
     const sector = (input.context.metadata.sector as RagSector) || 'saas';
     const country = (input.context.metadata.country as string) || undefined;
 
-    // Detect relevant jurisdictions from the query
-    const detectedJurisdictions = this.detectJurisdictions(input.prompt);
+    // Get explicit jurisdiction from request (user-selected) or detect from query
+    const explicitJurisdiction = input.context.metadata.jurisdiction as RagJurisdiction | undefined;
+    const explicitRegion = input.context.metadata.region as string | undefined;
+    
+    // Use explicit jurisdiction if provided, otherwise detect from query
+    let detectedJurisdictions: RagJurisdiction[];
+    if (explicitJurisdiction && explicitJurisdiction !== 'general') {
+      detectedJurisdictions = [explicitJurisdiction];
+      this.logger.debug(`Using explicit jurisdiction: ${explicitJurisdiction}`);
+    } else {
+      detectedJurisdictions = this.detectJurisdictions(input.prompt);
+    }
 
     // Only fetch RAG if no user documents provided (user docs take priority)
     let ragContext = '';
@@ -122,7 +132,7 @@ export class LegalAgentService implements BaseAgent {
     }
 
     // Build the user prompt
-    const userPrompt = this.buildUserPrompt(input, ragContext, country);
+    const userPrompt = this.buildUserPrompt(input, ragContext, country, explicitJurisdiction, explicitRegion);
 
     const result = await this.council.runCouncil(LEGAL_SYSTEM_PROMPT, userPrompt, {
       minModels: this.minModels,
@@ -140,6 +150,8 @@ export class LegalAgentService implements BaseAgent {
         agent: 'legal',
         sector,
         country,
+        explicitJurisdiction,
+        explicitRegion,
         detectedJurisdictions,
         ragEnabled: Boolean(ragContext),
         hasUserDocuments: input.documents.length > 0,
@@ -200,7 +212,7 @@ export class LegalAgentService implements BaseAgent {
     return Array.from(detected);
   }
 
-  private buildUserPrompt(input: AgentInput, ragContext: string, country?: string): string {
+  private buildUserPrompt(input: AgentInput, ragContext: string, country?: string, jurisdiction?: RagJurisdiction, region?: string): string {
     const parts: string[] = [];
 
     // PRIORITY 1: User-uploaded documents (highest priority)
@@ -225,7 +237,18 @@ export class LegalAgentService implements BaseAgent {
       }
       context += ')';
       
-      if (country) {
+      // Add explicit jurisdiction context if provided
+      if (jurisdiction && jurisdiction !== 'general') {
+        const jurisdictionLabel = this.getJurisdictionLabel(jurisdiction);
+        context += `\n\nJURISDICTION FOCUS: The user has specifically requested guidance on ${jurisdictionLabel}. Prioritize ${jurisdictionLabel} regulations and requirements in your response.`;
+      }
+      
+      if (region && region !== 'global') {
+        const regionLabel = this.getRegionLabel(region);
+        context += `\n\nREGION: ${regionLabel}. Consider regional variations and requirements.`;
+      }
+      
+      if (country && !jurisdiction) {
         context += `\n\nIMPORTANT: This startup is based in ${country}. Prioritize ${country}-specific laws and regulations. Use ${country}'s local currency for any monetary values (not USD unless the user is from the US).`;
       }
       
@@ -233,5 +256,58 @@ export class LegalAgentService implements BaseAgent {
     }
 
     return parts.join('\n');
+  }
+
+  /**
+   * Get human-readable label for jurisdiction
+   */
+  private getJurisdictionLabel(jurisdiction: RagJurisdiction): string {
+    const labels: Record<RagJurisdiction, string> = {
+      general: 'General',
+      gdpr: 'GDPR (EU Privacy)',
+      ccpa: 'CCPA (California Privacy)',
+      lgpd: 'LGPD (Brazil Privacy)',
+      pipeda: 'PIPEDA (Canada Privacy)',
+      pdpa: 'PDPA (Singapore Privacy)',
+      dpdp: 'DPDP (India Privacy)',
+      sec: 'SEC (US Securities)',
+      finra: 'FINRA (US Financial)',
+      fca: 'FCA (UK Financial)',
+      sebi: 'SEBI (India Securities)',
+      mas: 'MAS (Singapore Financial)',
+      esma: 'ESMA (EU Securities)',
+      hipaa: 'HIPAA (US Healthcare)',
+      pci_dss: 'PCI-DSS (Payment Security)',
+      sox: 'SOX (US Corporate)',
+      aml_kyc: 'AML/KYC (Anti-Money Laundering)',
+      dmca: 'DMCA (US Copyright)',
+      patent: 'Patent Law',
+      trademark: 'Trademark Law',
+      copyright: 'Copyright Law',
+      employment: 'Employment Law',
+      labor: 'Labor Law',
+      corporate: 'Corporate Law',
+      tax: 'Tax Regulations',
+      contracts: 'Contract Law',
+    };
+    return labels[jurisdiction] || jurisdiction.toUpperCase();
+  }
+
+  /**
+   * Get human-readable label for region
+   */
+  private getRegionLabel(region: string): string {
+    const labels: Record<string, string> = {
+      global: 'Global',
+      us: 'United States',
+      eu: 'European Union',
+      uk: 'United Kingdom',
+      india: 'India',
+      canada: 'Canada',
+      apac: 'Asia-Pacific',
+      latam: 'Latin America',
+      mena: 'Middle East & North Africa',
+    };
+    return labels[region] || region.toUpperCase();
   }
 }

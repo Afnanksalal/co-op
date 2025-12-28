@@ -612,6 +612,12 @@ Output: Brief summary, key insights, 3-5 action items. Be concise.`;
           targetCustomer: startup.targetCustomer,
           problemSolved: startup.problemSolved,
           competitiveAdvantage: startup.competitiveAdvantage,
+          // Jurisdiction info (for legal agent)
+          region: dto.region,
+          jurisdiction: dto.jurisdiction,
+          // Finance params (for finance agent)
+          financeFocus: dto.financeFocus,
+          currency: dto.currency,
         },
       },
       prompt: dto.prompt,

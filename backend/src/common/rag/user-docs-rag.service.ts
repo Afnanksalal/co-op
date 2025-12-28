@@ -86,6 +86,7 @@ export class UserDocsRagService {
     filename: string,
   ): Promise<string | null> {
     if (!this.isConfigured) {
+      this.logger.warn('RAG service not configured - cannot embed chunk');
       return null;
     }
 
@@ -107,7 +108,7 @@ export class UserDocsRagService {
 
       if (!response.ok) {
         const error = await response.text();
-        this.logger.warn(`Failed to embed chunk: ${response.status} - ${error}`);
+        this.logger.error(`Failed to embed chunk ${chunkIndex}: HTTP ${response.status} - ${error}`);
         return null;
       }
 
@@ -116,10 +117,10 @@ export class UserDocsRagService {
         return data.vector_id;
       }
 
-      this.logger.warn(`Embedding failed: ${data.message}`);
+      this.logger.error(`Embedding failed for chunk ${chunkIndex}: ${data.message}`);
       return null;
     } catch (error) {
-      this.logger.error(`Embed chunk error: ${error}`);
+      this.logger.error(`Embed chunk error for chunk ${chunkIndex}:`, error);
       return null;
     }
   }

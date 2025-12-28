@@ -12,6 +12,7 @@ import { FinanceAgentService } from '../domains/finance/finance-agent.service';
 import { InvestorAgentService } from '../domains/investor/investor-agent.service';
 import { CompetitorAgentService } from '../domains/competitor/competitor-agent.service';
 import { RedisService } from '@/common/redis/redis.service';
+import { MetricsService } from '@/common/metrics/metrics.service';
 
 // Task TTL in Redis (24 hours)
 const TASK_TTL_SECONDS = 24 * 60 * 60;
@@ -44,6 +45,7 @@ export class OrchestratorService implements OnModuleInit, OnModuleDestroy {
     private readonly investorAgent: InvestorAgentService,
     private readonly competitorAgent: CompetitorAgentService,
     private readonly redis: RedisService,
+    private readonly metricsService: MetricsService,
   ) {}
 
   onModuleInit(): void {
@@ -174,6 +176,7 @@ export class OrchestratorService implements OnModuleInit, OnModuleDestroy {
     const agent = this.getAgent(agentType);
     const results: AgentPhaseResult[] = [];
     const agentName = agentType.charAt(0).toUpperCase() + agentType.slice(1);
+    const startTime = Date.now();
 
     try {
       this.logger.log(`Running ${agentType} agent - Draft phase`);
@@ -194,8 +197,16 @@ export class OrchestratorService implements OnModuleInit, OnModuleDestroy {
       results.push({ phase: 'final', output: final, timestamp: new Date() });
       onProgress?.(`${agentName} agent: Final response ready`);
 
+      // Record successful agent task metrics
+      const durationMs = Date.now() - startTime;
+      this.metricsService.recordAgentTask(agentType, 'completed', durationMs);
+
       return results;
     } catch (error) {
+      // Record failed agent task metrics
+      const durationMs = Date.now() - startTime;
+      this.metricsService.recordAgentTask(agentType, 'failed', durationMs);
+      
       this.logger.error(`Agent ${agentType} execution failed`, error);
       throw error;
     }

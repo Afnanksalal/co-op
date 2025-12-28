@@ -1,6 +1,7 @@
 import { Injectable, OnModuleDestroy, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Redis } from '@upstash/redis';
+import { MetricsService } from '@/common/metrics/metrics.service';
 
 // Redis operation metrics (in-memory counters for Prometheus)
 interface RedisMetrics {
@@ -21,7 +22,10 @@ export class RedisService implements OnModuleDestroy {
     cacheMisses: 0,
   };
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly metricsService: MetricsService,
+  ) {
     const url = this.configService.get<string>('UPSTASH_REDIS_URL');
     const token = this.configService.get<string>('UPSTASH_REDIS_TOKEN');
 
@@ -56,22 +60,27 @@ export class RedisService implements OnModuleDestroy {
 
   async get<T>(key: string): Promise<T | null> {
     this.metrics.operations++;
+    this.metricsService.recordRedisOperation('get');
     try {
       const result = await this.client.get<T>(key);
       if (result !== null) {
         this.metrics.cacheHits++;
+        this.metricsService.recordRedisCacheHit();
       } else {
         this.metrics.cacheMisses++;
+        this.metricsService.recordRedisCacheMiss();
       }
       return result;
     } catch (error) {
       this.metrics.errors++;
+      this.metricsService.recordRedisError();
       throw error;
     }
   }
 
   async set(key: string, value: unknown, ttlSeconds?: number): Promise<void> {
     this.metrics.operations++;
+    this.metricsService.recordRedisOperation('set');
     try {
       if (ttlSeconds) {
         await this.client.setex(key, ttlSeconds, JSON.stringify(value));
@@ -80,117 +89,140 @@ export class RedisService implements OnModuleDestroy {
       }
     } catch (error) {
       this.metrics.errors++;
+      this.metricsService.recordRedisError();
       throw error;
     }
   }
 
   async del(key: string): Promise<void> {
     this.metrics.operations++;
+    this.metricsService.recordRedisOperation('del');
     try {
       await this.client.del(key);
     } catch (error) {
       this.metrics.errors++;
+      this.metricsService.recordRedisError();
       throw error;
     }
   }
 
   async exists(key: string): Promise<boolean> {
     this.metrics.operations++;
+    this.metricsService.recordRedisOperation('exists');
     try {
       const result = await this.client.exists(key);
       return result === 1;
     } catch (error) {
       this.metrics.errors++;
+      this.metricsService.recordRedisError();
       throw error;
     }
   }
 
   async expire(key: string, ttlSeconds: number): Promise<void> {
     this.metrics.operations++;
+    this.metricsService.recordRedisOperation('expire');
     try {
       await this.client.expire(key, ttlSeconds);
     } catch (error) {
       this.metrics.errors++;
+      this.metricsService.recordRedisError();
       throw error;
     }
   }
 
   async incr(key: string): Promise<number> {
     this.metrics.operations++;
+    this.metricsService.recordRedisOperation('incr');
     try {
       return await this.client.incr(key);
     } catch (error) {
       this.metrics.errors++;
+      this.metricsService.recordRedisError();
       throw error;
     }
   }
 
   async hset(key: string, field: string, value: unknown): Promise<void> {
     this.metrics.operations++;
+    this.metricsService.recordRedisOperation('hset');
     try {
       await this.client.hset(key, { [field]: JSON.stringify(value) });
     } catch (error) {
       this.metrics.errors++;
+      this.metricsService.recordRedisError();
       throw error;
     }
   }
 
   async hget<T>(key: string, field: string): Promise<T | null> {
     this.metrics.operations++;
+    this.metricsService.recordRedisOperation('hget');
     try {
       return await this.client.hget<T>(key, field);
     } catch (error) {
       this.metrics.errors++;
+      this.metricsService.recordRedisError();
       throw error;
     }
   }
 
   async hdel(key: string, field: string): Promise<void> {
     this.metrics.operations++;
+    this.metricsService.recordRedisOperation('hdel');
     try {
       await this.client.hdel(key, field);
     } catch (error) {
       this.metrics.errors++;
+      this.metricsService.recordRedisError();
       throw error;
     }
   }
 
   async hgetall<T>(key: string): Promise<Record<string, T> | null> {
     this.metrics.operations++;
+    this.metricsService.recordRedisOperation('hgetall');
     try {
       return await this.client.hgetall<Record<string, T>>(key);
     } catch (error) {
       this.metrics.errors++;
+      this.metricsService.recordRedisError();
       throw error;
     }
   }
 
   async lpush(key: string, value: string): Promise<number> {
     this.metrics.operations++;
+    this.metricsService.recordRedisOperation('lpush');
     try {
       return await this.client.lpush(key, value);
     } catch (error) {
       this.metrics.errors++;
+      this.metricsService.recordRedisError();
       throw error;
     }
   }
 
   async lrange(key: string, start: number, stop: number): Promise<string[]> {
     this.metrics.operations++;
+    this.metricsService.recordRedisOperation('lrange');
     try {
       return await this.client.lrange(key, start, stop);
     } catch (error) {
       this.metrics.errors++;
+      this.metricsService.recordRedisError();
       throw error;
     }
   }
 
   async lrem(key: string, count: number, value: string): Promise<number> {
     this.metrics.operations++;
+    this.metricsService.recordRedisOperation('lrem');
     try {
       return await this.client.lrem(key, count, value);
     } catch (error) {
       this.metrics.errors++;
+      this.metricsService.recordRedisError();
       throw error;
     }
   }
@@ -214,10 +246,12 @@ export class RedisService implements OnModuleDestroy {
   async mget<T>(keys: string[]): Promise<(T | null)[]> {
     if (keys.length === 0) return [];
     this.metrics.operations++;
+    this.metricsService.recordRedisOperation('mget');
     try {
       return await this.client.mget<T[]>(...keys);
     } catch (error) {
       this.metrics.errors++;
+      this.metricsService.recordRedisError();
       throw error;
     }
   }
@@ -228,6 +262,7 @@ export class RedisService implements OnModuleDestroy {
   async mset(entries: { key: string; value: unknown; ttl?: number }[]): Promise<void> {
     if (entries.length === 0) return; // Guard against empty array
     this.metrics.operations++;
+    this.metricsService.recordRedisOperation('mset');
     try {
       const pipeline = this.client.pipeline();
       for (const entry of entries) {
@@ -240,6 +275,7 @@ export class RedisService implements OnModuleDestroy {
       await pipeline.exec();
     } catch (error) {
       this.metrics.errors++;
+      this.metricsService.recordRedisError();
       throw error;
     }
   }
@@ -250,10 +286,12 @@ export class RedisService implements OnModuleDestroy {
    */
   async publish(channel: string, message: string): Promise<number> {
     this.metrics.operations++;
+    this.metricsService.recordRedisOperation('publish');
     try {
       return await this.client.publish(channel, message);
     } catch (error) {
       this.metrics.errors++;
+      this.metricsService.recordRedisError();
       throw error;
     }
   }
