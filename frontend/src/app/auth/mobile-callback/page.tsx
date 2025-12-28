@@ -3,73 +3,72 @@
 import { useEffect, useState, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { CircleNotch } from '@phosphor-icons/react';
+
+/**
+ * Mobile Auth Callback Page
+ * 
+ * This page runs inside the WebView after receiving a deep link from the
+ * system browser. It receives the access/refresh tokens and sets them
+ * in the WebView's localStorage, then redirects to the dashboard.
+ */
+
+function LoadingSpinner() {
+  return <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />;
+}
 
 function MobileCallbackContent() {
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
-  const hasProcessed = useRef(false);
+  const processedRef = useRef(false);
 
   useEffect(() => {
-    if (hasProcessed.current) return;
-    hasProcessed.current = true;
+    if (processedRef.current) return;
+    processedRef.current = true;
 
     const handleCallback = async () => {
-      const supabase = createClient();
+      // Check for error messages
+      const errorMsg = searchParams.get('error') || 
+                       searchParams.get('error_description') || 
+                       searchParams.get('message');
       
+      if (errorMsg && !searchParams.get('access_token')) {
+        setError(decodeURIComponent(errorMsg));
+        return;
+      }
+
+      // Get tokens from URL params
+      const accessToken = searchParams.get('access_token');
+      const refreshToken = searchParams.get('refresh_token');
+
+      if (!accessToken) {
+        setError('No authentication data received');
+        return;
+      }
+
       try {
-        const hash = window.location.hash.substring(1);
-        const hashParams = hash ? new URLSearchParams(hash) : null;
+        const supabase = createClient();
         
-        const errorMsg = searchParams.get('error_description') || 
-                        searchParams.get('error') ||
-                        searchParams.get('message') ||
-                        hashParams?.get('error');
-        
-        if (errorMsg) {
-          setError(decodeURIComponent(errorMsg));
+        const { data, error: sessionError } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken || '',
+        });
+
+        if (sessionError) {
+          setError(sessionError.message);
           return;
         }
 
-        let accessToken = searchParams.get('access_token');
-        let refreshToken = searchParams.get('refresh_token');
-        
-        if (!accessToken && hashParams) {
-          accessToken = hashParams.get('access_token');
-          refreshToken = hashParams.get('refresh_token');
-        }
-        
-        if (accessToken) {
-          const { data, error: sessionError } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken || '',
-          });
-
-          if (sessionError) {
-            setError(sessionError.message);
-            return;
-          }
-
-          if (data.session) {
-            window.history.replaceState(null, '', '/auth/mobile-callback');
-            const needsOnboarding = !data.session.user.user_metadata?.onboarding_completed;
-            window.location.href = needsOnboarding ? '/onboarding' : '/dashboard';
-            return;
-          }
+        if (data.session) {
+          // Clear URL params for security
+          window.history.replaceState(null, '', '/auth/mobile-callback');
           
-          setError('Failed to create session');
-          return;
-        }
-        
-        const { data: sessionData } = await supabase.auth.getSession();
-        
-        if (sessionData.session) {
-          const needsOnboarding = !sessionData.session.user.user_metadata?.onboarding_completed;
+          // Redirect based on onboarding status
+          const needsOnboarding = !data.session.user.user_metadata?.onboarding_completed;
           window.location.href = needsOnboarding ? '/onboarding' : '/dashboard';
           return;
         }
-        
-        setError('No authentication data received');
+
+        setError('Failed to create session');
       } catch (err) {
         console.error('[MobileCallback]', err);
         setError('Authentication failed');
@@ -89,7 +88,10 @@ function MobileCallbackContent() {
             </svg>
           </div>
           <p className="text-destructive mb-4">{error}</p>
-          <button onClick={() => window.location.href = '/login'} className="text-primary hover:underline font-medium">
+          <button 
+            onClick={() => window.location.href = '/login'} 
+            className="text-primary hover:underline font-medium"
+          >
             Return to login
           </button>
         </div>
@@ -100,7 +102,9 @@ function MobileCallbackContent() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center">
       <div className="text-center">
-        <CircleNotch weight="bold" className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
+        <div className="mx-auto mb-4">
+          <LoadingSpinner />
+        </div>
         <p className="text-muted-foreground">Completing sign in...</p>
       </div>
     </div>
@@ -111,7 +115,7 @@ export default function MobileCallbackPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <CircleNotch weight="bold" className="w-8 h-8 animate-spin text-primary" />
+        <LoadingSpinner />
       </div>
     }>
       <MobileCallbackContent />

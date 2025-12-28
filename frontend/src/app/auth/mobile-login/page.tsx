@@ -3,116 +3,188 @@
 import { useEffect, useState, Suspense, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
-import { CircleNotch } from '@phosphor-icons/react';
+
+/**
+ * Mobile OAuth Login Page
+ * 
+ * This page handles Google OAuth for the mobile app. The PKCE flow requires
+ * the code verifier to be in the same browser context where OAuth was initiated.
+ * 
+ * CRITICAL: This entire flow runs in the system browser (not WebView) to ensure
+ * the PKCE code verifier persists between OAuth initiation and code exchange.
+ * 
+ * Flow:
+ * 1. User taps "Continue with Google" in WebView
+ * 2. WebView detects /auth/mobile-login and opens it in system browser
+ * 3. This page clears any stale PKCE data, then initiates OAuth
+ * 4. Google shows account picker → user authenticates
+ * 5. Google redirects back to this page with ?code=...
+ * 6. This page exchanges code for session (PKCE verifier in same browser context)
+ * 7. On success, triggers deep link coop://auth/callback?tokens...
+ * 8. App receives deep link → WebView loads /auth/mobile-callback to set session
+ */
+
+// Storage key used by Supabase for PKCE
+const STORAGE_KEY_PREFIX = 'sb-';
+const CODE_VERIFIER_STORAGE_KEY = '-auth-token-code-verifier';
+
+function LoadingSpinner() {
+  return <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />;
+}
 
 function MobileLoginContent() {
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState<'init' | 'processing' | 'success'>('init');
-  const hasStarted = useRef(false);
+  const [status, setStatus] = useState<'init' | 'clearing' | 'redirecting' | 'exchanging' | 'success'>('init');
+  const processedRef = useRef(false);
 
   useEffect(() => {
-    if (hasStarted.current) return;
-    hasStarted.current = true;
+    if (processedRef.current) return;
+    processedRef.current = true;
 
     const handleAuth = async () => {
-      try {
-        const errorParam = searchParams.get('error');
-        const errorDesc = searchParams.get('error_description');
+      const code = searchParams.get('code');
+      const errorParam = searchParams.get('error');
+      const errorDesc = searchParams.get('error_description');
+
+      // Handle OAuth errors from Google
+      if (errorParam) {
+        const msg = errorDesc || errorParam;
+        setError(msg);
+        triggerDeepLink(`coop://auth/error?message=${encodeURIComponent(msg)}`);
+        return;
+      }
+
+      // Create Supabase client
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+      const supabase = createBrowserClient(supabaseUrl, supabaseKey);
+
+      // Extract project ref from URL for storage key
+      const projectRef = supabaseUrl.match(/https:\/\/([^.]+)\./)?.[1] || '';
+      const codeVerifierKey = `${STORAGE_KEY_PREFIX}${projectRef}${CODE_VERIFIER_STORAGE_KEY}`;
+
+      // Step 2: We have a code from Google - exchange it for session
+      if (code) {
+        setStatus('exchanging');
         
-        if (errorParam) {
-          const msg = errorDesc || errorParam;
-          setError(msg);
+        // Debug: Check if code verifier exists
+        const storedVerifier = localStorage.getItem(codeVerifierKey);
+        console.log('[MobileLogin] Code exchange starting');
+        console.log('[MobileLogin] Code verifier exists:', !!storedVerifier);
+        console.log('[MobileLogin] Code verifier key:', codeVerifierKey);
+        
+        if (!storedVerifier) {
+          // No code verifier - this means the OAuth was initiated in a different context
+          // or localStorage was cleared. We need to restart the flow.
+          console.error('[MobileLogin] No code verifier found - restarting OAuth flow');
+          setError('Session expired. Please try again.');
+          
+          // Clear the URL and restart
+          window.history.replaceState(null, '', '/auth/mobile-login');
           setTimeout(() => {
-            window.location.href = `coop://auth/error?message=${encodeURIComponent(msg)}`;
+            window.location.reload();
           }, 2000);
           return;
         }
-
-        const code = searchParams.get('code');
         
-        // If we have a code, we need to exchange it - DON'T clear storage here
-        // The PKCE verifier is needed for the exchange
-        if (code) {
-          setStatus('processing');
+        try {
+          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
           
-          const supabase = createBrowserClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-          );
-          
-          const { data, error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
-          
-          if (sessionError) {
-            console.error('[MobileLogin] Exchange error:', sessionError.message);
-            setError(sessionError.message);
-            setTimeout(() => {
-              window.location.href = `coop://auth/error?message=${encodeURIComponent(sessionError.message)}`;
-            }, 1500);
+          if (exchangeError) {
+            console.error('[MobileLogin] Code exchange failed:', exchangeError.message);
+            setError(exchangeError.message);
+            triggerDeepLink(`coop://auth/error?message=${encodeURIComponent(exchangeError.message)}`);
             return;
           }
 
           if (data.session) {
             setStatus('success');
+            console.log('[MobileLogin] Session obtained successfully');
+            
             const params = new URLSearchParams({
               access_token: data.session.access_token,
               refresh_token: data.session.refresh_token,
               expires_at: String(data.session.expires_at || ''),
             });
-            setTimeout(() => {
-              window.location.href = `coop://auth/callback?${params.toString()}`;
-            }, 500);
+            
+            // Clean up - clear the code verifier after successful exchange
+            localStorage.removeItem(codeVerifierKey);
+            
+            triggerDeepLink(`coop://auth/callback?${params.toString()}`);
             return;
           }
-          
-          setError('Failed to create session');
-          return;
-        }
 
-        // No code - starting fresh OAuth flow
-        // Clear ALL Supabase data to ensure clean PKCE state
-        const keysToRemove: string[] = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key.startsWith('sb-')) {
-            keysToRemove.push(key);
-          }
+          setError('No session returned');
+          triggerDeepLink('coop://auth/error?message=no_session');
+        } catch (err) {
+          console.error('[MobileLogin] Exchange error:', err);
+          setError('Failed to complete authentication');
+          triggerDeepLink('coop://auth/error?message=exchange_failed');
         }
-        keysToRemove.forEach(key => localStorage.removeItem(key));
-        
-        // Create fresh client after clearing storage
-        const supabase = createBrowserClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        );
+        return;
+      }
 
-        const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
-          provider: 'google',
-          options: {
-            redirectTo: `${window.location.origin}/auth/mobile-login`,
-            queryParams: {
-              access_type: 'offline',
-              prompt: 'select_account',
-            },
+      // Step 1: No code - initiate OAuth flow
+      // First, clear any stale PKCE data to prevent conflicts
+      setStatus('clearing');
+      
+      // Clear all Supabase auth-related data to ensure fresh PKCE flow
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(STORAGE_KEY_PREFIX) && 
+            (key.includes('auth-token') || key.includes('code-verifier'))) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => {
+        console.log('[MobileLogin] Clearing stale key:', key);
+        localStorage.removeItem(key);
+      });
+      
+      setStatus('redirecting');
+      console.log('[MobileLogin] Starting OAuth flow');
+      
+      const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/mobile-login`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'select_account',
           },
-        });
+        },
+      });
 
-        if (oauthError) {
-          setError(oauthError.message);
-          return;
-        }
+      if (oauthError) {
+        console.error('[MobileLogin] OAuth error:', oauthError.message);
+        setError(oauthError.message);
+        return;
+      }
 
-        if (data.url) {
-          window.location.href = data.url;
-        }
-      } catch (err) {
-        console.error('[MobileLogin]', err);
-        setError('An unexpected error occurred');
+      // Debug: Verify code verifier was stored
+      setTimeout(() => {
+        const verifier = localStorage.getItem(codeVerifierKey);
+        console.log('[MobileLogin] Code verifier stored:', !!verifier);
+      }, 100);
+
+      if (data.url) {
+        console.log('[MobileLogin] Redirecting to Google');
+        window.location.href = data.url;
       }
     };
 
     handleAuth();
   }, [searchParams]);
+
+  const triggerDeepLink = (url: string) => {
+    console.log('[MobileLogin] Triggering deep link:', url);
+    // Use a longer delay to ensure the page has finished processing
+    setTimeout(() => {
+      window.location.href = url;
+    }, 800);
+  };
 
   if (error) {
     return (
@@ -136,10 +208,14 @@ function MobileLoginContent() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center">
       <div className="text-center">
-        <CircleNotch weight="bold" className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
+        <div className="mx-auto mb-4">
+          <LoadingSpinner />
+        </div>
         <p className="text-muted-foreground">
-          {status === 'init' && 'Connecting to Google...'}
-          {status === 'processing' && 'Completing sign in...'}
+          {status === 'init' && 'Initializing...'}
+          {status === 'clearing' && 'Preparing...'}
+          {status === 'redirecting' && 'Connecting to Google...'}
+          {status === 'exchanging' && 'Completing sign in...'}
           {status === 'success' && 'Opening app...'}
         </p>
       </div>
@@ -151,7 +227,7 @@ export default function MobileLoginPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <CircleNotch weight="bold" className="w-8 h-8 animate-spin text-primary" />
+        <LoadingSpinner />
       </div>
     }>
       <MobileLoginContent />

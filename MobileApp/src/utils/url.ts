@@ -44,13 +44,29 @@ export function deepLinkToWebUrl(deepLink: string): string | null {
     if (!deepLink.startsWith(`${APP_SCHEME}://`)) return null;
     
     const afterScheme = deepLink.substring(`${APP_SCHEME}://`.length);
+    console.log('[URL] Converting deep link:', deepLink);
+    console.log('[URL] After scheme:', afterScheme);
     
-    if (afterScheme.startsWith('auth/callback') || afterScheme.startsWith('auth/error')) {
+    // Handle successful auth callback - pass tokens to mobile-callback page
+    if (afterScheme.startsWith('auth/callback')) {
       const queryIndex = deepLink.indexOf('?');
       if (queryIndex !== -1) {
-        return `${WEB_URL}/auth/mobile-callback${deepLink.substring(queryIndex)}`;
+        const result = `${WEB_URL}/auth/mobile-callback${deepLink.substring(queryIndex)}`;
+        console.log('[URL] Auth callback result:', result);
+        return result;
       }
       return `${WEB_URL}/auth/mobile-callback`;
+    }
+    
+    // Handle auth errors - redirect to login with error message
+    if (afterScheme.startsWith('auth/error')) {
+      const queryIndex = deepLink.indexOf('?');
+      if (queryIndex !== -1) {
+        const result = `${WEB_URL}/login${deepLink.substring(queryIndex)}`;
+        console.log('[URL] Auth error result:', result);
+        return result;
+      }
+      return `${WEB_URL}/login?error=auth_failed`;
     }
     
     const pathOnly = afterScheme.split('#')[0].split('?')[0];

@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Envelope, Lock, ArrowRight, GoogleLogo, CircleNotch } from '@phosphor-icons/react';
+import { Envelope, Lock, ArrowRight, GoogleLogo } from '@phosphor-icons/react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +21,14 @@ function LoginContent() {
   const [password, setPassword] = useState('');
 
   useEffect(() => {
+    // Show error message from URL params (e.g., from failed mobile auth)
+    const errorMsg = searchParams.get('message') || searchParams.get('error');
+    if (errorMsg) {
+      toast.error(decodeURIComponent(errorMsg));
+      // Clean up URL
+      window.history.replaceState(null, '', '/login');
+    }
+
     const checkSession = async () => {
       const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();
@@ -264,7 +272,7 @@ export default function LoginPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <CircleNotch weight="bold" className="w-8 h-8 animate-spin text-primary" />
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     }>
       <LoginContent />
