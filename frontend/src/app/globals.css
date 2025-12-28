@@ -436,9 +436,19 @@ html.mobile-app .animate-spin {
   animation-duration: 1s !important;
 }
 
-/* Disable framer-motion animations */
+/* Disable framer-motion animations completely */
 html.mobile-app [style*="transform"],
-html.mobile-app [style*="opacity"] {
+html.mobile-app [style*="opacity"],
+html.mobile-app [style*="translate"] {
+  transition: none !important;
+  animation: none !important;
+}
+
+/* Force immediate rendering for motion elements */
+html.mobile-app [data-framer-component-type],
+html.mobile-app [data-projection-id] {
+  transform: none !important;
+  opacity: 1 !important;
   transition: none !important;
 }
 

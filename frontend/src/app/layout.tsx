@@ -155,6 +155,8 @@ const themeScript = `
     // Detect mobile app WebView and apply safe area padding
     if (window.ReactNativeWebView || navigator.userAgent.includes('CoOpMobile')) {
       document.documentElement.classList.add('mobile-app');
+      // Disable framer-motion animations in mobile app
+      window.__FRAMER_MOTION_REDUCED_MOTION__ = true;
     }
   })();
 `;

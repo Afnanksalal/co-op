@@ -29,19 +29,22 @@ function MobileLoginContent() {
           return;
         }
 
-        const supabase = createBrowserClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        );
-
         const code = searchParams.get('code');
         
+        // If we have a code, we need to exchange it - DON'T clear storage here
+        // The PKCE verifier is needed for the exchange
         if (code) {
           setStatus('processing');
+          
+          const supabase = createBrowserClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+          );
           
           const { data, error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
           
           if (sessionError) {
+            console.error('[MobileLogin] Exchange error:', sessionError.message);
             setError(sessionError.message);
             setTimeout(() => {
               window.location.href = `coop://auth/error?message=${encodeURIComponent(sessionError.message)}`;
@@ -66,15 +69,22 @@ function MobileLoginContent() {
           return;
         }
 
-        // Clear any stale PKCE data before starting new OAuth flow
+        // No code - starting fresh OAuth flow
+        // Clear ALL Supabase data to ensure clean PKCE state
         const keysToRemove: string[] = [];
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
-          if (key && (key.includes('supabase') || key.includes('pkce') || key.includes('code_verifier'))) {
+          if (key && key.startsWith('sb-')) {
             keysToRemove.push(key);
           }
         }
         keysToRemove.forEach(key => localStorage.removeItem(key));
+        
+        // Create fresh client after clearing storage
+        const supabase = createBrowserClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        );
 
         const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
           provider: 'google',
