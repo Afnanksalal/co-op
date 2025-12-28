@@ -50,7 +50,7 @@ Co-Op is an open-source AI advisory platform that provides startup founders with
 | **Bookmarks** | Save and organize AI responses |
 | **Usage Analytics** | Personal usage dashboard |
 | **PWA Support** | Installable with shortcuts |
-| **Mobile App** | Native iOS/Android app (Expo) |
+| **Mobile App** | Native iOS/Android app (Expo + Hermes) |
 | **Financial Tools** | Runway, burn rate, valuation calculators |
 | **Investor Database** | 20+ real investors with admin management |
 | **Competitor Alerts** | Real-time monitoring with email notifications |
@@ -181,7 +181,8 @@ co-op/
 │   ├── src/
 │   │   ├── components/      # WebView, Loading, Error screens
 │   │   ├── hooks/           # Connection, back handler, deep link
-│   │   └── constants/       # App configuration
+│   │   ├── constants/       # App configuration
+│   │   └── utils/           # URL validation & conversion
 │   └── README.md
 │
 ├── RAG/                     # Python vector search service
@@ -254,6 +255,10 @@ cd MobileApp
 npm install
 npm start
 # Scan QR code with Expo Go app
+
+# Or build native app
+npx expo prebuild
+npx expo run:android  # or run:ios
 ```
 
 ---
