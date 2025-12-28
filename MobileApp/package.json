@@ -8,6 +8,11 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
+    "prebuild": "expo prebuild",
+    "prebuild:clean": "expo prebuild --clean",
+    "build:android:apk": "cd android && gradlew.bat assembleRelease",
+    "build:android:bundle": "cd android && gradlew.bat bundleRelease",
+    "clean:android": "cd android && gradlew.bat clean",
     "lint": "eslint . --ext .ts,.tsx",
     "typecheck": "tsc --noEmit"
   },
