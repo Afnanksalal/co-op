@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from '@/components/motion';
 import {
@@ -14,11 +14,14 @@ import {
   Check,
   Lightbulb,
   Rocket,
+  MagnifyingGlass,
+  CaretDown,
 } from '@phosphor-icons/react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { api } from '@/lib/api/client';
 import type { OnboardingData, Sector } from '@/lib/api/types';
+import { SECTOR_CATEGORIES, SECTOR_LABELS } from '@/lib/api/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -44,13 +47,252 @@ const ideaSteps = [
   { id: 'idea', title: 'Your Idea', icon: Lightbulb },
 ];
 
-const sectors: { value: Sector; label: string; description: string }[] = [
-  { value: 'fintech', label: 'Fintech', description: 'Financial technology, payments, banking' },
-  { value: 'greentech', label: 'Greentech', description: 'Clean energy, sustainability, climate' },
-  { value: 'healthtech', label: 'Healthtech', description: 'Healthcare, medical, wellness' },
-  { value: 'saas', label: 'SaaS', description: 'Software as a Service, B2B/B2C tools' },
-  { value: 'ecommerce', label: 'E-commerce', description: 'Online retail, marketplaces, D2C' },
-];
+// Popular sectors shown first
+const POPULAR_SECTORS: Sector[] = ['saas', 'fintech', 'healthtech', 'ai_ml', 'ecommerce', 'marketplace', 'edtech', 'greentech'];
+
+// Sector picker component
+function SectorPicker({ 
+  value, 
+  onChange,
+  compact = false,
+}: { 
+  value: Sector | undefined; 
+  onChange: (sector: Sector) => void;
+  compact?: boolean;
+}) {
+  const [search, setSearch] = useState('');
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
+
+  const filteredSectors = useMemo(() => {
+    if (!search) return null;
+    const query = search.toLowerCase();
+    return Object.entries(SECTOR_LABELS)
+      .filter(([key, label]) => 
+        label.toLowerCase().includes(query) || key.includes(query)
+      )
+      .map(([key]) => key as Sector);
+  }, [search]);
+
+  const popularSectors = POPULAR_SECTORS.filter(s => 
+    !search || SECTOR_LABELS[s].toLowerCase().includes(search.toLowerCase())
+  );
+
+  if (compact) {
+    // Compact grid view for idea stage
+    return (
+      <div className="space-y-3">
+        <div className="relative">
+          <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Search sectors..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 h-9"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-2 max-h-[280px] overflow-y-auto pr-1">
+          {(filteredSectors || popularSectors).slice(0, showAll ? undefined : 8).map((sector) => (
+            <button
+              key={sector}
+              type="button"
+              onClick={() => onChange(sector)}
+              className={cn(
+                'p-2.5 rounded-lg border text-left transition-all text-sm',
+                value === sector 
+                  ? 'border-primary/50 bg-primary/5' 
+                  : 'border-border/40 hover:border-border'
+              )}
+            >
+              <span className="font-medium">{SECTOR_LABELS[sector]}</span>
+            </button>
+          ))}
+        </div>
+        {!search && !showAll && popularSectors.length > 8 && (
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setShowAll(true)}
+            className="w-full text-xs"
+          >
+            Show all sectors
+            <CaretDown className="w-3 h-3 ml-1" />
+          </Button>
+        )}
+        {showAll && !search && (
+          <div className="space-y-3 pt-2 border-t border-border/40">
+            {Object.entries(SECTOR_CATEGORIES).map(([category, sectors]) => (
+              <div key={category}>
+                <button
+                  type="button"
+                  onClick={() => setExpandedCategory(expandedCategory === category ? null : category)}
+                  className="flex items-center justify-between w-full text-xs font-medium text-muted-foreground hover:text-foreground py-1"
+                >
+                  {category}
+                  <CaretDown className={cn('w-3 h-3 transition-transform', expandedCategory === category && 'rotate-180')} />
+                </button>
+                {expandedCategory === category && (
+                  <div className="grid grid-cols-2 gap-1.5 mt-2">
+                    {sectors.map((sector) => (
+                      <button
+                        key={sector}
+                        type="button"
+                        onClick={() => onChange(sector as Sector)}
+                        className={cn(
+                          'p-2 rounded-md border text-left transition-all text-xs',
+                          value === sector 
+                            ? 'border-primary/50 bg-primary/5' 
+                            : 'border-border/40 hover:border-border'
+                        )}
+                      >
+                        {SECTOR_LABELS[sector as Sector]}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Full view for existing startup
+  return (
+    <div className="space-y-4">
+      <div className="relative">
+        <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
+          placeholder="Search sectors (e.g., fintech, AI, healthcare)..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="pl-9"
+        />
+      </div>
+
+      {/* Search results */}
+      {filteredSectors && (
+        <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+          {filteredSectors.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">No sectors found. Try a different search.</p>
+          ) : (
+            filteredSectors.map((sector) => (
+              <button
+                key={sector}
+                type="button"
+                onClick={() => { onChange(sector); setSearch(''); }}
+                className={cn(
+                  'w-full flex items-center gap-3 p-3 rounded-lg border text-left transition-all',
+                  value === sector ? 'border-primary/50 bg-primary/5' : 'border-border/40 hover:border-border'
+                )}
+              >
+                <div className={cn(
+                  'w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0',
+                  value === sector ? 'border-primary bg-primary' : 'border-muted-foreground'
+                )}>
+                  {value === sector && <Check weight="bold" className="w-2.5 h-2.5 text-white" />}
+                </div>
+                <span className="font-medium text-sm">{SECTOR_LABELS[sector]}</span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Popular sectors */}
+      {!filteredSectors && (
+        <>
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-2">Popular</p>
+            <div className="grid grid-cols-2 gap-2">
+              {POPULAR_SECTORS.map((sector) => (
+                <button
+                  key={sector}
+                  type="button"
+                  onClick={() => onChange(sector)}
+                  className={cn(
+                    'flex items-center gap-2 p-3 rounded-lg border text-left transition-all',
+                    value === sector ? 'border-primary/50 bg-primary/5' : 'border-border/40 hover:border-border'
+                  )}
+                >
+                  <div className={cn(
+                    'w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0',
+                    value === sector ? 'border-primary bg-primary' : 'border-muted-foreground'
+                  )}>
+                    {value === sector && <Check weight="bold" className="w-2 h-2 text-white" />}
+                  </div>
+                  <span className="font-medium text-sm">{SECTOR_LABELS[sector]}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* All categories */}
+          <div className="pt-2 border-t border-border/40">
+            <p className="text-xs font-medium text-muted-foreground mb-2">All Categories</p>
+            <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+              {Object.entries(SECTOR_CATEGORIES).map(([category, sectors]) => (
+                <div key={category}>
+                  <button
+                    type="button"
+                    onClick={() => setExpandedCategory(expandedCategory === category ? null : category)}
+                    className="flex items-center justify-between w-full text-sm font-medium text-foreground hover:text-primary py-2 px-1"
+                  >
+                    {category}
+                    <CaretDown className={cn('w-4 h-4 transition-transform', expandedCategory === category && 'rotate-180')} />
+                  </button>
+                  <AnimatePresence>
+                    {expandedCategory === category && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="grid grid-cols-2 gap-1.5 pb-2">
+                          {sectors.map((sector) => (
+                            <button
+                              key={sector}
+                              type="button"
+                              onClick={() => onChange(sector as Sector)}
+                              className={cn(
+                                'flex items-center gap-2 p-2 rounded-md border text-left transition-all text-xs',
+                                value === sector 
+                                  ? 'border-primary/50 bg-primary/5' 
+                                  : 'border-border/40 hover:border-border'
+                              )}
+                            >
+                              <div className={cn(
+                                'w-3 h-3 rounded-full border-2 flex items-center justify-center shrink-0',
+                                value === sector ? 'border-primary bg-primary' : 'border-muted-foreground'
+                              )}>
+                                {value === sector && <Check weight="bold" className="w-1.5 h-1.5 text-white" />}
+                              </div>
+                              <span>{SECTOR_LABELS[sector as Sector]}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Selected indicator */}
+      {value && (
+        <div className="flex items-center gap-2 p-2 rounded-lg bg-primary/5 border border-primary/20">
+          <Check weight="bold" className="w-4 h-4 text-primary" />
+          <span className="text-sm">Selected: <strong>{SECTOR_LABELS[value]}</strong></span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 
 export default function OnboardingPage() {
@@ -315,31 +557,11 @@ export default function OnboardingPage() {
             </div>
             <div className="space-y-2">
               <Label>Sector *</Label>
-              <p className="text-xs text-muted-foreground mb-3">This determines which documents our AI agents will search</p>
-              <div className="space-y-2">
-                {sectors.map((sector) => (
-                  <button
-                    key={sector.value}
-                    type="button"
-                    onClick={() => updateField('sector', sector.value)}
-                    className={cn(
-                      'w-full flex items-start gap-3 p-4 rounded-lg border text-left transition-all',
-                      formData.sector === sector.value ? 'border-primary/50 bg-primary/5' : 'border-border/40 hover:border-border'
-                    )}
-                  >
-                    <div className={cn(
-                      'w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5',
-                      formData.sector === sector.value ? 'border-primary bg-primary' : 'border-muted-foreground'
-                    )}>
-                      {formData.sector === sector.value && <Check weight="bold" className="w-2.5 h-2.5 text-white" />}
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm">{sector.label}</p>
-                      <p className="text-xs text-muted-foreground">{sector.description}</p>
-                    </div>
-                  </button>
-                ))}
-              </div>
+              <p className="text-xs text-muted-foreground mb-3">This helps our AI agents provide more relevant advice</p>
+              <SectorPicker 
+                value={formData.sector} 
+                onChange={(sector) => updateField('sector', sector)} 
+              />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -572,33 +794,15 @@ export default function OnboardingPage() {
             </div>
             <div className="space-y-2">
               <Label>Industry Focus *</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {sectors.map((sector) => (
-                  <button
-                    key={sector.value}
-                    type="button"
-                    onClick={() => {
-                      updateField('sector', sector.value);
-                      // Map sector to valid industry (greentech -> cleantech)
-                      const industryMap: Record<string, OnboardingData['industry']> = {
-                        fintech: 'fintech',
-                        greentech: 'cleantech',
-                        healthtech: 'healthtech',
-                        saas: 'saas',
-                        ecommerce: 'ecommerce',
-                      };
-                      updateField('industry', industryMap[sector.value] || 'saas');
-                    }}
-                    className={cn(
-                      'p-3 rounded-lg border text-left transition-all',
-                      formData.sector === sector.value ? 'border-primary/50 bg-primary/5' : 'border-border/40 hover:border-border'
-                    )}
-                  >
-                    <p className="font-medium text-sm">{sector.label}</p>
-                    <p className="text-xs text-muted-foreground truncate">{sector.description}</p>
-                  </button>
-                ))}
-              </div>
+              <SectorPicker 
+                value={formData.sector} 
+                onChange={(sector) => {
+                  updateField('sector', sector);
+                  // Map sector to industry for compatibility
+                  updateField('industry', sector as OnboardingData['industry']);
+                }}
+                compact
+              />
             </div>
             <div className="space-y-2">
               <Label>Problem You Want to Solve</Label>

@@ -28,7 +28,7 @@ export class StartupResponseDto {
   @ApiProperty()
   industry: string;
 
-  @ApiProperty({ description: 'RAG sector for document filtering: fintech, greentech, healthtech, saas, ecommerce' })
+  @ApiProperty({ description: 'RAG sector for document filtering (70+ sectors available)' })
   sector: string;
 
   @ApiProperty()

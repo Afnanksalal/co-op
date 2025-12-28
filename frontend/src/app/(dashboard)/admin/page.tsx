@@ -35,7 +35,7 @@ import type {
   CreateInvestorRequest,
   UpdateInvestorRequest,
 } from '@/lib/api/types';
-import { RAG_REGIONS, RAG_JURISDICTIONS, RAG_DOCUMENT_TYPES } from '@/lib/api/types';
+import { RAG_REGIONS, RAG_JURISDICTIONS, RAG_DOCUMENT_TYPES, SECTORS, SECTOR_LABELS, SECTOR_CATEGORIES } from '@/lib/api/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -61,9 +61,52 @@ import { formatRelativeTime } from '@/lib/utils';
 import { toast } from 'sonner';
 
 const RAG_DOMAINS: RagDomain[] = ['legal', 'finance'];
-const SECTORS: Sector[] = ['fintech', 'greentech', 'healthtech', 'saas', 'ecommerce'];
-const INVESTOR_SECTORS = ['saas', 'fintech', 'healthtech', 'ai', 'consumer', 'enterprise', 'crypto', 'climate', 'edtech', 'biotech'];
-const INVESTOR_REGIONS = ['us', 'eu', 'apac', 'latam', 'mena', 'global'];
+
+// Expanded investor sectors for production
+const INVESTOR_SECTORS = [
+  // Technology
+  'saas', 'ai_ml', 'developer_tools', 'cybersecurity', 'cloud_infrastructure', 'data_analytics', 'devops', 'low_code',
+  // Finance
+  'fintech', 'insurtech', 'wealthtech', 'regtech', 'payments', 'banking', 'crypto_web3', 'defi',
+  // Health
+  'healthtech', 'biotech', 'medtech', 'digital_health', 'mental_health', 'pharma', 'telehealth',
+  // Commerce
+  'ecommerce', 'marketplace', 'retail_tech', 'd2c', 'supply_chain', 'logistics',
+  // Sustainability
+  'greentech', 'cleantech', 'climate_tech', 'renewable_energy', 'carbon_tech',
+  // Real Estate
+  'proptech', 'construction_tech',
+  // Education & HR
+  'edtech', 'hrtech', 'workforce_tech',
+  // Media
+  'media_entertainment', 'gaming', 'creator_economy', 'streaming', 'adtech', 'martech',
+  // Food & Agri
+  'foodtech', 'agritech', 'food_delivery',
+  // Mobility
+  'mobility', 'automotive', 'ev_tech', 'autonomous_vehicles',
+  // Legal & Gov
+  'legaltech', 'govtech',
+  // Travel
+  'travel_tech', 'hospitality',
+  // Social
+  'social', 'communication', 'community',
+  // Hardware
+  'hardware', 'iot', 'robotics', 'drones', 'wearables',
+  // Other
+  'other',
+];
+
+const INVESTOR_REGIONS = [
+  { value: 'us', label: 'United States' },
+  { value: 'eu', label: 'Europe' },
+  { value: 'uk', label: 'United Kingdom' },
+  { value: 'apac', label: 'Asia Pacific' },
+  { value: 'india', label: 'India' },
+  { value: 'latam', label: 'Latin America' },
+  { value: 'mena', label: 'Middle East & Africa' },
+  { value: 'canada', label: 'Canada' },
+  { value: 'global', label: 'Global' },
+];
 
 const STAGES: { value: InvestorStage; label: string }[] = [
   { value: 'pre-seed', label: 'Pre-Seed' },
@@ -474,13 +517,18 @@ export default function AdminPage() {
                 </SelectContent>
               </Select>
               <Select value={selectedSector} onValueChange={handleSectorChange}>
-                <SelectTrigger className="w-[90px] sm:w-[110px] h-8 sm:h-9 text-xs sm:text-sm">
+                <SelectTrigger className="w-[120px] sm:w-[140px] h-8 sm:h-9 text-xs sm:text-sm">
                   <SelectValue placeholder="Sector" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  {SECTORS.map((s) => (
-                    <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>
+                <SelectContent className="max-h-[300px]">
+                  <SelectItem value="all">All Sectors</SelectItem>
+                  {Object.entries(SECTOR_CATEGORIES).map(([category, sectors]) => (
+                    <div key={category}>
+                      <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground">{category}</div>
+                      {sectors.map((s) => (
+                        <SelectItem key={s} value={s} className="pl-4">{SECTOR_LABELS[s as Sector]}</SelectItem>
+                      ))}
+                    </div>
                   ))}
                 </SelectContent>
               </Select>
@@ -547,9 +595,14 @@ export default function AdminPage() {
                         <Label className="text-xs sm:text-sm">Sector</Label>
                         <Select value={uploadSector} onValueChange={(v) => setUploadSector(v as Sector)}>
                           <SelectTrigger className="h-8 sm:h-9 text-xs sm:text-sm"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {SECTORS.map((s) => (
-                              <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>
+                          <SelectContent className="max-h-[250px]">
+                            {Object.entries(SECTOR_CATEGORIES).map(([category, sectors]) => (
+                              <div key={category}>
+                                <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground">{category}</div>
+                                {sectors.map((s) => (
+                                  <SelectItem key={s} value={s} className="pl-4 text-xs">{SECTOR_LABELS[s as Sector]}</SelectItem>
+                                ))}
+                              </div>
                             ))}
                           </SelectContent>
                         </Select>
@@ -929,13 +982,13 @@ export default function AdminPage() {
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">Sectors <span className="text-destructive">*</span></Label>
-                  <Input placeholder="saas,fintech,ai (comma-separated)" value={investorForm.sectors} onChange={(e) => setInvestorForm((p) => ({ ...p, sectors: e.target.value }))} className="h-8 text-xs" />
-                  <p className="text-[10px] text-muted-foreground">Options: {INVESTOR_SECTORS.join(', ')}</p>
+                  <Input placeholder="saas,fintech,ai_ml (comma-separated)" value={investorForm.sectors} onChange={(e) => setInvestorForm((p) => ({ ...p, sectors: e.target.value }))} className="h-8 text-xs" />
+                  <p className="text-[10px] text-muted-foreground">Popular: saas, fintech, healthtech, ai_ml, ecommerce, biotech, edtech, crypto_web3</p>
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">Regions</Label>
                   <Input placeholder="us,eu,apac (comma-separated)" value={investorForm.regions || ''} onChange={(e) => setInvestorForm((p) => ({ ...p, regions: e.target.value }))} className="h-8 text-xs" />
-                  <p className="text-[10px] text-muted-foreground">Options: {INVESTOR_REGIONS.join(', ')}</p>
+                  <p className="text-[10px] text-muted-foreground">Options: {INVESTOR_REGIONS.map(r => r.value).join(', ')}</p>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1.5">

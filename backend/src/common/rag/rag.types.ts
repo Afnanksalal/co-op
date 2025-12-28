@@ -4,8 +4,41 @@
 export const RAG_DOMAINS = ['legal', 'finance'] as const;
 export type RagDomain = (typeof RAG_DOMAINS)[number];
 
-// Sector types - must match RAG service
-export const RAG_SECTORS = ['fintech', 'greentech', 'healthtech', 'saas', 'ecommerce'] as const;
+// Sector types - must match RAG service (expanded for production)
+// Note: RAG documents may not exist for all sectors yet, but the system will gracefully handle this
+export const RAG_SECTORS = [
+  // Technology & Software
+  'saas', 'ai_ml', 'developer_tools', 'cybersecurity', 'cloud_infrastructure',
+  'data_analytics', 'devops', 'low_code',
+  // Finance
+  'fintech', 'insurtech', 'wealthtech', 'regtech', 'payments', 'banking', 'crypto_web3', 'defi',
+  // Health & Life Sciences
+  'healthtech', 'biotech', 'medtech', 'digital_health', 'mental_health', 'pharma', 'genomics', 'telehealth',
+  // Commerce & Retail
+  'ecommerce', 'marketplace', 'retail_tech', 'd2c', 'supply_chain', 'logistics',
+  // Sustainability & Energy
+  'greentech', 'cleantech', 'climate_tech', 'renewable_energy', 'carbon_tech', 'circular_economy',
+  // Real Estate & Construction
+  'proptech', 'construction_tech', 'smart_buildings',
+  // Education & HR
+  'edtech', 'hrtech', 'workforce_tech', 'learning_platforms',
+  // Media & Entertainment
+  'media_entertainment', 'gaming', 'creator_economy', 'streaming', 'adtech', 'martech',
+  // Food & Agriculture
+  'foodtech', 'agritech', 'food_delivery', 'restaurant_tech',
+  // Transportation & Mobility
+  'mobility', 'automotive', 'ev_tech', 'autonomous_vehicles', 'fleet_management',
+  // Legal & Government
+  'legaltech', 'govtech', 'civic_tech',
+  // Travel & Hospitality
+  'travel_tech', 'hospitality',
+  // Social & Communication
+  'social', 'communication', 'community',
+  // Hardware & IoT
+  'hardware', 'iot', 'robotics', 'drones', 'wearables',
+  // Other
+  'other',
+] as const;
 export type RagSector = (typeof RAG_SECTORS)[number];
 
 // Region types - geographic regions for jurisdiction filtering

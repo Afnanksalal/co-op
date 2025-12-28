@@ -10,11 +10,93 @@ class Domain(str, Enum):
 
 
 class Sector(str, Enum):
-    FINTECH = "fintech"
-    GREENTECH = "greentech"
-    HEALTHTECH = "healthtech"
+    # Technology & Software
     SAAS = "saas"
+    AI_ML = "ai_ml"
+    DEVELOPER_TOOLS = "developer_tools"
+    CYBERSECURITY = "cybersecurity"
+    CLOUD_INFRASTRUCTURE = "cloud_infrastructure"
+    DATA_ANALYTICS = "data_analytics"
+    DEVOPS = "devops"
+    LOW_CODE = "low_code"
+    # Finance
+    FINTECH = "fintech"
+    INSURTECH = "insurtech"
+    WEALTHTECH = "wealthtech"
+    REGTECH = "regtech"
+    PAYMENTS = "payments"
+    BANKING = "banking"
+    CRYPTO_WEB3 = "crypto_web3"
+    DEFI = "defi"
+    # Health & Life Sciences
+    HEALTHTECH = "healthtech"
+    BIOTECH = "biotech"
+    MEDTECH = "medtech"
+    DIGITAL_HEALTH = "digital_health"
+    MENTAL_HEALTH = "mental_health"
+    PHARMA = "pharma"
+    GENOMICS = "genomics"
+    TELEHEALTH = "telehealth"
+    # Commerce & Retail
     ECOMMERCE = "ecommerce"
+    MARKETPLACE = "marketplace"
+    RETAIL_TECH = "retail_tech"
+    D2C = "d2c"
+    SUPPLY_CHAIN = "supply_chain"
+    LOGISTICS = "logistics"
+    # Sustainability & Energy
+    GREENTECH = "greentech"
+    CLEANTECH = "cleantech"
+    CLIMATE_TECH = "climate_tech"
+    RENEWABLE_ENERGY = "renewable_energy"
+    CARBON_TECH = "carbon_tech"
+    CIRCULAR_ECONOMY = "circular_economy"
+    # Real Estate & Construction
+    PROPTECH = "proptech"
+    CONSTRUCTION_TECH = "construction_tech"
+    SMART_BUILDINGS = "smart_buildings"
+    # Education & HR
+    EDTECH = "edtech"
+    HRTECH = "hrtech"
+    WORKFORCE_TECH = "workforce_tech"
+    LEARNING_PLATFORMS = "learning_platforms"
+    # Media & Entertainment
+    MEDIA_ENTERTAINMENT = "media_entertainment"
+    GAMING = "gaming"
+    CREATOR_ECONOMY = "creator_economy"
+    STREAMING = "streaming"
+    ADTECH = "adtech"
+    MARTECH = "martech"
+    # Food & Agriculture
+    FOODTECH = "foodtech"
+    AGRITECH = "agritech"
+    FOOD_DELIVERY = "food_delivery"
+    RESTAURANT_TECH = "restaurant_tech"
+    # Transportation & Mobility
+    MOBILITY = "mobility"
+    AUTOMOTIVE = "automotive"
+    EV_TECH = "ev_tech"
+    AUTONOMOUS_VEHICLES = "autonomous_vehicles"
+    FLEET_MANAGEMENT = "fleet_management"
+    # Legal & Government
+    LEGALTECH = "legaltech"
+    GOVTECH = "govtech"
+    CIVIC_TECH = "civic_tech"
+    # Travel & Hospitality
+    TRAVEL_TECH = "travel_tech"
+    HOSPITALITY = "hospitality"
+    # Social & Communication
+    SOCIAL = "social"
+    COMMUNICATION = "communication"
+    COMMUNITY = "community"
+    # Hardware & IoT
+    HARDWARE = "hardware"
+    IOT = "iot"
+    ROBOTICS = "robotics"
+    DRONES = "drones"
+    WEARABLES = "wearables"
+    # Other
+    OTHER = "other"
 
 
 class Region(str, Enum):

@@ -226,13 +226,24 @@ POST /rag/cleanup?days=30
 | `legal` | Legal Agent |
 | `finance` | Finance Agent |
 
-| Sector | Description |
-|--------|-------------|
-| `fintech` | Financial technology |
-| `greentech` | Clean technology |
-| `healthtech` | Healthcare technology |
-| `saas` | Software as a Service |
-| `ecommerce` | E-commerce |
+The system supports 70+ sectors organized by category:
+
+| Category | Example Sectors |
+|----------|-----------------|
+| Technology | `saas`, `ai_ml`, `developer_tools`, `cybersecurity`, `cloud_infrastructure` |
+| Finance | `fintech`, `insurtech`, `wealthtech`, `regtech`, `payments`, `crypto_web3` |
+| Health | `healthtech`, `biotech`, `medtech`, `digital_health`, `pharma` |
+| Commerce | `ecommerce`, `marketplace`, `retail_tech`, `d2c`, `logistics` |
+| Sustainability | `greentech`, `cleantech`, `climate_tech`, `renewable_energy` |
+| Real Estate | `proptech`, `construction_tech`, `smart_buildings` |
+| Education | `edtech`, `hrtech`, `workforce_tech`, `learning_platforms` |
+| Media | `media_entertainment`, `gaming`, `creator_economy`, `streaming` |
+| Food & Agri | `foodtech`, `agritech`, `food_delivery`, `restaurant_tech` |
+| Mobility | `mobility`, `automotive`, `ev_tech`, `autonomous_vehicles` |
+| Legal & Gov | `legaltech`, `govtech`, `civic_tech` |
+| Hardware | `hardware`, `iot`, `robotics`, `drones`, `wearables` |
+
+> Note: RAG documents may not exist for all sectors yet. The system gracefully falls back to general documents.
 
 ## Deployment
 

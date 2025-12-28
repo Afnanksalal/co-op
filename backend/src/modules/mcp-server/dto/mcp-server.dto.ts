@@ -38,7 +38,7 @@ export class McpToolArgumentsDto {
 
   @ApiProperty({ 
     description: 'RAG sector for document filtering (required for legal/finance agents)',
-    enum: ['fintech', 'greentech', 'healthtech', 'saas', 'ecommerce'],
+    example: 'fintech',
   })
   @IsString()
   @IsNotEmpty()

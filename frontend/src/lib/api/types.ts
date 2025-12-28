@@ -8,16 +8,190 @@ export const FOUNDER_ROLES = ['ceo', 'cto', 'coo', 'cfo', 'cpo', 'founder', 'cof
 export type FounderRole = (typeof FOUNDER_ROLES)[number];
 
 export const INDUSTRIES = [
-  'saas', 'fintech', 'healthtech', 'edtech', 'ecommerce', 'marketplace',
-  'ai_ml', 'artificial_intelligence', 'cybersecurity', 'cleantech', 'biotech',
-  'proptech', 'insurtech', 'legaltech', 'hrtech', 'agritech', 'logistics',
-  'media_entertainment', 'gaming', 'food_beverage', 'travel_hospitality',
-  'social', 'developer_tools', 'hardware', 'other',
+  // Technology & Software
+  'saas', 'ai_ml', 'artificial_intelligence', 'machine_learning', 'developer_tools', 'devops',
+  'cybersecurity', 'cloud_computing', 'data_analytics', 'big_data', 'enterprise_software',
+  'low_code_no_code', 'api_services',
+  // Finance & Insurance
+  'fintech', 'insurtech', 'wealthtech', 'regtech', 'payments', 'banking', 'lending',
+  'crypto_blockchain', 'defi', 'neobank',
+  // Health & Life Sciences
+  'healthtech', 'biotech', 'medtech', 'digital_health', 'mental_health', 'pharma',
+  'genomics', 'telehealth', 'fitness_wellness',
+  // Commerce & Retail
+  'ecommerce', 'marketplace', 'retail_tech', 'd2c', 'supply_chain', 'logistics', 'fulfillment',
+  // Sustainability & Energy
+  'cleantech', 'greentech', 'climate_tech', 'renewable_energy', 'carbon_tech',
+  'circular_economy', 'sustainability',
+  // Real Estate & Construction
+  'proptech', 'construction_tech', 'smart_buildings', 'real_estate',
+  // Education & HR
+  'edtech', 'hrtech', 'workforce_tech', 'learning_platforms', 'corporate_training', 'recruiting',
+  // Media & Entertainment
+  'media_entertainment', 'gaming', 'esports', 'creator_economy', 'streaming', 'adtech',
+  'martech', 'content_creation',
+  // Food & Agriculture
+  'foodtech', 'agritech', 'food_beverage', 'food_delivery', 'restaurant_tech', 'vertical_farming',
+  // Transportation & Mobility
+  'mobility', 'automotive', 'ev_tech', 'autonomous_vehicles', 'fleet_management',
+  'ride_sharing', 'micro_mobility',
+  // Legal & Government
+  'legaltech', 'govtech', 'civic_tech', 'compliance',
+  // Travel & Hospitality
+  'travel_hospitality', 'travel_tech', 'hospitality', 'tourism',
+  // Social & Communication
+  'social', 'communication', 'community', 'dating', 'networking',
+  // Hardware & IoT
+  'hardware', 'iot', 'robotics', 'drones', 'wearables', 'consumer_electronics', '3d_printing',
+  // Other
+  'other',
 ] as const;
 export type Industry = (typeof INDUSTRIES)[number];
 
-export const SECTORS = ['fintech', 'greentech', 'healthtech', 'saas', 'ecommerce'] as const;
+export const SECTORS = [
+  // Technology & Software
+  'saas', 'ai_ml', 'developer_tools', 'cybersecurity', 'cloud_infrastructure',
+  'data_analytics', 'devops', 'low_code',
+  // Finance
+  'fintech', 'insurtech', 'wealthtech', 'regtech', 'payments', 'banking', 'crypto_web3', 'defi',
+  // Health & Life Sciences
+  'healthtech', 'biotech', 'medtech', 'digital_health', 'mental_health', 'pharma', 'genomics', 'telehealth',
+  // Commerce & Retail
+  'ecommerce', 'marketplace', 'retail_tech', 'd2c', 'supply_chain', 'logistics',
+  // Sustainability & Energy
+  'greentech', 'cleantech', 'climate_tech', 'renewable_energy', 'carbon_tech', 'circular_economy',
+  // Real Estate & Construction
+  'proptech', 'construction_tech', 'smart_buildings',
+  // Education & HR
+  'edtech', 'hrtech', 'workforce_tech', 'learning_platforms',
+  // Media & Entertainment
+  'media_entertainment', 'gaming', 'creator_economy', 'streaming', 'adtech', 'martech',
+  // Food & Agriculture
+  'foodtech', 'agritech', 'food_delivery', 'restaurant_tech',
+  // Transportation & Mobility
+  'mobility', 'automotive', 'ev_tech', 'autonomous_vehicles', 'fleet_management',
+  // Legal & Government
+  'legaltech', 'govtech', 'civic_tech',
+  // Travel & Hospitality
+  'travel_tech', 'hospitality',
+  // Social & Communication
+  'social', 'communication', 'community',
+  // Hardware & IoT
+  'hardware', 'iot', 'robotics', 'drones', 'wearables',
+  // Other
+  'other',
+] as const;
 export type Sector = (typeof SECTORS)[number];
+
+// Sector categories for UI grouping
+export const SECTOR_CATEGORIES = {
+  'Technology & Software': ['saas', 'ai_ml', 'developer_tools', 'cybersecurity', 'cloud_infrastructure', 'data_analytics', 'devops', 'low_code'],
+  'Finance': ['fintech', 'insurtech', 'wealthtech', 'regtech', 'payments', 'banking', 'crypto_web3', 'defi'],
+  'Health & Life Sciences': ['healthtech', 'biotech', 'medtech', 'digital_health', 'mental_health', 'pharma', 'genomics', 'telehealth'],
+  'Commerce & Retail': ['ecommerce', 'marketplace', 'retail_tech', 'd2c', 'supply_chain', 'logistics'],
+  'Sustainability & Energy': ['greentech', 'cleantech', 'climate_tech', 'renewable_energy', 'carbon_tech', 'circular_economy'],
+  'Real Estate & Construction': ['proptech', 'construction_tech', 'smart_buildings'],
+  'Education & HR': ['edtech', 'hrtech', 'workforce_tech', 'learning_platforms'],
+  'Media & Entertainment': ['media_entertainment', 'gaming', 'creator_economy', 'streaming', 'adtech', 'martech'],
+  'Food & Agriculture': ['foodtech', 'agritech', 'food_delivery', 'restaurant_tech'],
+  'Transportation & Mobility': ['mobility', 'automotive', 'ev_tech', 'autonomous_vehicles', 'fleet_management'],
+  'Legal & Government': ['legaltech', 'govtech', 'civic_tech'],
+  'Travel & Hospitality': ['travel_tech', 'hospitality'],
+  'Social & Communication': ['social', 'communication', 'community'],
+  'Hardware & IoT': ['hardware', 'iot', 'robotics', 'drones', 'wearables'],
+  'Other': ['other'],
+} as const;
+
+// Human-readable sector labels
+export const SECTOR_LABELS: Record<Sector, string> = {
+  // Technology & Software
+  saas: 'SaaS',
+  ai_ml: 'AI / Machine Learning',
+  developer_tools: 'Developer Tools',
+  cybersecurity: 'Cybersecurity',
+  cloud_infrastructure: 'Cloud Infrastructure',
+  data_analytics: 'Data & Analytics',
+  devops: 'DevOps',
+  low_code: 'Low-Code / No-Code',
+  // Finance
+  fintech: 'Fintech',
+  insurtech: 'Insurtech',
+  wealthtech: 'Wealthtech',
+  regtech: 'Regtech',
+  payments: 'Payments',
+  banking: 'Banking',
+  crypto_web3: 'Crypto / Web3',
+  defi: 'DeFi',
+  // Health & Life Sciences
+  healthtech: 'Healthtech',
+  biotech: 'Biotech',
+  medtech: 'Medtech',
+  digital_health: 'Digital Health',
+  mental_health: 'Mental Health',
+  pharma: 'Pharma',
+  genomics: 'Genomics',
+  telehealth: 'Telehealth',
+  // Commerce & Retail
+  ecommerce: 'E-commerce',
+  marketplace: 'Marketplace',
+  retail_tech: 'Retail Tech',
+  d2c: 'D2C',
+  supply_chain: 'Supply Chain',
+  logistics: 'Logistics',
+  // Sustainability & Energy
+  greentech: 'Greentech',
+  cleantech: 'Cleantech',
+  climate_tech: 'Climate Tech',
+  renewable_energy: 'Renewable Energy',
+  carbon_tech: 'Carbon Tech',
+  circular_economy: 'Circular Economy',
+  // Real Estate & Construction
+  proptech: 'Proptech',
+  construction_tech: 'Construction Tech',
+  smart_buildings: 'Smart Buildings',
+  // Education & HR
+  edtech: 'Edtech',
+  hrtech: 'HR Tech',
+  workforce_tech: 'Workforce Tech',
+  learning_platforms: 'Learning Platforms',
+  // Media & Entertainment
+  media_entertainment: 'Media & Entertainment',
+  gaming: 'Gaming',
+  creator_economy: 'Creator Economy',
+  streaming: 'Streaming',
+  adtech: 'Adtech',
+  martech: 'Martech',
+  // Food & Agriculture
+  foodtech: 'Foodtech',
+  agritech: 'Agritech',
+  food_delivery: 'Food Delivery',
+  restaurant_tech: 'Restaurant Tech',
+  // Transportation & Mobility
+  mobility: 'Mobility',
+  automotive: 'Automotive',
+  ev_tech: 'EV Tech',
+  autonomous_vehicles: 'Autonomous Vehicles',
+  fleet_management: 'Fleet Management',
+  // Legal & Government
+  legaltech: 'Legaltech',
+  govtech: 'Govtech',
+  civic_tech: 'Civic Tech',
+  // Travel & Hospitality
+  travel_tech: 'Travel Tech',
+  hospitality: 'Hospitality',
+  // Social & Communication
+  social: 'Social',
+  communication: 'Communication',
+  community: 'Community',
+  // Hardware & IoT
+  hardware: 'Hardware',
+  iot: 'IoT',
+  robotics: 'Robotics',
+  drones: 'Drones',
+  wearables: 'Wearables',
+  // Other
+  other: 'Other',
+};
 
 export const BUSINESS_MODELS = ['b2b', 'b2c', 'b2b2c', 'marketplace', 'd2c', 'enterprise', 'smb', 'consumer', 'platform', 'api', 'other'] as const;
 export type BusinessModel = (typeof BUSINESS_MODELS)[number];

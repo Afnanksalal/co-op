@@ -46,8 +46,7 @@ const SINGLE_AGENT_SCHEMA: McpToolSchema = {
     },
     sector: {
       type: 'string',
-      description: 'RAG sector for document filtering (required for legal/finance agents)',
-      enum: ['fintech', 'greentech', 'healthtech', 'saas', 'ecommerce'],
+      description: 'RAG sector for document filtering (e.g., fintech, healthtech, saas, ai_ml, ecommerce)',
     },
     stage: {
       type: 'string',
@@ -87,8 +86,7 @@ const MULTI_AGENT_SCHEMA: McpToolSchema = {
     },
     sector: {
       type: 'string',
-      description: 'RAG sector: fintech, greentech, healthtech, saas, ecommerce',
-      enum: ['fintech', 'greentech', 'healthtech', 'saas', 'ecommerce'],
+      description: 'RAG sector (e.g., fintech, healthtech, saas, ai_ml, ecommerce)',
     },
     stage: {
       type: 'string',

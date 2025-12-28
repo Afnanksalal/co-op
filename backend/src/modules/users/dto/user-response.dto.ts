@@ -10,7 +10,7 @@ export class StartupSummaryDto {
   @ApiProperty()
   industry: string;
 
-  @ApiProperty({ description: 'RAG sector for document filtering', enum: ['fintech', 'greentech', 'healthtech', 'saas', 'ecommerce'] })
+  @ApiProperty({ description: 'RAG sector for document filtering (70+ sectors available)' })
   sector: string;
 
   @ApiProperty()

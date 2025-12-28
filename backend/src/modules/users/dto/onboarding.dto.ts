@@ -18,30 +18,132 @@ import { Transform } from 'class-transformer';
 export const FOUNDER_ROLES = ['ceo', 'cto', 'coo', 'cfo', 'cpo', 'founder', 'cofounder'] as const;
 
 export const INDUSTRIES = [
+  // Technology & Software
   'saas',
-  'fintech',
-  'healthtech',
-  'edtech',
-  'ecommerce',
-  'marketplace',
   'ai_ml',
   'artificial_intelligence',
+  'machine_learning',
+  'developer_tools',
+  'devops',
   'cybersecurity',
-  'cleantech',
-  'biotech',
-  'proptech',
+  'cloud_computing',
+  'data_analytics',
+  'big_data',
+  'enterprise_software',
+  'low_code_no_code',
+  'api_services',
+  
+  // Finance & Insurance
+  'fintech',
   'insurtech',
-  'legaltech',
-  'hrtech',
-  'agritech',
+  'wealthtech',
+  'regtech',
+  'payments',
+  'banking',
+  'lending',
+  'crypto_blockchain',
+  'defi',
+  'neobank',
+  
+  // Health & Life Sciences
+  'healthtech',
+  'biotech',
+  'medtech',
+  'digital_health',
+  'mental_health',
+  'pharma',
+  'genomics',
+  'telehealth',
+  'fitness_wellness',
+  
+  // Commerce & Retail
+  'ecommerce',
+  'marketplace',
+  'retail_tech',
+  'd2c',
+  'supply_chain',
   'logistics',
+  'fulfillment',
+  
+  // Sustainability & Energy
+  'cleantech',
+  'greentech',
+  'climate_tech',
+  'renewable_energy',
+  'carbon_tech',
+  'circular_economy',
+  'sustainability',
+  
+  // Real Estate & Construction
+  'proptech',
+  'construction_tech',
+  'smart_buildings',
+  'real_estate',
+  
+  // Education & HR
+  'edtech',
+  'hrtech',
+  'workforce_tech',
+  'learning_platforms',
+  'corporate_training',
+  'recruiting',
+  
+  // Media & Entertainment
   'media_entertainment',
   'gaming',
+  'esports',
+  'creator_economy',
+  'streaming',
+  'adtech',
+  'martech',
+  'content_creation',
+  
+  // Food & Agriculture
+  'foodtech',
+  'agritech',
   'food_beverage',
+  'food_delivery',
+  'restaurant_tech',
+  'vertical_farming',
+  
+  // Transportation & Mobility
+  'mobility',
+  'automotive',
+  'ev_tech',
+  'autonomous_vehicles',
+  'fleet_management',
+  'ride_sharing',
+  'micro_mobility',
+  
+  // Legal & Government
+  'legaltech',
+  'govtech',
+  'civic_tech',
+  'compliance',
+  
+  // Travel & Hospitality
   'travel_hospitality',
+  'travel_tech',
+  'hospitality',
+  'tourism',
+  
+  // Social & Communication
   'social',
-  'developer_tools',
+  'communication',
+  'community',
+  'dating',
+  'networking',
+  
+  // Hardware & IoT
   'hardware',
+  'iot',
+  'robotics',
+  'drones',
+  'wearables',
+  'consumer_electronics',
+  '3d_printing',
+  
+  // Other
   'other',
 ] as const;
 
@@ -59,8 +161,110 @@ export const BUSINESS_MODELS = [
   'other',
 ] as const;
 
-// RAG sectors - used for document filtering
-export const SECTORS = ['fintech', 'greentech', 'healthtech', 'saas', 'ecommerce'] as const;
+// RAG sectors - used for document filtering (expanded for production)
+export const SECTORS = [
+  // Technology & Software
+  'saas',
+  'ai_ml',
+  'developer_tools',
+  'cybersecurity',
+  'cloud_infrastructure',
+  'data_analytics',
+  'devops',
+  'low_code',
+  
+  // Finance
+  'fintech',
+  'insurtech',
+  'wealthtech',
+  'regtech',
+  'payments',
+  'banking',
+  'crypto_web3',
+  'defi',
+  
+  // Health & Life Sciences
+  'healthtech',
+  'biotech',
+  'medtech',
+  'digital_health',
+  'mental_health',
+  'pharma',
+  'genomics',
+  'telehealth',
+  
+  // Commerce & Retail
+  'ecommerce',
+  'marketplace',
+  'retail_tech',
+  'd2c',
+  'supply_chain',
+  'logistics',
+  
+  // Sustainability & Energy
+  'greentech',
+  'cleantech',
+  'climate_tech',
+  'renewable_energy',
+  'carbon_tech',
+  'circular_economy',
+  
+  // Real Estate & Construction
+  'proptech',
+  'construction_tech',
+  'smart_buildings',
+  
+  // Education & HR
+  'edtech',
+  'hrtech',
+  'workforce_tech',
+  'learning_platforms',
+  
+  // Media & Entertainment
+  'media_entertainment',
+  'gaming',
+  'creator_economy',
+  'streaming',
+  'adtech',
+  'martech',
+  
+  // Food & Agriculture
+  'foodtech',
+  'agritech',
+  'food_delivery',
+  'restaurant_tech',
+  
+  // Transportation & Mobility
+  'mobility',
+  'automotive',
+  'ev_tech',
+  'autonomous_vehicles',
+  'fleet_management',
+  
+  // Legal & Government
+  'legaltech',
+  'govtech',
+  'civic_tech',
+  
+  // Travel & Hospitality
+  'travel_tech',
+  'hospitality',
+  
+  // Social & Communication
+  'social',
+  'communication',
+  'community',
+  
+  // Hardware & IoT
+  'hardware',
+  'iot',
+  'robotics',
+  'drones',
+  'wearables',
+  
+  // Other
+  'other',
+] as const;
 
 export const REVENUE_MODELS = [
   'subscription',
@@ -275,7 +479,6 @@ export class OnboardingDto {
 
   @ApiProperty({ 
     description: 'Sector for RAG document filtering (case-insensitive)', 
-    enum: ['fintech', 'greentech', 'healthtech', 'saas', 'ecommerce'], 
     example: 'fintech',
   })
   @IsString()

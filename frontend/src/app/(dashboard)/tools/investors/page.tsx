@@ -56,23 +56,60 @@ const STAGES: { value: InvestorStage | 'all'; label: string }[] = [
 
 const SECTORS = [
   { value: 'all', label: 'All Sectors' },
+  // Technology
   { value: 'saas', label: 'SaaS' },
+  { value: 'ai_ml', label: 'AI/ML' },
+  { value: 'developer_tools', label: 'Developer Tools' },
+  { value: 'cybersecurity', label: 'Cybersecurity' },
+  { value: 'data_analytics', label: 'Data Analytics' },
+  // Finance
   { value: 'fintech', label: 'Fintech' },
+  { value: 'insurtech', label: 'Insurtech' },
+  { value: 'crypto_web3', label: 'Crypto/Web3' },
+  { value: 'defi', label: 'DeFi' },
+  // Health
   { value: 'healthtech', label: 'Healthtech' },
-  { value: 'ai', label: 'AI/ML' },
-  { value: 'consumer', label: 'Consumer' },
-  { value: 'enterprise', label: 'Enterprise' },
-  { value: 'crypto', label: 'Crypto/Web3' },
-  { value: 'climate', label: 'Climate' },
+  { value: 'biotech', label: 'Biotech' },
+  { value: 'medtech', label: 'Medtech' },
+  // Commerce
+  { value: 'ecommerce', label: 'E-commerce' },
+  { value: 'marketplace', label: 'Marketplace' },
+  { value: 'd2c', label: 'D2C' },
+  // Sustainability
+  { value: 'greentech', label: 'Greentech' },
+  { value: 'cleantech', label: 'Cleantech' },
+  { value: 'climate_tech', label: 'Climate Tech' },
+  // Education & HR
+  { value: 'edtech', label: 'Edtech' },
+  { value: 'hrtech', label: 'HR Tech' },
+  // Media
+  { value: 'gaming', label: 'Gaming' },
+  { value: 'creator_economy', label: 'Creator Economy' },
+  // Food & Agri
+  { value: 'foodtech', label: 'Foodtech' },
+  { value: 'agritech', label: 'Agritech' },
+  // Mobility
+  { value: 'mobility', label: 'Mobility' },
+  { value: 'ev_tech', label: 'EV Tech' },
+  // Other
+  { value: 'proptech', label: 'Proptech' },
+  { value: 'legaltech', label: 'Legaltech' },
+  { value: 'hardware', label: 'Hardware' },
+  { value: 'iot', label: 'IoT' },
+  { value: 'robotics', label: 'Robotics' },
 ];
 
 const REGIONS = [
   { value: 'all', label: 'All Regions' },
   { value: 'us', label: 'United States' },
   { value: 'eu', label: 'Europe' },
+  { value: 'uk', label: 'United Kingdom' },
   { value: 'apac', label: 'Asia-Pacific' },
+  { value: 'india', label: 'India' },
   { value: 'latam', label: 'Latin America' },
-  { value: 'mena', label: 'Middle East' },
+  { value: 'mena', label: 'Middle East & Africa' },
+  { value: 'canada', label: 'Canada' },
+  { value: 'global', label: 'Global' },
 ];
 
 function formatCheckSize(min: number | null, max: number | null): string {
