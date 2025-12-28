@@ -73,15 +73,20 @@ export function WebViewScreen({ onError }: Props): React.JSX.Element {
         document.documentElement.classList.add('mobile-app');
       }
       ${shouldClearStorage ? `
-        // Clear all auth-related storage after logout
+        // SECURITY: Clear ALL auth-related storage after logout
+        // This prevents session leakage between different users
         var keys = Object.keys(localStorage);
+        var keysToRemove = [];
         for (var i = 0; i < keys.length; i++) {
           var key = keys[i];
-          if (key.includes('supabase') || key.includes('sb-') || key.includes('pkce') || key.includes('code_verifier') || key.includes('auth')) {
-            localStorage.removeItem(key);
+          if (key.includes('supabase') || key.includes('sb-') || key.includes('pkce') || 
+              key.includes('code_verifier') || key.includes('auth') || key.includes('coop-')) {
+            keysToRemove.push(key);
           }
         }
+        keysToRemove.forEach(function(k) { localStorage.removeItem(k); });
         sessionStorage.clear();
+        console.log('Auth storage cleared for logout');
       ` : ''}
     })();true;
   `, [insets.top, insets.bottom, shouldClearStorage]);
@@ -105,6 +110,43 @@ export function WebViewScreen({ onError }: Props): React.JSX.Element {
       
       document.addEventListener("touchstart", function(){}, {passive:true});
       document.addEventListener("touchmove", function(){}, {passive:true});
+      
+      // SECURITY: Validate session integrity on page load
+      // Check if stored user ID matches the session user ID
+      (function validateSession(){
+        var keys = Object.keys(localStorage);
+        var storedUserId = localStorage.getItem('coop-current-user-id');
+        var sessionUserId = null;
+        
+        for(var i=0; i<keys.length; i++){
+          if(keys[i].includes("supabase") && keys[i].includes("auth")){
+            try{
+              var data = JSON.parse(localStorage.getItem(keys[i]));
+              if(data && data.user && data.user.id){
+                sessionUserId = data.user.id;
+                break;
+              }
+            }catch(e){}
+          }
+        }
+        
+        // If we have both IDs and they don't match, clear everything
+        if(storedUserId && sessionUserId && storedUserId !== sessionUserId){
+          console.error('Session integrity violation detected - clearing storage');
+          var keysToRemove = [];
+          for(var j=0; j<keys.length; j++){
+            var key = keys[j];
+            if(key.includes('supabase') || key.includes('sb-') || key.includes('pkce') || 
+               key.includes('code_verifier') || key.includes('coop-auth') || key.includes('coop-current-user')){
+              keysToRemove.push(key);
+            }
+          }
+          keysToRemove.forEach(function(k){ localStorage.removeItem(k); });
+          sessionStorage.clear();
+          window.location.href = '/login?error=session_invalid';
+          return;
+        }
+      })();
       
       if(window.location.pathname === "/" || window.location.pathname === ""){
         setTimeout(function(){

@@ -2,17 +2,30 @@
 
 import { useEffect, useCallback, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { createClient, clearAllAuthStorage, validateSessionIntegrity, clearSupabaseClient } from '@/lib/supabase/client';
 import { api } from '@/lib/api/client';
-import { useUserStore } from '@/lib/store';
+import { useUserStore, useSessionStore, useChatStore } from '@/lib/store';
 
 export function useUser() {
   const router = useRouter();
   const { user, isLoading, setUser, setLoading, clear } = useUserStore();
+  const clearSessions = useSessionStore((state) => state.clear);
+  const clearChat = useChatStore((state) => state.clearMessages);
 
   const fetchUser = useCallback(async () => {
     setLoading(true);
     try {
+      // SECURITY: Validate session integrity before fetching user
+      const isValid = await validateSessionIntegrity();
+      if (!isValid) {
+        console.warn('Session integrity check failed - forcing re-login');
+        clear();
+        clearSessions();
+        clearChat();
+        router.push('/login?error=session_invalid');
+        return null;
+      }
+
       const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();
 
@@ -22,6 +35,12 @@ export function useUser() {
       }
 
       const userData = await api.getMe();
+      
+      // SECURITY: Store user ID for session integrity validation
+      if (typeof window !== 'undefined' && userData?.id) {
+        localStorage.setItem('coop-current-user-id', userData.id);
+      }
+      
       setUser(userData);
       return userData;
     } catch (error) {
@@ -29,7 +48,7 @@ export function useUser() {
       clear();
       return null;
     }
-  }, [setUser, setLoading, clear]);
+  }, [setUser, setLoading, clear, clearSessions, clearChat, router]);
 
   const signOut = useCallback(async () => {
     const supabase = createClient();
@@ -39,21 +58,23 @@ export function useUser() {
       (document.documentElement.classList.contains('mobile-app') ||
        navigator.userAgent.includes('CoOpMobile'));
     
-    await supabase.auth.signOut();
-    
-    // Clear all Supabase-related localStorage
-    if (typeof window !== 'undefined') {
-      const keysToRemove: string[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && (key.includes('supabase') || key.includes('sb-') || key.includes('pkce') || key.includes('code_verifier'))) {
-          keysToRemove.push(key);
-        }
-      }
-      keysToRemove.forEach(key => localStorage.removeItem(key));
+    try {
+      // Try to invalidate token on backend first
+      await api.logout().catch(() => {});
+    } catch {
+      // Ignore backend logout errors
     }
     
+    await supabase.auth.signOut();
+    
+    // SECURITY: Clear ALL auth-related storage to prevent session leakage
+    clearAllAuthStorage();
+    clearSupabaseClient();
+    
+    // Clear all app state
     clear();
+    clearSessions();
+    clearChat();
     
     if (isMobileApp) {
       // For mobile: Open logout page in system browser to clear browser session
@@ -61,7 +82,7 @@ export function useUser() {
     } else {
       router.push('/');
     }
-  }, [router, clear]);
+  }, [router, clear, clearSessions, clearChat]);
 
   const refreshUser = useCallback(async () => {
     try {
@@ -137,6 +158,16 @@ export function useRequireAdmin() {
     
     const checkAuth = async () => {
       try {
+        // SECURITY: Validate session integrity first
+        const { validateSessionIntegrity, clearAllAuthStorage } = await import('@/lib/supabase/client');
+        const isValid = await validateSessionIntegrity();
+        if (!isValid) {
+          clearAllAuthStorage();
+          setState({ isLoading: false, isAdmin: false, user: null });
+          router.push('/login?error=session_invalid');
+          return;
+        }
+
         const supabase = createClient();
         const { data: { session } } = await supabase.auth.getSession();
 
@@ -147,6 +178,11 @@ export function useRequireAdmin() {
         }
 
         const userData = await api.getMe();
+        
+        // SECURITY: Store user ID for session integrity validation
+        if (typeof window !== 'undefined' && userData?.id) {
+          localStorage.setItem('coop-current-user-id', userData.id);
+        }
         
         if (userData.role !== 'admin') {
           setState({ isLoading: false, isAdmin: false, user: userData });

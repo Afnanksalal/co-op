@@ -109,10 +109,18 @@ export class SupabaseService {
 
   /**
    * Hash token for storage (don't store raw tokens)
+   * Uses a combination of token parts to ensure uniqueness while not storing the full token
    */
   private hashToken(token: string): string {
-    // Use last 32 chars of token as identifier (unique enough, avoids storing full token)
-    return token.slice(-32);
+    // Use combination of middle and end of token for better uniqueness
+    // JWT format: header.payload.signature - signature is at the end and is unique
+    if (token.length < 100) {
+      return token; // Short tokens use full token
+    }
+    // Use chars from middle (payload) and end (signature) for uniqueness
+    const middle = token.substring(50, 82);
+    const end = token.slice(-32);
+    return `${middle}_${end}`;
   }
 
   async getUserById(userId: string): Promise<SupabaseUser | null> {

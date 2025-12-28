@@ -38,7 +38,22 @@ export async function GET(request: Request) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     
     if (!error && data.session) {
-      return NextResponse.redirect(`${origin}${next}`);
+      // Create response with redirect
+      const response = NextResponse.redirect(`${origin}${next}`);
+      
+      // SECURITY: Set a cookie with the user ID for session integrity validation
+      // This helps detect session mixing on the client side
+      if (data.session.user?.id) {
+        response.cookies.set('coop-user-id', data.session.user.id, {
+          httpOnly: false, // Needs to be readable by client JS
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          maxAge: 60 * 60 * 24 * 7, // 7 days
+          path: '/',
+        });
+      }
+      
+      return response;
     }
     
     if (error) {

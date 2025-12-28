@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { createClient, clearAllAuthStorage } from '@/lib/supabase/client';
 import { api } from '@/lib/api/client';
 import Link from 'next/link';
 
@@ -11,6 +11,9 @@ import Link from 'next/link';
  * 
  * Runs inside WebView after receiving deep link from system browser.
  * Sets session in WebView's localStorage and redirects to dashboard.
+ * 
+ * SECURITY: Clears any existing session before setting new one to prevent
+ * session mixing between different users.
  */
 
 function MobileCallbackContent() {
@@ -41,6 +44,10 @@ function MobileCallbackContent() {
       }
 
       try {
+        // SECURITY: Clear any existing session before setting new one
+        // This prevents session mixing between different users
+        clearAllAuthStorage();
+        
         const supabase = createClient();
         
         const { data, error: sessionError } = await supabase.auth.setSession({
@@ -54,6 +61,11 @@ function MobileCallbackContent() {
         }
 
         if (data.session) {
+          // SECURITY: Store user ID for session integrity validation
+          if (data.session.user?.id) {
+            localStorage.setItem('coop-current-user-id', data.session.user.id);
+          }
+          
           window.history.replaceState(null, '', '/auth/mobile-callback');
           
           // Check onboarding status from API (database) instead of user_metadata

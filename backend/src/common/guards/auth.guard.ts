@@ -101,14 +101,22 @@ export class AuthGuard implements CanActivate, OnModuleDestroy {
   }
 
   /**
-   * Get a cache key for the token (use first 32 chars of token as key)
+   * Get a cache key for the token
+   * CRITICAL: Must use enough of the token to prevent collisions between different users
+   * JWT tokens have format: header.payload.signature - the signature is unique per token
    */
   private getTokenCacheKey(token: string): string {
-    return token.substring(0, 32);
+    // Use first 64 chars + last 32 chars to ensure uniqueness
+    // This covers part of the payload and the unique signature
+    if (token.length < 100) {
+      return token; // Short tokens use full token as key
+    }
+    return `${token.substring(0, 64)}_${token.slice(-32)}`;
   }
 
   /**
    * Check if we have a cached valid auth for this token
+   * Also validates that the cached user ID matches the token's user
    */
   private getCachedAuth(token: string): AuthenticatedUser | null {
     const key = this.getTokenCacheKey(token);

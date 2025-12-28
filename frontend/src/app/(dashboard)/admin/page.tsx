@@ -91,7 +91,7 @@ const emptyInvestorForm: CreateInvestorRequest = {
 };
 
 export default function AdminPage() {
-  const { isLoading: authLoading, isAdmin } = useRequireAdmin();
+  const { isLoading: authLoading, isAdmin, user } = useRequireAdmin();
 
   // RAG State
   const [embeddings, setEmbeddings] = useState<Embedding[]>([]);
@@ -415,10 +415,21 @@ export default function AdminPage() {
     }
   };
 
-  if (authLoading || !isAdmin) {
+  if (authLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[50vh]">
+      <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3">
         <CircleNotch weight="bold" className="w-8 h-8 animate-spin text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">Verifying admin access...</p>
+      </div>
+    );
+  }
+
+  // If not loading and not admin, the hook will redirect - show nothing
+  if (!isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3">
+        <CircleNotch weight="bold" className="w-8 h-8 animate-spin text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">Redirecting...</p>
       </div>
     );
   }
@@ -438,8 +449,6 @@ export default function AdminPage() {
         <h1 className="font-serif text-xl sm:text-2xl md:text-3xl font-medium tracking-tight mb-1">Admin Dashboard</h1>
         <p className="text-xs sm:text-sm text-muted-foreground">Manage RAG, MCP servers, and investors</p>
       </motion.div>
-
-      <div className="p-4 bg-red-500 text-white">TEST - If you see this, the issue is with Tabs</div>
 
       <Tabs defaultValue="rag" className="space-y-4 sm:space-y-6">
         <TabsList className="grid w-full grid-cols-3">
