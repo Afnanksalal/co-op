@@ -606,6 +606,39 @@ async fetchData() { ... }
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+### Queue Health Monitoring
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    QUEUE HEALTH MONITORING                      │
+│                                                                 │
+│   Analytics Dashboard (/analytics)                              │
+│   ┌─────────────────────────────────────────────────────────┐   │
+│   │  Queue Health Card (next to Circuit Breakers)           │   │
+│   │                                                         │   │
+│   │  Dead Letter Queue:                                     │   │
+│   │  - Status indicator (green=0, yellow=<10, red=10+)     │   │
+│   │  - Current DLQ size                                     │   │
+│   │                                                         │   │
+│   │  Agent Tasks:                                           │   │
+│   │  - Total tasks count                                    │   │
+│   │  - Completed / Failed / Pending breakdown               │   │
+│   └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│   Prometheus Metrics:                                           │
+│   - task_queue_size: Current task queue size                   │
+│   - task_dlq_size: Current DLQ size                            │
+│   - retry_attempts_total: Total retry attempts                 │
+│   - retry_successes_total: Successful retries                  │
+│                                                                 │
+│   DLQ Processing:                                               │
+│   - Automatic retry with exponential backoff                   │
+│   - Max 3 retries before permanent failure                     │
+│   - 10-minute retry interval                                   │
+│   - Metrics updated on init and after processing               │
+└─────────────────────────────────────────────────────────────────┘
+```
+
 
 ---
 

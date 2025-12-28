@@ -5,6 +5,57 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.7] - 2025-12-28
+
+### Bug Fixes
+
+#### Session Integrity
+- **Session Integrity Validation** - Added validation to prevent session hijacking
+  - Sessions now verify user ownership before allowing message operations
+  - Prevents cross-user session access attempts
+
+#### RAG Service
+- **User Document Chunks Fix** - Fixed `get_user_document_chunks` in RAG service
+  - Upstash Vector SDK `fetch()` returns a list, not a dict
+  - Changed iteration from `.items()` to direct list iteration
+  - Added `hasattr()` checks for safe attribute access
+
+#### Prometheus Metrics
+- **HTTP Metrics Interceptor Fix** - Fixed Prometheus metrics collection
+  - HTTP interceptor now properly records request duration and counts
+  - LLM, Redis, and Agent metrics now reporting correctly
+
+#### UI/UX Improvements
+- **Toast Positioning Fix** - Fixed toast notifications on mobile
+  - Toasts now properly positioned and visible on mobile devices
+
+### New Features
+
+#### Analytics Dashboard
+- **Queue Health Card** - Added Queue Health monitoring to analytics page
+  - Dead Letter Queue status with color-coded indicator (green=0, yellow=<10, red=10+)
+  - Total agent tasks count
+  - Agent task status breakdown (completed/failed/pending)
+
+#### Agent Parameters
+- **Finance Agent Parameters** - Added `financeFocus` and `currency` parameters
+  - Allows users to specify financial focus area (runway, valuation, metrics, etc.)
+  - Currency selection for financial calculations
+
+- **Jurisdiction Dropdown** - Added jurisdiction selector to chat and agent pages
+  - Region-specific legal and regulatory context
+  - Supports multiple jurisdictions (GDPR, CCPA, SEC, etc.)
+
+### Infrastructure
+
+#### Metrics & Monitoring
+- **DLQ Metrics Tracking** - Added Dead Letter Queue metrics to Prometheus
+  - `taskQueueSize` - Current task queue size
+  - `taskDlqSize` - Current DLQ size
+  - `retryAttemptsTotal` - Total retry attempts
+  - `retrySuccessesTotal` - Successful retries
+  - DLQ size reported on init and after processing
+
 ## [1.3.6] - 2025-12-27
 
 ### Bug Fixes
@@ -480,6 +531,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date | Description |
 |---------|------|-------------|
+| 1.3.7 | 2025-12-28 | Session integrity, RAG fix, Queue Health card, DLQ metrics |
+| 1.3.6 | 2025-12-27 | Rate limiting & security fixes across all controllers |
+| 1.3.5 | 2025-12-27 | LLM provider robustness, security improvements |
 | 1.3.3 | 2025-12-27 | Bug fixes (DLQ retry, N+1 queries, infinite loop, timeouts) |
 | 1.3.2 | 2025-12-26 | Infrastructure improvements (token blacklist, graceful shutdown) |
 | 1.3.1 | 2025-12-26 | Infrastructure improvements (performance, security, observability) |

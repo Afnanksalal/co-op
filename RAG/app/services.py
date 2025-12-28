@@ -960,27 +960,33 @@ async def get_user_document_chunks(
         results = vector_index.fetch(ids=vector_ids, include_metadata=True, include_data=True)
         
         chunks = []
-        for vector_id, vector_data in results.items():
+        # Upstash fetch returns a list of vectors, not a dict
+        for vector_data in results:
             if vector_data is None:
                 continue
             
             # Verify user ownership
-            if vector_data.metadata.get("user_id") != user_id:
+            metadata = vector_data.metadata if hasattr(vector_data, 'metadata') else {}
+            if metadata.get("user_id") != user_id:
                 logger.warning(f"User {user_id[:8]} tried to access chunk owned by another user")
                 continue
             
+            # Get data (encrypted content)
+            data = vector_data.data if hasattr(vector_data, 'data') else ""
+            
             # Decrypt content
             try:
-                decrypted_content = _decrypt_content(vector_data.data) if vector_data.data else ""
+                decrypted_content = _decrypt_content(data) if data else ""
             except ValueError as e:
+                vector_id = vector_data.id if hasattr(vector_data, 'id') else "unknown"
                 logger.error(f"Failed to decrypt chunk {vector_id}: {e}")
                 decrypted_content = "[Decryption failed]"
             
             chunks.append({
-                "document_id": vector_data.metadata.get("document_id", ""),
-                "chunk_index": vector_data.metadata.get("chunk_index", 0),
+                "document_id": metadata.get("document_id", ""),
+                "chunk_index": metadata.get("chunk_index", 0),
                 "content": decrypted_content,
-                "filename": vector_data.metadata.get("filename", "Unknown")
+                "filename": metadata.get("filename", "Unknown")
             })
         
         # Sort by chunk index

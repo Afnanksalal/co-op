@@ -298,6 +298,14 @@ The backend automatically maps user's country to the appropriate region:
 - UAE, Saudi Arabia → `mena`
 - Unknown → `global`
 
+## Recent Fixes (v1.3.7)
+
+### User Document Chunks Fix
+- Fixed `get_user_document_chunks` function
+- Upstash Vector SDK `fetch()` returns a list, not a dict
+- Changed iteration from `.items()` to direct list iteration
+- Added `hasattr()` checks for safe attribute access
+
 ## Why No LLM?
 
 | Reason | Benefit |

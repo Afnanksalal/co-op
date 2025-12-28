@@ -73,6 +73,8 @@ src/
 | Input Validation | class-validator DTOs, whitelist mode |
 | Security Headers | Helmet.js middleware |
 | Audit Logging | Full audit trail |
+| Session Integrity | User ownership validation on sessions |
+| Prometheus Metrics | HTTP, LLM, Redis, Agent metrics tracking |
 
 ## Environment Variables
 
@@ -225,7 +227,31 @@ curl -H "X-API-Key: coop_xxxxx" /api/v1/mcp-server/discover
 | CREATE | 5/min | 60s |
 | READ | 200/min | 60s |
 
-## New Features
+## New Features (v1.3.7)
+
+### Queue Health Monitoring
+
+Analytics dashboard now includes Queue Health card:
+- Dead Letter Queue status with color-coded indicator
+- Total agent tasks count
+- Task status breakdown (completed/failed/pending)
+- Prometheus metrics: `task_queue_size`, `task_dlq_size`, `retry_attempts_total`, `retry_successes_total`
+
+### Finance Agent Parameters
+
+```typescript
+POST /agents/queue
+{
+  "agentType": "finance",
+  "prompt": "Calculate my runway",
+  "financeFocus": "runway",  // runway, valuation, metrics, fundraising, unit_economics
+  "currency": "USD"          // USD, EUR, GBP, INR, etc.
+}
+```
+
+### Jurisdiction Dropdown
+
+Chat and agent pages now support jurisdiction selection for region-specific legal/regulatory context.
 
 ### SSE Streaming
 

@@ -213,14 +213,16 @@ export default function RootLayout({
           {children}
         </ThemeProvider>
         <Toaster
-          position="bottom-right"
+          position="top-center"
           toastOptions={{
             style: {
               background: 'hsl(var(--card))',
               border: '1px solid hsl(var(--border))',
               color: 'hsl(var(--foreground))',
             },
+            className: 'toast-mobile-safe',
           }}
+          offset="60px"
         />
         <Analytics />
       </body>

@@ -27,6 +27,10 @@ export class MetricsService implements OnModuleInit {
   private readonly redisErrors: Counter;
   private readonly dbQueryDuration: Histogram;
   private readonly dbConnectionsActive: Gauge;
+  private readonly taskQueueSize: Gauge;
+  private readonly taskDlqSize: Gauge;
+  private readonly retryAttemptsTotal: Counter;
+  private readonly retrySuccessesTotal: Counter;
 
   constructor() {
     this.registry = new Registry();
@@ -143,6 +147,35 @@ export class MetricsService implements OnModuleInit {
       help: 'Number of active database connections',
       registers: [this.registry],
     });
+
+    // Task queue metrics
+    this.taskQueueSize = new Gauge({
+      name: 'task_queue_size',
+      help: 'Number of tasks in the queue',
+      labelNames: ['queue'],
+      registers: [this.registry],
+    });
+
+    this.taskDlqSize = new Gauge({
+      name: 'task_dlq_size',
+      help: 'Number of tasks in the dead letter queue',
+      labelNames: ['queue'],
+      registers: [this.registry],
+    });
+
+    this.retryAttemptsTotal = new Counter({
+      name: 'retry_attempts_total',
+      help: 'Total number of retry attempts',
+      labelNames: ['operation'],
+      registers: [this.registry],
+    });
+
+    this.retrySuccessesTotal = new Counter({
+      name: 'retry_successes_total',
+      help: 'Total number of successful retries',
+      labelNames: ['operation'],
+      registers: [this.registry],
+    });
   }
 
   onModuleInit(): void {
@@ -209,6 +242,23 @@ export class MetricsService implements OnModuleInit {
 
   setDbConnectionsActive(count: number): void {
     this.dbConnectionsActive.set(count);
+  }
+
+  // Task queue metrics
+  setTaskQueueSize(queue: string, size: number): void {
+    this.taskQueueSize.set({ queue }, size);
+  }
+
+  setTaskDlqSize(queue: string, size: number): void {
+    this.taskDlqSize.set({ queue }, size);
+  }
+
+  recordRetryAttempt(operation: string): void {
+    this.retryAttemptsTotal.inc({ operation });
+  }
+
+  recordRetrySuccess(operation: string): void {
+    this.retrySuccessesTotal.inc({ operation });
   }
 
   // LLM token tracking

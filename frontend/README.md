@@ -96,6 +96,10 @@ Four specialized agents with real-time SSE streaming:
 | Investor | VC matching, pitch optimization | Web research |
 | Competitor | Market analysis, positioning | Web research |
 
+New in v1.3.7:
+- **Jurisdiction Dropdown** - Region-specific legal/regulatory context for chat and agent pages
+- **Finance Agent Parameters** - `financeFocus` and `currency` options for targeted financial advice
+
 ### Chat Interface
 - Multi-agent conversations (A2A mode)
 - True SSE streaming with fallback polling
@@ -140,6 +144,12 @@ Four specialized agents with real-time SSE streaming:
   - Campaign creation (single template or AI personalized)
   - Email tracking (opens, clicks, bounces)
   - Campaign analytics
+
+### Analytics Dashboard
+- Admin analytics with system metrics
+- **Queue Health Card** - DLQ status, task counts, status breakdown
+- Circuit breaker status monitoring
+- Real-time Prometheus metrics
 
 ### Settings
 - Profile editing

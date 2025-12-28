@@ -53,6 +53,9 @@ export class OrchestratorService implements OnModuleInit, OnModuleDestroy {
     this.dlqRetryInterval = setInterval(() => {
       void this.processDlq();
     }, TASK_DLQ_RETRY_INTERVAL_MS);
+
+    // Report initial DLQ size
+    void this.updateDlqMetrics();
   }
 
   onModuleDestroy(): void {
@@ -106,7 +109,15 @@ export class OrchestratorService implements OnModuleInit, OnModuleDestroy {
 
       if (processed > 0) {
         this.logger.log(`Processed ${processed}/${items.length} task DLQ items`);
+        // Record retry metrics
+        this.metricsService.recordRetryAttempt('dlq');
+        if (processed > 0) {
+          this.metricsService.recordRetrySuccess('dlq');
+        }
       }
+      
+      // Update DLQ size metric
+      await this.updateDlqMetrics();
     } catch (error) {
       this.logger.warn(`Failed to process task DLQ: ${String(error)}`);
     }
@@ -155,6 +166,18 @@ export class OrchestratorService implements OnModuleInit, OnModuleDestroy {
       return { size, oldestItem };
     } catch {
       return { size: 0, oldestItem: null };
+    }
+  }
+
+  /**
+   * Update DLQ metrics for Prometheus
+   */
+  private async updateDlqMetrics(): Promise<void> {
+    try {
+      const stats = await this.getDlqStats();
+      this.metricsService.setTaskDlqSize('agents', stats.size);
+    } catch {
+      // Ignore errors in metrics update
     }
   }
 

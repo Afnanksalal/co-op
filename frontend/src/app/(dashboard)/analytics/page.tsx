@@ -225,6 +225,7 @@ export default function AnalyticsPage() {
   const dbConnectionsActive = getMetricTotal('db_connections_active');
   const retryAttempts = getMetricTotal('retry_attempts_total');
   const retrySuccesses = getMetricTotal('retry_successes_total');
+  const taskDlqSize = getMetricTotal('task_dlq_size');
   
   const httpByStatus = getMetricByLabel('http_requests_total', 'status');
   const httpByPath = getMetricByLabel('http_requests_total', 'path');
@@ -502,7 +503,7 @@ export default function AnalyticsPage() {
         )}
 
         {/* Infrastructure Health */}
-        {!metricsError && (retryAttempts > 0 || circuitBreakers.length > 0) && (
+        {!metricsError && (retryAttempts > 0 || circuitBreakers.length > 0 || taskDlqSize >= 0) && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
             {/* Retry Stats */}
             {retryAttempts > 0 && (
@@ -567,6 +568,53 @@ export default function AnalyticsPage() {
                 </CardContent>
               </Card>
             )}
+
+            {/* Queue Health */}
+            <Card className="border-border/40">
+              <CardHeader className="pb-3">
+                <CardTitle className="font-serif text-lg">Queue Health</CardTitle>
+                <CardDescription>Task processing status</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {taskDlqSize === 0 ? (
+                        <CheckCircle weight="fill" className="w-4 h-4 text-green-500" />
+                      ) : taskDlqSize < 10 ? (
+                        <Warning weight="fill" className="w-4 h-4 text-yellow-500" />
+                      ) : (
+                        <XCircle weight="fill" className="w-4 h-4 text-red-500" />
+                      )}
+                      <span className="text-sm text-muted-foreground">Dead Letter Queue</span>
+                    </div>
+                    <Badge 
+                      variant={taskDlqSize === 0 ? 'default' : taskDlqSize < 10 ? 'secondary' : 'destructive'}
+                      className="text-xs"
+                    >
+                      {taskDlqSize} items
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Agent Tasks</span>
+                    <span className="text-sm font-medium">{agentTasksTotal.toLocaleString()}</span>
+                  </div>
+                  {agentsByStatus.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {agentsByStatus.map((status) => (
+                        <Badge 
+                          key={status.label} 
+                          variant={status.label === 'completed' ? 'default' : status.label === 'failed' ? 'destructive' : 'secondary'}
+                          className="text-xs"
+                        >
+                          {status.label}: {status.value}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
 

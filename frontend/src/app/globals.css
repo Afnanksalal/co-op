@@ -1063,3 +1063,56 @@ svg {
   width: 1px;
   height: 100%;
 }
+
+
+/* ============================================
+   TOAST MOBILE POSITIONING
+   Ensure toasts don't cover input areas on mobile
+   ============================================ */
+
+/* Toast container - positioned at top on mobile */
+[data-sonner-toaster] {
+  z-index: 9999 !important;
+}
+
+/* On mobile, ensure toasts are at top and auto-dismiss */
+@media (max-width: 640px) {
+  [data-sonner-toaster] {
+    top: 60px !important;
+    bottom: auto !important;
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%) !important;
+    width: calc(100% - 2rem) !important;
+    max-width: 400px !important;
+  }
+  
+  /* Toast items - smaller on mobile */
+  [data-sonner-toast] {
+    width: 100% !important;
+    font-size: 13px !important;
+    padding: 12px 16px !important;
+  }
+  
+  /* Ensure toast doesn't block interaction */
+  [data-sonner-toast][data-mounted="true"] {
+    pointer-events: auto;
+  }
+}
+
+/* Mobile app specific toast positioning */
+html.mobile-app [data-sonner-toaster] {
+  top: calc(var(--safe-area-top, 48px) + 60px) !important;
+  bottom: auto !important;
+}
+
+/* Desktop - keep bottom-right positioning */
+@media (min-width: 641px) {
+  [data-sonner-toaster] {
+    bottom: 24px !important;
+    right: 24px !important;
+    top: auto !important;
+    left: auto !important;
+    transform: none !important;
+  }
+}

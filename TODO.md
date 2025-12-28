@@ -149,6 +149,16 @@
 - [x] Notion service timeout protection added
 - [x] MCP getToolSchema returns actual tool data
 
+### Bug Fixes (v1.3.7)
+- [x] Session integrity validation (prevent session hijacking)
+- [x] RAG service user document chunks fix (Upstash Vector SDK list iteration)
+- [x] Prometheus HTTP metrics interceptor fix
+- [x] Toast positioning fix for mobile devices
+- [x] Finance agent parameters (financeFocus, currency)
+- [x] Jurisdiction dropdown for chat/agents pages
+- [x] Queue Health card in analytics dashboard
+- [x] DLQ metrics tracking (taskQueueSize, taskDlqSize, retryAttemptsTotal, retrySuccessesTotal)
+
 ### Agent Improvements
 - [x] Legal: Jurisdiction selector (region + specific regulations)
   - 9 regions (Global, US, EU, UK, India, Canada, APAC, LATAM, MENA)
