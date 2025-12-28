@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { motion } from 'framer-motion';
+import { motion } from '@/components/motion';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Envelope, Lock, ArrowRight, GoogleLogo } from '@phosphor-icons/react';
@@ -27,6 +27,28 @@ function LoginContent() {
       toast.error(decodeURIComponent(errorMsg));
       // Clean up URL
       window.history.replaceState(null, '', '/login');
+    }
+
+    // Check if this is a post-logout redirect from mobile app
+    const isPostLogout = searchParams.get('logout') === 'true';
+    
+    if (isPostLogout) {
+      // Clear any remaining auth data and clean up URL
+      const supabase = createClient();
+      supabase.auth.signOut().catch(() => {});
+      
+      // Clear localStorage
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.includes('supabase') || key.includes('sb-') || key.includes('pkce') || key.includes('code_verifier') || key.includes('auth'))) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => localStorage.removeItem(key));
+      
+      window.history.replaceState(null, '', '/login');
+      return; // Skip session check after logout
     }
 
     const checkSession = async () => {

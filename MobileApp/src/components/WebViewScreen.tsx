@@ -20,6 +20,7 @@ export function WebViewScreen({ onError }: Props): React.JSX.Element {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [webViewKey, setWebViewKey] = useState(0);
   const [targetUrl, setTargetUrl] = useState(WEB_URL);
+  const [shouldClearStorage, setShouldClearStorage] = useState(false);
 
   useBackHandler(webViewRef, canGoBack);
 
@@ -53,6 +54,10 @@ export function WebViewScreen({ onError }: Props): React.JSX.Element {
   const handleDeepLink = useCallback((url: string) => {
     const webUrl = deepLinkToWebUrl(url);
     if (webUrl) {
+      // Check if this is a logout completion - need to clear WebView storage
+      if (url.includes('logout/complete')) {
+        setShouldClearStorage(true);
+      }
       setTargetUrl(webUrl);
       setWebViewKey(k => k + 1);
     }
@@ -67,8 +72,19 @@ export function WebViewScreen({ onError }: Props): React.JSX.Element {
       if (!document.documentElement.classList.contains('mobile-app')) {
         document.documentElement.classList.add('mobile-app');
       }
+      ${shouldClearStorage ? `
+        // Clear all auth-related storage after logout
+        var keys = Object.keys(localStorage);
+        for (var i = 0; i < keys.length; i++) {
+          var key = keys[i];
+          if (key.includes('supabase') || key.includes('sb-') || key.includes('pkce') || key.includes('code_verifier') || key.includes('auth')) {
+            localStorage.removeItem(key);
+          }
+        }
+        sessionStorage.clear();
+      ` : ''}
     })();true;
-  `, [insets.top, insets.bottom]);
+  `, [insets.top, insets.bottom, shouldClearStorage]);
 
   const injectedPostLoadScript = useMemo(() => `
     (function(){
@@ -136,7 +152,11 @@ export function WebViewScreen({ onError }: Props): React.JSX.Element {
 
   const handleLoadEnd = useCallback(() => {
     webViewRef.current?.injectJavaScript(injectedCSSScript);
-  }, [injectedCSSScript]);
+    // Reset the clear storage flag after it's been applied
+    if (shouldClearStorage) {
+      setShouldClearStorage(false);
+    }
+  }, [injectedCSSScript, shouldClearStorage]);
 
   const handleNavigationStateChange = useCallback((navState: WebViewNavigation) => {
     setCanGoBack(navState.canGoBack);

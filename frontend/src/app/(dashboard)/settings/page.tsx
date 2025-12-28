@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import { motion } from '@/components/motion';
 import { User, Buildings, Pencil, Check, X, Sun, Moon, Desktop, ShieldCheck, Trash, FileText, Clock } from '@phosphor-icons/react';
 import { api } from '@/lib/api/client';
 import { useUser } from '@/lib/hooks';

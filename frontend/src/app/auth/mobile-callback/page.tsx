@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { api } from '@/lib/api/client';
 import Link from 'next/link';
 
 /**
@@ -54,8 +55,15 @@ function MobileCallbackContent() {
 
         if (data.session) {
           window.history.replaceState(null, '', '/auth/mobile-callback');
-          const needsOnboarding = !data.session.user.user_metadata?.onboarding_completed;
-          window.location.href = needsOnboarding ? '/onboarding' : '/dashboard';
+          
+          // Check onboarding status from API (database) instead of user_metadata
+          try {
+            const status = await api.getOnboardingStatus();
+            window.location.href = status.completed ? '/dashboard' : '/onboarding';
+          } catch {
+            // If API fails, default to onboarding for new users
+            window.location.href = '/onboarding';
+          }
           return;
         }
 

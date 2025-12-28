@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion } from '@/components/motion';
 import { WebhooksLogo, Plus, Trash, Pencil, ArrowsClockwise } from '@phosphor-icons/react';
 import { api } from '@/lib/api/client';
 import type { Webhook } from '@/lib/api/types';

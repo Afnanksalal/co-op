@@ -1,6 +1,6 @@
 'use client';
 
-import { motion } from 'framer-motion';
+import { motion } from '@/components/motion';
 
 export function GrainOverlay() {
   return (

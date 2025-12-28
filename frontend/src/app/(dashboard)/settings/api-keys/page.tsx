@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion } from '@/components/motion';
 import { Key, Plus, Trash, Copy, Check, Eye, EyeSlash } from '@phosphor-icons/react';
 import { api } from '@/lib/api/client';
 import type { ApiKey, ApiKeyCreated } from '@/lib/api/types';

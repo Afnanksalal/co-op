@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from '@/components/motion';
 import { api } from '@/lib/api/client';
 import { useUser } from '@/lib/hooks';
 import type { AgentType, AgentPhaseResult, RagRegion, RagJurisdiction } from '@/lib/api/types';

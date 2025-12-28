@@ -63,9 +63,9 @@ export function deepLinkToWebUrl(deepLink: string): string | null {
       return `${WEB_URL}/login?error=auth_failed`;
     }
     
-    // Handle logout complete - go to login page
+    // Handle logout complete - go to login page with logout flag
     if (afterScheme.startsWith('logout/complete')) {
-      return `${WEB_URL}/login`;
+      return `${WEB_URL}/login?logout=true`;
     }
     
     const pathOnly = afterScheme.split('#')[0].split('?')[0];
