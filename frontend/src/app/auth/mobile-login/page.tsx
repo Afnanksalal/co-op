@@ -1,25 +1,28 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { createBrowserClient } from '@supabase/ssr';
 import { Spinner } from '@phosphor-icons/react';
 
 /**
  * Mobile Login Page
  * 
- * This page runs in the SYSTEM BROWSER (not WebView) and initiates the OAuth flow.
- * Since the entire flow happens in the browser, the PKCE code verifier is stored
- * and retrieved from the same context, avoiding the WebView/browser mismatch.
+ * This page runs in the SYSTEM BROWSER and initiates OAuth.
+ * The key is that both OAuth initiation AND callback happen in the same browser tab,
+ * so the PKCE verifier is available when exchanging the code.
  */
 function MobileLoginContent() {
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<'init' | 'processing' | 'success'>('init');
+  const hasStarted = useRef(false);
 
   useEffect(() => {
-    const startOAuth = async () => {
-      const supabase = createClient();
-      
+    if (hasStarted.current) return;
+    hasStarted.current = true;
+
+    const handleAuth = async () => {
       // Check if we have an error from a previous attempt
       const errorParam = searchParams.get('error');
       if (errorParam) {
@@ -27,22 +30,90 @@ function MobileLoginContent() {
         return;
       }
 
-      // Start OAuth flow - this will redirect to Google
-      // After Google auth, Supabase redirects to /auth/mobile-redirect
-      // The code verifier is stored in THIS browser's localStorage
-      const { error } = await supabase.auth.signInWithOAuth({
+      // Create Supabase client
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      );
+
+      // Check if we're returning from OAuth (have a code)
+      const code = searchParams.get('code');
+      
+      if (code) {
+        console.log('[MobileLogin] Got auth code, exchanging...');
+        setStatus('processing');
+        
+        try {
+          const { data, error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
+          
+          if (sessionError) {
+            console.error('[MobileLogin] Exchange error:', sessionError.message);
+            // Trigger deep link with error
+            window.location.href = `coop://auth/error?message=${encodeURIComponent(sessionError.message)}`;
+            return;
+          }
+
+          if (data.session) {
+            console.log('[MobileLogin] Session created!');
+            setStatus('success');
+            
+            // Trigger deep link with tokens
+            const params = new URLSearchParams({
+              access_token: data.session.access_token,
+              refresh_token: data.session.refresh_token,
+              expires_at: String(data.session.expires_at || ''),
+            });
+            window.location.href = `coop://auth/callback?${params.toString()}`;
+            return;
+          }
+        } catch (err) {
+          console.error('[MobileLogin] Exception:', err);
+          window.location.href = 'coop://auth/error?message=exchange_failed';
+          return;
+        }
+      }
+
+      // Check if we already have a session
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData.session) {
+        console.log('[MobileLogin] Already have session!');
+        setStatus('success');
+        const params = new URLSearchParams({
+          access_token: sessionData.session.access_token,
+          refresh_token: sessionData.session.refresh_token,
+          expires_at: String(sessionData.session.expires_at || ''),
+        });
+        window.location.href = `coop://auth/callback?${params.toString()}`;
+        return;
+      }
+
+      // No code and no session - start OAuth
+      // IMPORTANT: Redirect back to THIS SAME PAGE so the code exchange happens here
+      // where the PKCE verifier is stored
+      console.log('[MobileLogin] Starting OAuth...');
+      const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/mobile-redirect`,
+          // Redirect back to THIS page, not mobile-redirect
+          redirectTo: `${window.location.origin}/auth/mobile-login`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
         },
       });
 
-      if (error) {
-        setError(error.message);
+      if (oauthError) {
+        setError(oauthError.message);
+        return;
+      }
+
+      if (data.url) {
+        window.location.href = data.url;
       }
     };
 
-    startOAuth();
+    handleAuth();
   }, [searchParams]);
 
   if (error) {
@@ -57,7 +128,7 @@ function MobileLoginContent() {
           <p className="text-destructive mb-4">{error}</p>
           <a
             href="coop://auth/error?message=auth_failed"
-            className="text-primary hover:underline font-medium"
+            className="inline-block mt-4 text-primary hover:underline font-medium"
           >
             Return to app
           </a>
@@ -70,7 +141,11 @@ function MobileLoginContent() {
     <div className="min-h-screen bg-background flex items-center justify-center">
       <div className="text-center">
         <Spinner weight="bold" className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
-        <p className="text-muted-foreground">Connecting to Google...</p>
+        <p className="text-muted-foreground">
+          {status === 'init' && 'Connecting to Google...'}
+          {status === 'processing' && 'Completing sign in...'}
+          {status === 'success' && 'Opening app...'}
+        </p>
       </div>
     </div>
   );
