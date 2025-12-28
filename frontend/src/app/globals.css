@@ -421,35 +421,34 @@ html.mobile-app {
   --safe-area-bottom: env(safe-area-inset-bottom, 24px);
 }
 
-/* Disable all animations in mobile app for better performance */
-html.mobile-app *,
-html.mobile-app *::before,
-html.mobile-app *::after {
-  animation-duration: 0.001ms !important;
-  animation-delay: 0ms !important;
-  transition-duration: 0.001ms !important;
-  transition-delay: 0ms !important;
-}
+/* 
+ * Mobile App Animation Strategy:
+ * - Keep basic CSS transitions (sidebar slide, hover effects, loading spinners)
+ * - Disable framer-motion JavaScript animations (page transitions, complex animations)
+ */
 
-/* Keep essential loading spinners */
+/* Keep essential loading spinners and basic transitions */
 html.mobile-app .animate-spin {
   animation-duration: 1s !important;
 }
 
-/* Disable framer-motion animations completely */
-html.mobile-app [style*="transform"],
-html.mobile-app [style*="opacity"],
-html.mobile-app [style*="translate"] {
-  transition: none !important;
-  animation: none !important;
+/* Allow basic CSS transitions for UI elements */
+html.mobile-app .transition,
+html.mobile-app .transition-all,
+html.mobile-app .transition-colors,
+html.mobile-app .transition-opacity,
+html.mobile-app .transition-transform {
+  transition-duration: 150ms !important;
 }
 
-/* Force immediate rendering for motion elements */
+/* Disable framer-motion animations completely */
+html.mobile-app [style*="transform"][style*="opacity"],
 html.mobile-app [data-framer-component-type],
 html.mobile-app [data-projection-id] {
   transform: none !important;
   opacity: 1 !important;
   transition: none !important;
+  animation: none !important;
 }
 
 /* Body - no padding, header handles safe area */
