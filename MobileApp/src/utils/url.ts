@@ -3,7 +3,7 @@
  * Security-focused URL validation and manipulation
  */
 
-import { OAUTH_DOMAINS, ALLOWED_DOMAINS, APP_SCHEME, WEB_URL } from '../constants';
+import { OAUTH_DOMAINS, ALLOWED_DOMAINS, APP_SCHEME, WEB_URL, EXTERNAL_AUTH_PATHS } from '../constants';
 
 /**
  * Check if URL should open in external browser (OAuth flows)
@@ -17,8 +17,12 @@ export function shouldOpenExternally(url: string): boolean {
       return true;
     }
     
-    // Keep our domains in WebView
+    // Check if it's an auth path that needs to open externally
     if (ALLOWED_DOMAINS.some(domain => urlObj.hostname.includes(domain))) {
+      // Check if it's a path that should open in system browser
+      if (EXTERNAL_AUTH_PATHS.some(path => urlObj.pathname.startsWith(path))) {
+        return true;
+      }
       return false;
     }
     

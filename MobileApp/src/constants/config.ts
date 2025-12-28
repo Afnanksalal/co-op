@@ -38,6 +38,11 @@ export const OAUTH_DOMAINS = [
   'accounts.google.com',
 ] as const;
 
+// Paths that must open in system browser (for OAuth flow)
+export const EXTERNAL_AUTH_PATHS = [
+  '/auth/mobile-login',
+] as const;
+
 // Security: Allowed domains for WebView navigation
 export const ALLOWED_DOMAINS = [
   'co-op-dev.vercel.app',

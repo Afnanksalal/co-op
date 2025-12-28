@@ -54,22 +54,10 @@ function LoginContent() {
        navigator.userAgent.includes('CoOpMobile'));
 
     if (isMobileApp) {
-      // For mobile: Build the OAuth URL manually and let the system browser handle everything
-      // This avoids the PKCE code verifier issue (verifier stored in WebView, but callback in browser)
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      
-      // Redirect to mobile-redirect page which will read tokens from fragment and trigger deep link
-      const redirectTo = `${window.location.origin}/auth/mobile-redirect`;
-      
-      // Construct the Google OAuth URL directly using implicit flow
-      const authUrl = new URL(`${supabaseUrl}/auth/v1/authorize`);
-      authUrl.searchParams.set('provider', 'google');
-      authUrl.searchParams.set('redirect_to', redirectTo);
-      authUrl.searchParams.set('response_type', 'token'); // Implicit flow - returns tokens directly in fragment
-      authUrl.searchParams.set('scope', 'openid email profile');
-      
-      // Open in system browser
-      window.location.href = authUrl.toString();
+      // For mobile: Open the mobile-login page in system browser
+      // This page will initiate OAuth, and the entire flow happens in the browser
+      // avoiding the PKCE code verifier mismatch between WebView and browser
+      window.location.href = `${window.location.origin}/auth/mobile-login`;
       return;
     }
 

@@ -1,66 +1,119 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
 import { Spinner } from '@phosphor-icons/react';
 
+/**
+ * Mobile Redirect Page
+ * 
+ * This page runs in the SYSTEM BROWSER after OAuth callback.
+ * It exchanges the auth code for a session (PKCE verifier is in this browser's storage),
+ * then triggers a deep link to return to the app with the tokens.
+ */
 function MobileRedirectContent() {
   const searchParams = useSearchParams();
   const [showManualButton, setShowManualButton] = useState(false);
   const [deepLinkUrl, setDeepLinkUrl] = useState<string | null>(null);
+  const [status, setStatus] = useState<'processing' | 'ready' | 'error'>('processing');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const hasProcessed = useRef(false);
 
   useEffect(() => {
-    // Check for error first
-    const error = searchParams.get('error');
-    if (error) {
-      const url = `coop://auth/error?message=${encodeURIComponent(error)}`;
-      setDeepLinkUrl(url);
-      window.location.href = url;
-      setTimeout(() => setShowManualButton(true), 2000);
-      return;
-    }
+    if (hasProcessed.current) return;
+    hasProcessed.current = true;
 
-    // Try to get tokens from query params
-    let accessToken = searchParams.get('access_token');
-    let refreshToken = searchParams.get('refresh_token');
-    let expiresAt = searchParams.get('expires_at');
+    const handleCallback = async () => {
+      // Check for error first
+      const error = searchParams.get('error') || searchParams.get('error_description');
+      if (error) {
+        const url = `coop://auth/error?message=${encodeURIComponent(error)}`;
+        setDeepLinkUrl(url);
+        setStatus('ready');
+        window.location.href = url;
+        setTimeout(() => setShowManualButton(true), 2000);
+        return;
+      }
 
-    // If not in query params, try URL fragment (implicit flow)
-    if (!accessToken) {
+      // Check for auth code (PKCE flow)
+      const code = searchParams.get('code');
+      
+      if (code) {
+        console.log('[MobileRedirect] Got auth code, exchanging for session...');
+        
+        const supabase = createClient();
+        
+        // Exchange code for session - this works because the PKCE verifier
+        // was stored in THIS browser's localStorage when OAuth started
+        const { data, error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
+        
+        if (sessionError) {
+          console.error('[MobileRedirect] Session error:', sessionError);
+          const url = `coop://auth/error?message=${encodeURIComponent(sessionError.message)}`;
+          setDeepLinkUrl(url);
+          setErrorMessage(sessionError.message);
+          setStatus('error');
+          window.location.href = url;
+          setTimeout(() => setShowManualButton(true), 2000);
+          return;
+        }
+
+        if (data.session) {
+          console.log('[MobileRedirect] Session created, triggering deep link');
+          
+          // Build deep link with tokens
+          const params = new URLSearchParams({
+            access_token: data.session.access_token,
+            refresh_token: data.session.refresh_token,
+            expires_at: String(data.session.expires_at || ''),
+          });
+          const url = `coop://auth/callback?${params.toString()}`;
+          
+          setDeepLinkUrl(url);
+          setStatus('ready');
+          
+          // Trigger deep link
+          window.location.href = url;
+          setTimeout(() => setShowManualButton(true), 2000);
+          return;
+        }
+      }
+
+      // Check URL hash for tokens (implicit flow fallback)
       const hash = window.location.hash.substring(1);
       if (hash) {
         const hashParams = new URLSearchParams(hash);
-        accessToken = hashParams.get('access_token');
-        refreshToken = hashParams.get('refresh_token');
-        expiresAt = hashParams.get('expires_at') || hashParams.get('expires_in');
+        const accessToken = hashParams.get('access_token');
+        const refreshToken = hashParams.get('refresh_token');
+        
+        if (accessToken && refreshToken) {
+          const params = new URLSearchParams({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+            expires_at: hashParams.get('expires_at') || hashParams.get('expires_in') || '',
+          });
+          const url = `coop://auth/callback?${params.toString()}`;
+          
+          setDeepLinkUrl(url);
+          setStatus('ready');
+          window.location.href = url;
+          setTimeout(() => setShowManualButton(true), 2000);
+          return;
+        }
       }
-    }
 
-    let url: string;
+      // No code or tokens found
+      console.error('[MobileRedirect] No auth code or tokens found');
+      const url = 'coop://auth/error?message=auth_failed';
+      setDeepLinkUrl(url);
+      setErrorMessage('Authentication failed - no credentials received');
+      setStatus('error');
+      window.location.href = url;
+      setTimeout(() => setShowManualButton(true), 2000);
+    };
 
-    if (accessToken && refreshToken) {
-      const params = new URLSearchParams({
-        access_token: accessToken,
-        refresh_token: refreshToken,
-        expires_at: expiresAt || '',
-      });
-      url = `coop://auth/callback?${params.toString()}`;
-    } else {
-      url = 'coop://auth/error?message=auth_failed';
-    }
-
-    setDeepLinkUrl(url);
-    console.log('[MobileRedirect] Attempting deep link:', url);
-
-    // Try to redirect immediately
-    window.location.href = url;
-
-    // Show manual button after a delay if redirect didn't work
-    const timer = setTimeout(() => {
-      setShowManualButton(true);
-    }, 2000);
-
-    return () => clearTimeout(timer);
+    handleCallback();
   }, [searchParams]);
 
   const handleManualOpen = () => {
@@ -69,13 +122,36 @@ function MobileRedirectContent() {
     }
   };
 
+  if (status === 'error') {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="text-center max-w-sm">
+          <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mx-auto mb-4">
+            <svg className="w-6 h-6 text-destructive" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </div>
+          <p className="text-destructive mb-4">{errorMessage}</p>
+          <button
+            onClick={handleManualOpen}
+            className="text-primary hover:underline font-medium"
+          >
+            Return to app
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="text-center max-w-sm">
         {!showManualButton ? (
           <>
             <Spinner weight="bold" className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
-            <p className="text-muted-foreground">Opening Co-Op app...</p>
+            <p className="text-muted-foreground">
+              {status === 'processing' ? 'Completing sign in...' : 'Opening Co-Op app...'}
+            </p>
           </>
         ) : (
           <>
