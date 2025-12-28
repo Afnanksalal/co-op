@@ -105,17 +105,19 @@ export class AgentsWebhookController {
       const councilSteps: string[] = [];
       
       // Progress callback to capture realtime thinking steps and emit SSE events
-      const onProgress = async (step: string): Promise<void> => {
+      // Note: This is called synchronously by agents, so we don't await the async operations
+      // The SSE buffer will be polled by the client
+      const onProgress = (step: string): void => {
         councilSteps.push(step);
         // Keep only last 20 steps to avoid memory issues
         if (councilSteps.length > 20) {
           councilSteps.shift();
         }
         
-        // Emit SSE thinking event
-        await this.streamingService.emitThinking(taskId, step);
+        // Emit SSE thinking event (fire-and-forget, don't block agent execution)
+        void this.streamingService.emitThinking(taskId, step);
         
-        // Update status with latest steps
+        // Update status with latest steps (fire-and-forget)
         void this.queueService.updateTaskStatus(taskId, 'active', 50, undefined, undefined, {
           phase: 'gathering',
           startedAt,
@@ -128,6 +130,10 @@ export class AgentsWebhookController {
         // Multi-agent A2A mode with progress callbacks
         this.logger.log(`Processing multi-agent job: ${taskId} - ${agents.join(', ')}`);
         
+        // Emit initial thinking events
+        await this.streamingService.emitThinking(taskId, 'Starting multi-agent analysis...');
+        await this.streamingService.emitThinking(taskId, `Agents: ${agents.join(', ')}`);
+        
         // Emit SSE progress event
         await this.streamingService.emitProgress(taskId, 15, 'gathering', 'Gathering responses from all agents...');
         
@@ -139,7 +145,7 @@ export class AgentsWebhookController {
           startedAt,
           message: 'Gathering responses from all agents...',
           estimatedTimeRemaining: 40,
-          councilSteps: [],
+          councilSteps: ['Starting multi-agent analysis...', `Agents: ${agents.join(', ')}`],
         });
         
         // Use runMultiAgentWithInput since input.documents already contains content (not IDs)
@@ -149,6 +155,9 @@ export class AgentsWebhookController {
       } else if (agentType) {
         // Single agent mode
         this.logger.log(`Processing agent job: ${taskId} - ${agentType}`);
+        
+        // Emit initial thinking event
+        await this.streamingService.emitThinking(taskId, `Starting ${agentType} agent analysis...`);
         
         // Emit SSE progress event
         await this.streamingService.emitProgress(taskId, 20, 'gathering', `${agentType.charAt(0).toUpperCase() + agentType.slice(1)} agent analyzing...`);

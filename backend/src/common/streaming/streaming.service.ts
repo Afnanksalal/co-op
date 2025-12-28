@@ -186,18 +186,49 @@ export class StreamingService {
 
   /**
    * Add event to buffer with size limit
+   * Uses a simple locking mechanism to prevent race conditions
    */
   private async addToBuffer(taskId: string, event: StreamEvent): Promise<void> {
     const key = `${StreamingService.BUFFER_PREFIX}${taskId}`;
+    const lockKey = `${key}:lock`;
+    
+    // Simple spin-lock with timeout
+    const maxAttempts = 10;
+    const lockTimeout = 100; // ms
+    
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      // Try to acquire lock
+      const acquired = await this.redis.setnx(lockKey, '1', 2); // 2 second TTL
+      
+      if (acquired) {
+        try {
+          const buffer = await this.redis.get<StreamEvent[]>(key) ?? [];
+          buffer.push(event);
+          
+          // Trim to max size (keep most recent events)
+          const trimmed = buffer.length > StreamingService.MAX_BUFFER_SIZE
+            ? buffer.slice(-StreamingService.MAX_BUFFER_SIZE)
+            : buffer;
+          
+          await this.redis.set(key, trimmed, StreamingService.BUFFER_TTL);
+          return;
+        } finally {
+          // Release lock
+          await this.redis.del(lockKey);
+        }
+      }
+      
+      // Wait before retry
+      await new Promise(resolve => setTimeout(resolve, lockTimeout));
+    }
+    
+    // Fallback: just append without lock (better than losing the event)
+    this.logger.warn(`Failed to acquire lock for buffer ${taskId}, appending without lock`);
     const buffer = await this.redis.get<StreamEvent[]>(key) ?? [];
-    
     buffer.push(event);
-    
-    // Trim to max size (keep most recent events)
     const trimmed = buffer.length > StreamingService.MAX_BUFFER_SIZE
       ? buffer.slice(-StreamingService.MAX_BUFFER_SIZE)
       : buffer;
-    
     await this.redis.set(key, trimmed, StreamingService.BUFFER_TTL);
   }
 }

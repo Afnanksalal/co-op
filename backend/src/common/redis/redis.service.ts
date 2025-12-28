@@ -297,6 +297,29 @@ export class RedisService implements OnModuleDestroy {
   }
 
   /**
+   * Set key only if it doesn't exist (for locking)
+   * Returns true if key was set, false if it already existed
+   */
+  async setnx(key: string, value: string, ttlSeconds?: number): Promise<boolean> {
+    this.metrics.operations++;
+    this.metricsService.recordRedisOperation('setnx');
+    try {
+      if (ttlSeconds) {
+        // Use SET with NX and EX options
+        const result = await this.client.set(key, value, { nx: true, ex: ttlSeconds });
+        return result === 'OK';
+      } else {
+        const result = await this.client.setnx(key, value);
+        return result === 1;
+      }
+    } catch (error) {
+      this.metrics.errors++;
+      this.metricsService.recordRedisError();
+      throw error;
+    }
+  }
+
+  /**
    * Get the raw Redis client for advanced operations
    */
   getClient(): Redis {
