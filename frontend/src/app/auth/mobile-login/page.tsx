@@ -66,8 +66,6 @@ function MobileLoginContent() {
           return;
         }
 
-        await supabase.auth.signOut();
-        
         const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
           provider: 'google',
           options: {
