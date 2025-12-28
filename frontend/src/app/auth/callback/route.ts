@@ -2,10 +2,7 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 
-const MOBILE_APP_SCHEME = 'coop';
-
 function isMobileRequest(searchParams: URLSearchParams, userAgent: string): boolean {
-  // Check explicit mobile param or user agent
   return searchParams.get('mobile') === 'true' || 
          userAgent.includes('CoOpMobile');
 }
@@ -25,13 +22,20 @@ export async function GET(request: Request) {
     const errorMsg = errorDescription || errorParam;
     
     if (isMobile) {
-      // For mobile: redirect to mobile-redirect page which will handle the deep link
       return NextResponse.redirect(`${origin}/auth/mobile-redirect?error=${encodeURIComponent(errorMsg)}`);
     }
     
     return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(errorMsg)}`);
   }
 
+  // For mobile implicit flow: tokens come in URL fragment (handled client-side)
+  // This route won't receive them directly, so redirect to a client page that can read the fragment
+  if (isMobile && !code) {
+    // Redirect to mobile-callback which will read tokens from URL fragment
+    return NextResponse.redirect(`${origin}/auth/mobile-callback`);
+  }
+
+  // For web PKCE flow: exchange code for session
   if (code) {
     const cookieStore = await cookies();
     
@@ -55,38 +59,15 @@ export async function GET(request: Request) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     
     if (!error && data.session) {
-      const { session } = data;
-      
-      if (isMobile) {
-        // For mobile: redirect to mobile-redirect page with tokens
-        // This page will trigger the deep link back to the app
-        const tokenParams = new URLSearchParams({
-          access_token: session.access_token,
-          refresh_token: session.refresh_token,
-          expires_at: String(session.expires_at || ''),
-        });
-        
-        return NextResponse.redirect(`${origin}/auth/mobile-redirect?${tokenParams.toString()}`);
-      }
-      
       // For web: Redirect to dashboard
       return NextResponse.redirect(`${origin}${next}`);
     }
     
     if (error) {
       console.error('Auth callback error:', error.message);
-      
-      if (isMobile) {
-        return NextResponse.redirect(`${origin}/auth/mobile-redirect?error=${encodeURIComponent(error.message)}`);
-      }
-      
       return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(error.message || 'auth_failed')}`);
     }
   }
 
-  if (isMobile) {
-    return NextResponse.redirect(`${origin}/auth/mobile-redirect?error=no_code`);
-  }
-  
   return NextResponse.redirect(`${origin}/login?error=auth_failed`);
 }

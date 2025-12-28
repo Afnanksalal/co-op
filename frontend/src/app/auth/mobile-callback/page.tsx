@@ -11,8 +11,8 @@ type CallbackState = 'loading' | 'error' | 'success';
 /**
  * Mobile OAuth Callback Page
  * 
- * Handles OAuth callback for mobile app. Receives tokens via query params
- * and establishes the Supabase session in the WebView's localStorage.
+ * Handles OAuth callback for mobile app. For implicit flow, tokens come in URL fragment.
+ * For redirects from mobile-redirect, tokens come in query params.
  */
 function MobileCallbackContent() {
   const searchParams = useSearchParams();
@@ -29,10 +29,16 @@ function MobileCallbackContent() {
       
       try {
         console.log('[MobileCallback] Processing callback');
-        console.log('[MobileCallback] URL:', window.location.href.substring(0, 100));
+        console.log('[MobileCallback] Full URL:', window.location.href);
         
-        // Check for error in query params
-        const errorMsg = searchParams.get('error_description') || searchParams.get('error');
+        // Check for error in query params or hash
+        const hash = window.location.hash.substring(1);
+        const hashParams = new URLSearchParams(hash);
+        
+        const errorMsg = searchParams.get('error_description') || 
+                        searchParams.get('error') ||
+                        hashParams.get('error_description') ||
+                        hashParams.get('error');
         
         if (errorMsg) {
           console.error('[MobileCallback] Error:', errorMsg);
@@ -41,13 +47,23 @@ function MobileCallbackContent() {
           return;
         }
 
-        // Get tokens from query params
-        const accessToken = searchParams.get('access_token');
-        const refreshToken = searchParams.get('refresh_token');
+        // Try to get tokens from query params first (from mobile-redirect)
+        let accessToken = searchParams.get('access_token');
+        let refreshToken = searchParams.get('refresh_token');
         
-        // If no tokens in params, check if we already have a session
+        // If not in query params, try URL fragment (implicit flow)
+        if (!accessToken && hash) {
+          console.log('[MobileCallback] Checking URL fragment for tokens');
+          accessToken = hashParams.get('access_token');
+          refreshToken = hashParams.get('refresh_token');
+        }
+        
+        // If still no tokens, check if we already have a session
         if (!accessToken) {
-          console.log('[MobileCallback] No tokens in params, checking existing session...');
+          console.log('[MobileCallback] No tokens found, checking existing session...');
+          
+          // Give Supabase a moment to process
+          await new Promise(resolve => setTimeout(resolve, 500));
           
           const { data: sessionData } = await supabase.auth.getSession();
           
@@ -88,7 +104,7 @@ function MobileCallbackContent() {
 
         console.log('[MobileCallback] Session created successfully');
         
-        // Clear URL params for security
+        // Clear URL for security
         window.history.replaceState(null, '', '/auth/mobile-callback');
 
         setState('success');

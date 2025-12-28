@@ -53,16 +53,31 @@ function LoginContent() {
       (document.documentElement.classList.contains('mobile-app') ||
        navigator.userAgent.includes('CoOpMobile'));
 
-    // Use PKCE flow for both web and mobile
-    // For mobile, we add ?mobile=true so the callback knows to redirect via deep link
-    const redirectUrl = isMobileApp 
-      ? `${window.location.origin}/auth/callback?mobile=true`
-      : `${window.location.origin}/auth/callback`;
+    if (isMobileApp) {
+      // For mobile: Build the OAuth URL manually and let the system browser handle everything
+      // This avoids the PKCE code verifier issue (verifier stored in WebView, but callback in browser)
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      
+      // Redirect to mobile-redirect page which will read tokens from fragment and trigger deep link
+      const redirectTo = `${window.location.origin}/auth/mobile-redirect`;
+      
+      // Construct the Google OAuth URL directly using implicit flow
+      const authUrl = new URL(`${supabaseUrl}/auth/v1/authorize`);
+      authUrl.searchParams.set('provider', 'google');
+      authUrl.searchParams.set('redirect_to', redirectTo);
+      authUrl.searchParams.set('response_type', 'token'); // Implicit flow - returns tokens directly in fragment
+      authUrl.searchParams.set('scope', 'openid email profile');
+      
+      // Open in system browser
+      window.location.href = authUrl.toString();
+      return;
+    }
 
+    // For web: Use standard PKCE flow
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: redirectUrl,
+        redirectTo: `${window.location.origin}/auth/callback`,
       },
     });
 

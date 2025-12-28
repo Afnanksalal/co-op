@@ -10,17 +10,35 @@ function MobileRedirectContent() {
   const [deepLinkUrl, setDeepLinkUrl] = useState<string | null>(null);
 
   useEffect(() => {
+    // Check for error first
     const error = searchParams.get('error');
-    const accessToken = searchParams.get('access_token');
-    const refreshToken = searchParams.get('refresh_token');
-    const expiresAt = searchParams.get('expires_at');
+    if (error) {
+      const url = `coop://auth/error?message=${encodeURIComponent(error)}`;
+      setDeepLinkUrl(url);
+      window.location.href = url;
+      setTimeout(() => setShowManualButton(true), 2000);
+      return;
+    }
+
+    // Try to get tokens from query params
+    let accessToken = searchParams.get('access_token');
+    let refreshToken = searchParams.get('refresh_token');
+    let expiresAt = searchParams.get('expires_at');
+
+    // If not in query params, try URL fragment (implicit flow)
+    if (!accessToken) {
+      const hash = window.location.hash.substring(1);
+      if (hash) {
+        const hashParams = new URLSearchParams(hash);
+        accessToken = hashParams.get('access_token');
+        refreshToken = hashParams.get('refresh_token');
+        expiresAt = hashParams.get('expires_at') || hashParams.get('expires_in');
+      }
+    }
 
     let url: string;
 
-    if (error) {
-      url = `coop://auth/error?message=${encodeURIComponent(error)}`;
-    } else if (accessToken && refreshToken) {
-      // Pass tokens via query params for reliable parsing
+    if (accessToken && refreshToken) {
       const params = new URLSearchParams({
         access_token: accessToken,
         refresh_token: refreshToken,
@@ -86,12 +104,6 @@ function MobileRedirectContent() {
   );
 }
 
-/**
- * Mobile Redirect Page
- * 
- * This page receives tokens from the server callback and redirects to the mobile app
- * via deep link. The app will then navigate to mobile-callback to establish the session.
- */
 export default function MobileRedirectPage() {
   return (
     <Suspense fallback={
