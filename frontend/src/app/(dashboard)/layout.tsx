@@ -209,7 +209,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <PremiumBackground />
 
       {/* Mobile Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 h-14 border-b border-border/40 bg-background/95 backdrop-blur-sm flex md:hidden items-end justify-between px-4 pb-2 pt-safe">
+      <header className="fixed top-0 left-0 right-0 z-50 h-14 border-b border-border/40 bg-gradient-to-r from-background via-background to-muted/30 dark:from-background dark:via-background dark:to-muted/20 backdrop-blur-sm flex md:hidden items-end justify-between px-4 pb-2 pt-safe">
         <Button
           variant="ghost"
           size="icon"

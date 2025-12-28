@@ -204,7 +204,7 @@ class UserDocEmbedRequest(BaseModel):
     document_id: str
     chunk_index: int
     user_id: str
-    content: str  # Plaintext chunk content (decrypted for embedding)
+    content: str  # Plaintext chunk content - will be encrypted before storage
     filename: str
 
 
@@ -230,6 +230,7 @@ class UserDocSearchResult(BaseModel):
     chunk_index: int
     score: float
     filename: str
+    content: str  # Decrypted content for LLM context
 
 
 class UserDocSearchResponse(BaseModel):
@@ -245,3 +246,24 @@ class UserDocDeleteResponse(BaseModel):
     success: bool
     vectors_deleted: int
     message: str
+
+
+class UserDocGetChunksRequest(BaseModel):
+    """Request to get specific chunks by indices."""
+    document_id: str
+    user_id: str
+    chunk_indices: List[int]
+
+
+class UserDocChunk(BaseModel):
+    """A decrypted document chunk."""
+    document_id: str
+    chunk_index: int
+    content: str
+    filename: str
+
+
+class UserDocGetChunksResponse(BaseModel):
+    """Response with decrypted chunks."""
+    chunks: List[UserDocChunk]
+    error: Optional[str] = None

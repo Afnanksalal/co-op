@@ -108,7 +108,7 @@ export class SecureDocumentsController {
   @ApiOperation({ summary: 'Delete ALL user documents (purge all data)' })
   async purgeAll(
     @CurrentUser() user: CurrentUserPayload,
-  ): Promise<{ documentsDeleted: number; chunksDeleted: number }> {
+  ): Promise<{ documentsDeleted: number }> {
     return this.service.purgeUserDocuments(user.id);
   }
 }

@@ -4,6 +4,9 @@ import { ConfigService } from '@nestjs/config';
 /**
  * Client for RAG Python service - User Document operations.
  * Handles embedding, search, and deletion of user document vectors.
+ * 
+ * NOTE: Content is encrypted in the RAG service before storage in Upstash Vector.
+ * This service sends plaintext - encryption/decryption happens in RAG service.
  */
 
 interface EmbedChunkResponse {
@@ -17,12 +20,25 @@ interface SearchResult {
   chunk_index: number;
   score: number;
   filename: string;
+  content: string; // Decrypted content
 }
 
 interface SearchResponse {
   results: SearchResult[];
   query_embedding_time_ms: number;
   search_time_ms: number;
+  error?: string;
+}
+
+interface ChunkResult {
+  document_id: string;
+  chunk_index: number;
+  content: string;
+  filename: string;
+}
+
+interface GetChunksResponse {
+  chunks: ChunkResult[];
   error?: string;
 }
 
@@ -59,7 +75,8 @@ export class UserDocsRagService {
   }
 
   /**
-   * Embed a document chunk and store in Upstash Vector
+   * Embed a document chunk and store in Upstash Vector.
+   * Content is encrypted by the RAG service before storage.
    */
   async embedChunk(
     documentId: string,
@@ -83,7 +100,7 @@ export class UserDocsRagService {
           document_id: documentId,
           chunk_index: chunkIndex,
           user_id: userId,
-          content,
+          content, // Plaintext - RAG service encrypts
           filename,
         }),
       });
@@ -108,7 +125,8 @@ export class UserDocsRagService {
   }
 
   /**
-   * Search user documents using semantic similarity
+   * Search user documents using semantic similarity.
+   * Returns decrypted content for LLM context.
    */
   async searchDocuments(
     query: string,
@@ -116,7 +134,7 @@ export class UserDocsRagService {
     documentIds?: string[],
     limit = 5,
     minScore = 0.5,
-  ): Promise<{ documentId: string; chunkIndex: number; score: number }[]> {
+  ): Promise<{ documentId: string; chunkIndex: number; score: number; content: string; filename: string }[]> {
     if (!this.isConfigured) {
       return [];
     }
@@ -153,9 +171,56 @@ export class UserDocsRagService {
         documentId: r.document_id,
         chunkIndex: r.chunk_index,
         score: r.score,
+        content: r.content,
+        filename: r.filename,
       }));
     } catch (error) {
       this.logger.error(`Search documents error: ${error}`);
+      return [];
+    }
+  }
+
+  /**
+   * Get specific chunks by indices with decrypted content.
+   */
+  async getChunks(
+    documentId: string,
+    userId: string,
+    chunkIndices: number[],
+  ): Promise<ChunkResult[]> {
+    if (!this.isConfigured) {
+      return [];
+    }
+
+    try {
+      const response = await fetch(`${this.ragUrl}/user-docs/chunks`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': this.ragApiKey,
+        },
+        body: JSON.stringify({
+          document_id: documentId,
+          user_id: userId,
+          chunk_indices: chunkIndices,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        this.logger.warn(`Get chunks failed: ${response.status} - ${error}`);
+        return [];
+      }
+
+      const data = (await response.json()) as GetChunksResponse;
+      if (data.error) {
+        this.logger.warn(`Get chunks error: ${data.error}`);
+        return [];
+      }
+
+      return data.chunks;
+    } catch (error) {
+      this.logger.error(`Get chunks error: ${error}`);
       return [];
     }
   }
@@ -165,7 +230,7 @@ export class UserDocsRagService {
    */
   async deleteDocumentVectors(documentId: string, chunkCount = 100): Promise<boolean> {
     if (!this.isConfigured) {
-      return true; // No-op if not configured
+      return true;
     }
 
     try {
@@ -199,7 +264,7 @@ export class UserDocsRagService {
    */
   async deleteUserVectors(userId: string): Promise<boolean> {
     if (!this.isConfigured) {
-      return true; // No-op if not configured
+      return true;
     }
 
     try {

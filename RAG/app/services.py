@@ -671,7 +671,75 @@ init_compression_provider()
 
 # ============================================
 # User Document Functions (Secure Documents)
+# Vector-only storage with AES-256-GCM encryption
 # ============================================
+
+import hashlib
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+# Encryption key derived from env var
+_user_docs_encryption_key: bytes | None = None
+
+
+def _init_user_docs_encryption() -> bool:
+    """Initialize encryption key for user documents."""
+    global _user_docs_encryption_key
+    key = os.getenv("USER_DOCS_ENCRYPTION_KEY") or os.getenv("ENCRYPTION_KEY")
+    if not key:
+        logger.warning("USER_DOCS_ENCRYPTION_KEY not set - user docs will NOT be encrypted")
+        return False
+    # Derive 32-byte key using SHA-256
+    _user_docs_encryption_key = hashlib.sha256(key.encode()).digest()
+    logger.info("User docs encryption initialized (AES-256-GCM)")
+    return True
+
+
+def _encrypt_content(plaintext: str) -> str:
+    """
+    Encrypt content using AES-256-GCM.
+    Returns format: iv:ciphertext (hex encoded)
+    """
+    if not _user_docs_encryption_key:
+        # Return plaintext if encryption not configured (dev mode only)
+        return plaintext
+    
+    iv = os.urandom(12)  # 96-bit nonce for GCM
+    aesgcm = AESGCM(_user_docs_encryption_key)
+    ciphertext = aesgcm.encrypt(iv, plaintext.encode('utf-8'), None)
+    # Format: iv:ciphertext (both hex encoded)
+    return f"{iv.hex()}:{ciphertext.hex()}"
+
+
+def _decrypt_content(encrypted: str) -> str:
+    """
+    Decrypt content encrypted with AES-256-GCM.
+    Expects format: iv:ciphertext (hex encoded)
+    """
+    if not _user_docs_encryption_key:
+        # Return as-is if encryption not configured
+        return encrypted
+    
+    # Check if this looks like encrypted data
+    if ':' not in encrypted or len(encrypted.split(':')) != 2:
+        # Not encrypted format - return as-is (legacy data)
+        return encrypted
+    
+    try:
+        iv_hex, ciphertext_hex = encrypted.split(':')
+        iv = bytes.fromhex(iv_hex)
+        ciphertext = bytes.fromhex(ciphertext_hex)
+        
+        aesgcm = AESGCM(_user_docs_encryption_key)
+        plaintext = aesgcm.decrypt(iv, ciphertext, None)
+        return plaintext.decode('utf-8')
+    except Exception as e:
+        logger.error(f"Decryption failed: {e}")
+        raise ValueError("Failed to decrypt content - key may have changed")
+
+
+# Initialize encryption on module load
+_user_docs_encryption_ready = _init_user_docs_encryption()
+
 
 async def embed_user_document_chunk(
     document_id: str,
@@ -682,12 +750,13 @@ async def embed_user_document_chunk(
 ) -> dict:
     """
     Embed a user document chunk and store in Upstash Vector.
+    Content is encrypted before storage - only embeddings are searchable.
     
     Args:
         document_id: UUID of the document
         chunk_index: Index of the chunk within the document
         user_id: UUID of the user who owns the document
-        content: Plaintext content of the chunk
+        content: Plaintext content of the chunk (will be encrypted)
         filename: Original filename for metadata
     
     Returns:
@@ -711,13 +780,16 @@ async def embed_user_document_chunk(
         }
     
     try:
-        # Generate embedding
+        # Generate embedding from plaintext (for semantic search)
         embedding = await get_embedding(content)
+        
+        # Encrypt content before storage
+        encrypted_content = _encrypt_content(content)
         
         # Create vector ID: user_{document_id}_{chunk_index}
         vector_id = f"user_{document_id}_{chunk_index}"
         
-        # Upsert to Upstash with user metadata
+        # Upsert to Upstash with encrypted content in data field
         vector_index.upsert(vectors=[{
             "id": vector_id,
             "vector": embedding,
@@ -726,13 +798,14 @@ async def embed_user_document_chunk(
                 "document_id": document_id,
                 "chunk_index": chunk_index,
                 "filename": filename,
-                "type": "user_document"  # Distinguish from admin RAG docs
+                "type": "user_document",
+                "encrypted": _user_docs_encryption_ready
             },
-            "data": content[:500]  # Store truncated content for debugging
+            "data": encrypted_content  # Full encrypted content stored here
         }])
         
         elapsed_ms = int((time.time() - start_time) * 1000)
-        logger.info(f"Embedded user doc chunk: {vector_id} ({elapsed_ms}ms)")
+        logger.info(f"Embedded user doc chunk: {vector_id} (encrypted={_user_docs_encryption_ready}, {elapsed_ms}ms)")
         
         return {
             "success": True,
@@ -758,6 +831,7 @@ async def search_user_documents(
 ) -> dict:
     """
     Search user documents using semantic similarity.
+    Returns decrypted content for LLM context.
     
     Args:
         query: Search query text
@@ -767,7 +841,7 @@ async def search_user_documents(
         min_score: Minimum similarity score threshold
     
     Returns:
-        dict with results, timing info, and optional error
+        dict with results (including decrypted content), timing info, and optional error
     """
     import time
     
@@ -793,7 +867,6 @@ async def search_user_documents(
     embed_time_ms = int((time.time() - embed_start) * 1000)
     
     # Build filter for user isolation
-    # Filter by user_id AND type=user_document
     vector_filter = f"user_id = '{user_id}' AND type = 'user_document'"
     
     # If specific documents requested, add document filter
@@ -801,14 +874,14 @@ async def search_user_documents(
         doc_filter = " OR ".join([f"document_id = '{doc_id}'" for doc_id in document_ids])
         vector_filter = f"({vector_filter}) AND ({doc_filter})"
     
-    # Search Upstash
+    # Search Upstash - include data for decryption
     search_start = time.time()
     try:
         results = vector_index.query(
             vector=query_embedding,
             top_k=limit * 2,  # Fetch extra to filter by score
             include_metadata=True,
-            include_data=False,
+            include_data=True,  # Need data for decryption
             filter=vector_filter
         )
     except Exception as e:
@@ -821,15 +894,23 @@ async def search_user_documents(
         }
     search_time_ms = int((time.time() - search_start) * 1000)
     
-    # Filter by minimum score and format results
+    # Filter by minimum score, decrypt content, and format results
     filtered_results = []
     for r in results:
         if r.score >= min_score:
+            # Decrypt content
+            try:
+                decrypted_content = _decrypt_content(r.data) if r.data else ""
+            except ValueError as e:
+                logger.error(f"Failed to decrypt chunk {r.id}: {e}")
+                decrypted_content = "[Decryption failed]"
+            
             filtered_results.append({
                 "document_id": r.metadata.get("document_id", ""),
                 "chunk_index": r.metadata.get("chunk_index", 0),
                 "score": round(r.score, 4),
-                "filename": r.metadata.get("filename", "Unknown")
+                "filename": r.metadata.get("filename", "Unknown"),
+                "content": decrypted_content
             })
         if len(filtered_results) >= limit:
             break
@@ -842,6 +923,79 @@ async def search_user_documents(
         "search_time_ms": search_time_ms,
         "error": None
     }
+
+
+async def get_user_document_chunks(
+    document_id: str,
+    user_id: str,
+    chunk_indices: List[int]
+) -> dict:
+    """
+    Get specific chunks by indices with decrypted content.
+    Used when you know which chunks you need (e.g., from search results).
+    
+    Args:
+        document_id: UUID of the document
+        user_id: UUID of the user (for verification)
+        chunk_indices: List of chunk indices to retrieve
+    
+    Returns:
+        dict with chunks (decrypted) and optional error
+    """
+    if not vector_index:
+        return {
+            "chunks": [],
+            "error": "Vector index not configured"
+        }
+    
+    if not chunk_indices:
+        return {
+            "chunks": [],
+            "error": None
+        }
+    
+    try:
+        # Fetch vectors by ID
+        vector_ids = [f"user_{document_id}_{i}" for i in chunk_indices]
+        results = vector_index.fetch(ids=vector_ids, include_metadata=True, include_data=True)
+        
+        chunks = []
+        for vector_id, vector_data in results.items():
+            if vector_data is None:
+                continue
+            
+            # Verify user ownership
+            if vector_data.metadata.get("user_id") != user_id:
+                logger.warning(f"User {user_id[:8]} tried to access chunk owned by another user")
+                continue
+            
+            # Decrypt content
+            try:
+                decrypted_content = _decrypt_content(vector_data.data) if vector_data.data else ""
+            except ValueError as e:
+                logger.error(f"Failed to decrypt chunk {vector_id}: {e}")
+                decrypted_content = "[Decryption failed]"
+            
+            chunks.append({
+                "document_id": vector_data.metadata.get("document_id", ""),
+                "chunk_index": vector_data.metadata.get("chunk_index", 0),
+                "content": decrypted_content,
+                "filename": vector_data.metadata.get("filename", "Unknown")
+            })
+        
+        # Sort by chunk index
+        chunks.sort(key=lambda x: x["chunk_index"])
+        
+        return {
+            "chunks": chunks,
+            "error": None
+        }
+    except Exception as e:
+        logger.error(f"Failed to get user doc chunks: {e}")
+        return {
+            "chunks": [],
+            "error": f"Failed to retrieve chunks: {str(e)}"
+        }
 
 
 async def delete_user_document_vectors(document_id: str, chunk_count: int = 100) -> dict:
@@ -872,7 +1026,7 @@ async def delete_user_document_vectors(document_id: str, chunk_count: int = 100)
         
         return {
             "success": True,
-            "vectors_deleted": chunk_count,  # Approximate
+            "vectors_deleted": chunk_count,
             "message": f"Deleted vectors for document {document_id}"
         }
     except Exception as e:
@@ -887,9 +1041,6 @@ async def delete_user_document_vectors(document_id: str, chunk_count: int = 100)
 async def delete_user_vectors(user_id: str) -> dict:
     """
     Delete ALL vectors for a user (purge operation).
-    
-    Note: This uses a filter-based approach since we can't enumerate all user vectors.
-    Upstash Vector doesn't support delete-by-filter, so we query first then delete.
     
     Args:
         user_id: UUID of the user
@@ -906,7 +1057,6 @@ async def delete_user_vectors(user_id: str) -> dict:
     
     try:
         # Query to find all user's vectors (up to 1000)
-        # We need a dummy query vector - use a zero vector or query for common text
         dummy_embedding = await get_embedding("document")
         
         results = vector_index.query(

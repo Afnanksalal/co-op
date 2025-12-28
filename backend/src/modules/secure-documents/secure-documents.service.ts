@@ -4,10 +4,9 @@ import { eq, and, desc, lt } from 'drizzle-orm';
 import { v4 as uuid } from 'uuid';
 import { ConfigService } from '@nestjs/config';
 import { DATABASE_CONNECTION } from '@/database/database.module';
-import { EncryptionService } from '@/common/encryption/encryption.service';
 import { UserDocsRagService } from '@/common/rag/user-docs-rag.service';
 import * as schema from '@/database/schema';
-import { userDocuments, userDocumentChunks } from '@/database/schema/user-documents.schema';
+import { userDocuments } from '@/database/schema/user-documents.schema';
 
 /** Default document expiry in days */
 const DEFAULT_EXPIRY_DAYS = 30;
@@ -40,7 +39,7 @@ export interface DocumentChunkContext {
   documentId: string;
   filename: string;
   chunkIndex: number;
-  content: string; // Decrypted content
+  content: string;
 }
 
 @Injectable()
@@ -51,7 +50,6 @@ export class SecureDocumentsService {
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: NodePgDatabase<typeof schema>,
-    private readonly encryption: EncryptionService,
     private readonly config: ConfigService,
     private readonly userDocsRag: UserDocsRagService,
   ) {
@@ -61,7 +59,10 @@ export class SecureDocumentsService {
 
   /**
    * Process and securely store a document.
-   * Flow: Extract text → Chunk → Encrypt chunks → Generate embeddings → Delete original
+   * Flow: Extract text → Chunk → Embed to Upstash (with encryption) → Delete original
+   * 
+   * NOTE: Content is stored encrypted in Upstash Vector, NOT in PostgreSQL.
+   * This eliminates the need for a separate chunks table.
    */
   async processDocument(
     userId: string,
@@ -76,7 +77,7 @@ export class SecureDocumentsService {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + expiry);
 
-    // Create document record first
+    // Create document record (metadata only)
     await this.db
       .insert(userDocuments)
       .values({
@@ -98,31 +99,23 @@ export class SecureDocumentsService {
       // Chunk the text
       const chunks = this.chunkText(text);
       
-      // Encrypt and store each chunk, then embed via RAG service
+      // Embed each chunk via RAG service (encryption happens in RAG service)
+      let successCount = 0;
       for (let i = 0; i < chunks.length; i++) {
-        const encryptedContent = this.encryption.encrypt(chunks[i]);
-        
-        // Call RAG service to embed chunk (uses Upstash Vector)
-        // This is done BEFORE encryption since we need plaintext for embedding
-        let vectorId: string | null = null;
         if (this.userDocsRag.isAvailable()) {
-          vectorId = await this.userDocsRag.embedChunk(
+          const vectorId = await this.userDocsRag.embedChunk(
             documentId,
             i,
             userId,
-            chunks[i], // Plaintext for embedding
+            chunks[i], // Plaintext - RAG service encrypts before storage
             file.originalname,
           );
+          if (vectorId) successCount++;
         }
-        
-        await this.db.insert(userDocumentChunks).values({
-          documentId,
-          userId,
-          chunkIndex: i,
-          encryptedContent,
-          vectorId, // Store Upstash vector ID for later deletion
-          tokenCount: Math.ceil(chunks[i].length / 4), // Rough estimate
-        });
+      }
+
+      if (successCount === 0 && this.userDocsRag.isAvailable()) {
+        throw new BadRequestException('Failed to embed document chunks');
       }
 
       // Update document status
@@ -136,9 +129,8 @@ export class SecureDocumentsService {
         .where(eq(userDocuments.id, documentId))
         .returning();
 
-      this.logger.log(`Document processed securely: ${documentId} (${chunks.length} chunks)`);
+      this.logger.log(`Document processed: ${documentId} (${chunks.length} chunks, vector-only storage)`);
       
-      // Original file buffer is NOT stored - it's garbage collected after this function
       return this.toResponse(updated);
     } catch (error) {
       // Mark as failed
@@ -149,16 +141,16 @@ export class SecureDocumentsService {
       
       this.logger.error(`Document processing failed: ${documentId}`, error);
       
-      // Preserve specific error messages (e.g., from OCR)
       if (error instanceof BadRequestException) {
         throw error;
       }
-      throw new BadRequestException('Failed to process document securely');
+      throw new BadRequestException('Failed to process document');
     }
   }
 
   /**
    * Get decrypted chunks for a document (for LLM context).
+   * Fetches from Upstash Vector and decrypts via RAG service.
    */
   async getDecryptedChunks(
     documentId: string,
@@ -187,32 +179,25 @@ export class SecureDocumentsService {
       .set({ lastAccessedAt: new Date() })
       .where(eq(userDocuments.id, documentId));
 
-    // Get chunks
-    const query = this.db
-      .select()
-      .from(userDocumentChunks)
-      .where(eq(userDocumentChunks.documentId, documentId))
-      .orderBy(userDocumentChunks.chunkIndex);
+    // Get chunks from RAG service (decrypted)
+    if (!this.userDocsRag.isAvailable()) {
+      return [];
+    }
 
-    const chunks = await query;
-
-    // Filter by indices if specified
-    const filteredChunks = chunkIndices
-      ? chunks.filter(c => chunkIndices.includes(c.chunkIndex))
-      : chunks;
-
-    // Decrypt and return
-    return filteredChunks.map(chunk => ({
-      documentId: chunk.documentId,
-      filename: document.originalName,
-      chunkIndex: chunk.chunkIndex,
-      content: this.encryption.decrypt(chunk.encryptedContent),
+    const indices = chunkIndices ?? Array.from({ length: document.chunkCount }, (_, i) => i);
+    const result = await this.userDocsRag.getChunks(documentId, userId, indices);
+    
+    return result.map(chunk => ({
+      documentId: chunk.document_id,
+      filename: chunk.filename,
+      chunkIndex: chunk.chunk_index,
+      content: chunk.content,
     }));
   }
 
   /**
    * Semantic search across user's documents using Upstash Vector.
-   * Returns relevant chunk indices without decrypting content.
+   * Returns relevant chunks with decrypted content.
    */
   async searchUserDocuments(
     userId: string,
@@ -220,7 +205,7 @@ export class SecureDocumentsService {
     documentIds?: string[],
     limit = 5,
     minScore = 0.5,
-  ): Promise<{ documentId: string; chunkIndex: number; score: number }[]> {
+  ): Promise<{ documentId: string; chunkIndex: number; score: number; content: string; filename: string }[]> {
     if (!this.userDocsRag.isAvailable()) {
       this.logger.warn('RAG service not available, returning empty results');
       return [];
@@ -248,7 +233,7 @@ export class SecureDocumentsService {
   }
 
   /**
-   * Delete a document and all its chunks (user-controlled deletion).
+   * Delete a document and all its vectors.
    */
   async deleteDocument(documentId: string, userId: string): Promise<void> {
     const [doc] = await this.db
@@ -261,66 +246,49 @@ export class SecureDocumentsService {
       throw new NotFoundException('Document not found');
     }
 
-    // Delete vectors from Upstash first
+    // Delete vectors from Upstash
     if (this.userDocsRag.isAvailable()) {
       await this.userDocsRag.deleteDocumentVectors(documentId, doc.chunkCount);
     }
 
-    // Delete chunks from database
-    await this.db
-      .delete(userDocumentChunks)
-      .where(eq(userDocumentChunks.documentId, documentId));
-
-    // Delete document
+    // Delete document metadata
     await this.db
       .delete(userDocuments)
       .where(eq(userDocuments.id, documentId));
 
-    this.logger.log(`Document deleted by user: ${documentId}`);
+    this.logger.log(`Document deleted: ${documentId}`);
   }
 
   /**
    * Delete ALL documents for a user (purge all data).
    */
-  async purgeUserDocuments(userId: string): Promise<{ documentsDeleted: number; chunksDeleted: number }> {
-    // Count before deletion
+  async purgeUserDocuments(userId: string): Promise<{ documentsDeleted: number }> {
     const documents = await this.db
       .select({ id: userDocuments.id })
       .from(userDocuments)
       .where(eq(userDocuments.userId, userId));
 
-    const chunks = await this.db
-      .select({ id: userDocumentChunks.id })
-      .from(userDocumentChunks)
-      .where(eq(userDocumentChunks.userId, userId));
-
-    // Delete all vectors from Upstash first
+    // Delete all vectors from Upstash
     if (this.userDocsRag.isAvailable()) {
       await this.userDocsRag.deleteUserVectors(userId);
     }
 
-    // Delete all chunks from database
-    await this.db
-      .delete(userDocumentChunks)
-      .where(eq(userDocumentChunks.userId, userId));
-
-    // Delete all documents
+    // Delete all document metadata
     await this.db
       .delete(userDocuments)
       .where(eq(userDocuments.userId, userId));
 
-    this.logger.log(`User data purged: ${userId} (${documents.length} docs, ${chunks.length} chunks)`);
+    this.logger.log(`User data purged: ${userId} (${documents.length} docs)`);
 
     return {
       documentsDeleted: documents.length,
-      chunksDeleted: chunks.length,
     };
   }
 
   /**
    * Cleanup expired documents (run via cron job).
    */
-  async cleanupExpired(): Promise<{ documentsExpired: number; chunksDeleted: number }> {
+  async cleanupExpired(): Promise<{ documentsExpired: number }> {
     const now = new Date();
 
     // Find expired documents
@@ -333,24 +301,14 @@ export class SecureDocumentsService {
       ));
 
     if (expiredDocs.length === 0) {
-      return { documentsExpired: 0, chunksDeleted: 0 };
+      return { documentsExpired: 0 };
     }
 
-    let chunksDeleted = 0;
-
-    // Delete chunks, vectors, and mark documents as expired
+    // Delete vectors and mark documents as expired
     for (const doc of expiredDocs) {
-      // Delete vectors from Upstash first
       if (this.userDocsRag.isAvailable()) {
         await this.userDocsRag.deleteDocumentVectors(doc.id, doc.chunkCount);
       }
-
-      const deleted = await this.db
-        .delete(userDocumentChunks)
-        .where(eq(userDocumentChunks.documentId, doc.id))
-        .returning();
-      
-      chunksDeleted += deleted.length;
 
       await this.db
         .update(userDocuments)
@@ -358,11 +316,10 @@ export class SecureDocumentsService {
         .where(eq(userDocuments.id, doc.id));
     }
 
-    this.logger.log(`Expired documents cleaned: ${expiredDocs.length} docs, ${chunksDeleted} chunks`);
+    this.logger.log(`Expired documents cleaned: ${expiredDocs.length} docs`);
 
     return {
       documentsExpired: expiredDocs.length,
-      chunksDeleted,
     };
   }
 
@@ -406,12 +363,10 @@ export class SecureDocumentsService {
       throw new BadRequestException(`File size exceeds maximum of ${MAX_FILE_SIZE / 1024 / 1024}MB`);
     }
     
-    // Check MIME type
     if (file.mimetype === 'application/pdf') {
       return;
     }
 
-    // Fallback: check file extension (browsers sometimes send wrong MIME type)
     const ext = file.originalname.split('.').pop()?.toLowerCase() ?? '';
     if (ext === 'pdf') {
       return;
@@ -447,28 +402,23 @@ export class SecureDocumentsService {
     const chunks: string[] = [];
     let start = 0;
 
-    // Safety check: ensure overlap is less than chunk size to prevent infinite loop
     const effectiveOverlap = Math.min(CHUNK_OVERLAP, CHUNK_SIZE - 1);
 
     while (start < text.length) {
       const end = Math.min(start + CHUNK_SIZE, text.length);
       chunks.push(text.slice(start, end));
       
-      // Move start forward, accounting for overlap
       const nextStart = end - effectiveOverlap;
       
-      // Prevent infinite loop: ensure we always make progress
       if (nextStart <= start) {
         start = end;
       } else {
         start = nextStart;
       }
       
-      // If we're near the end, break to avoid tiny final chunks
       if (start >= text.length - effectiveOverlap) break;
     }
 
-    // Ensure we don't have empty chunks
     return chunks.filter(c => c.trim().length > 0);
   }
 

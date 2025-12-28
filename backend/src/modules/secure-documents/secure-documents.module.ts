@@ -3,7 +3,6 @@ import { MulterModule } from '@nestjs/platform-express';
 import { SecureDocumentsController } from './secure-documents.controller';
 import { SecureDocumentsService } from './secure-documents.service';
 import { DatabaseModule } from '@/database/database.module';
-import { EncryptionService } from '@/common/encryption/encryption.service';
 import { UserDocsRagService } from '@/common/rag/user-docs-rag.service';
 
 @Module({
@@ -16,7 +15,7 @@ import { UserDocsRagService } from '@/common/rag/user-docs-rag.service';
     }),
   ],
   controllers: [SecureDocumentsController],
-  providers: [SecureDocumentsService, EncryptionService, UserDocsRagService],
+  providers: [SecureDocumentsService, UserDocsRagService],
   exports: [SecureDocumentsService],
 })
 export class SecureDocumentsModule {}

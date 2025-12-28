@@ -1027,8 +1027,8 @@ class ApiClient {
     await this.delete(`/secure-documents/${documentId}`);
   }
 
-  async purgeAllDocuments(): Promise<{ documentsDeleted: number; chunksDeleted: number }> {
-    return this.request<{ documentsDeleted: number; chunksDeleted: number }>('DELETE', '/secure-documents/purge/all');
+  async purgeAllDocuments(): Promise<{ documentsDeleted: number }> {
+    return this.request<{ documentsDeleted: number }>('DELETE', '/secure-documents/purge/all');
   }
 
   // ============================================

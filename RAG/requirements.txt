@@ -23,3 +23,6 @@ httpx>=0.28.0
 # Document Processing
 pypdf>=5.1.0
 langchain-text-splitters>=0.3.0
+
+# Encryption - AES-256-GCM for user documents
+cryptography>=44.0.0

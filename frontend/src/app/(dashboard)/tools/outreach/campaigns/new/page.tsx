@@ -287,30 +287,30 @@ export default function NewCampaignPage() {
               {/* Target Lead Type */}
               <div className="space-y-2">
                 <Label>Target Audience</Label>
-                <div className="flex gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <Button
                     type="button"
                     variant={form.targetLeadType === 'person' ? 'default' : 'outline'}
-                    className="flex-1 gap-2"
+                    className="gap-1.5 text-xs sm:text-sm px-2 sm:px-4"
                     onClick={() => {
                       setForm(prev => ({ ...prev, targetLeadType: 'person' }));
                       setSelectedLeads(new Set());
                     }}
                   >
                     <UserIcon />
-                    People / Influencers
+                    <span className="truncate">People</span>
                   </Button>
                   <Button
                     type="button"
                     variant={form.targetLeadType === 'company' ? 'default' : 'outline'}
-                    className="flex-1 gap-2"
+                    className="gap-1.5 text-xs sm:text-sm px-2 sm:px-4"
                     onClick={() => {
                       setForm(prev => ({ ...prev, targetLeadType: 'company' }));
                       setSelectedLeads(new Set());
                     }}
                   >
                     <BuildingIcon />
-                    Companies
+                    <span className="truncate">Companies</span>
                   </Button>
                 </div>
               </div>

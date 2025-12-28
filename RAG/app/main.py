@@ -20,6 +20,7 @@ from app.services import (
     # User document functions
     embed_user_document_chunk,
     search_user_documents,
+    get_user_document_chunks,
     delete_user_document_vectors,
     delete_user_vectors,
 )
@@ -32,7 +33,7 @@ from app.schemas import (
     # User document schemas
     UserDocEmbedRequest, UserDocEmbedResponse,
     UserDocSearchRequest, UserDocSearchResponse,
-    UserDocDeleteResponse,
+    UserDocDeleteResponse, UserDocGetChunksRequest, UserDocGetChunksResponse,
 )
 
 RAG_API_KEY = os.getenv("RAG_API_KEY", "")
@@ -288,7 +289,7 @@ async def embed_user_doc_chunk(request: UserDocEmbedRequest, _: bool = Depends(v
 
 @app.post("/user-docs/search", response_model=UserDocSearchResponse)
 async def search_user_docs(request: UserDocSearchRequest, _: bool = Depends(verify_api_key)):
-    """Search user documents using semantic similarity."""
+    """Search user documents using semantic similarity. Returns decrypted content."""
     try:
         return await search_user_documents(
             query=request.query,
@@ -299,6 +300,19 @@ async def search_user_docs(request: UserDocSearchRequest, _: bool = Depends(veri
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+
+
+@app.post("/user-docs/chunks", response_model=UserDocGetChunksResponse)
+async def get_user_doc_chunks(request: UserDocGetChunksRequest, _: bool = Depends(verify_api_key)):
+    """Get specific chunks by indices with decrypted content."""
+    try:
+        return await get_user_document_chunks(
+            document_id=request.document_id,
+            user_id=request.user_id,
+            chunk_indices=request.chunk_indices
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get chunks: {str(e)}")
 
 
 @app.delete("/user-docs/{document_id}", response_model=UserDocDeleteResponse)
