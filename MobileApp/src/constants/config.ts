@@ -1,19 +1,10 @@
-/**
- * App Configuration
- * Centralized configuration for the Co-Op mobile app
- */
-
-// Environment
 export const IS_DEV = __DEV__;
 
-// URLs
 export const WEB_URL = 'https://co-op-dev.vercel.app';
 export const API_URL = 'https://co-op-backend.onrender.com';
 export const APP_SCHEME = 'coop';
 
-// Theme Colors (matching web app's design system)
 export const COLORS = {
-  // Dark theme
   dark: {
     background: '#0f1012',
     foreground: '#f2f2f2',
@@ -22,7 +13,6 @@ export const COLORS = {
     mutedForeground: '#8b8d91',
     border: '#282b30',
   },
-  // Light theme
   light: {
     background: '#ffffff',
     foreground: '#1a1c1e',
@@ -33,17 +23,14 @@ export const COLORS = {
   },
 } as const;
 
-// OAuth providers that must open in system browser
 export const OAUTH_DOMAINS = [
   'accounts.google.com',
 ] as const;
 
-// Paths that must open in system browser (for OAuth flow)
 export const EXTERNAL_AUTH_PATHS = [
   '/auth/mobile-login',
 ] as const;
 
-// Security: Allowed domains for WebView navigation
 export const ALLOWED_DOMAINS = [
   'co-op-dev.vercel.app',
   'co-op.vercel.app',
@@ -51,10 +38,7 @@ export const ALLOWED_DOMAINS = [
   'localhost',
 ] as const;
 
-// Timeouts
 export const CONNECTION_TIMEOUT_MS = 10000;
 export const THEME_DETECTION_DELAY_MS = 100;
-
-// File upload limits (matching backend)
 export const MAX_FILE_SIZE_MB = 10;
 export const ALLOWED_FILE_TYPES = ['application/pdf'] as const;
