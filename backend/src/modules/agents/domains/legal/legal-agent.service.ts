@@ -94,7 +94,7 @@ export class LegalAgentService implements BaseAgent {
     onProgress?.('Legal agent: Analyzing your question...');
 
     // Get sector and country from startup metadata
-    const sector = (input.context.metadata.sector as RagSector) || 'saas';
+    const sector = (input.context.metadata.sector as RagSector) || 'other';
     const country = (input.context.metadata.country as string) || undefined;
 
     // Get explicit jurisdiction from request (user-selected) or detect from query

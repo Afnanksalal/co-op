@@ -30,7 +30,7 @@ const startups = pgTable('startups', {
   description: text('description').notNull(),
   website: varchar('website', { length: 500 }),
   industry: varchar('industry', { length: 100 }).notNull(),
-  sector: varchar('sector', { length: 50 }).notNull().default('saas'),
+  sector: varchar('sector', { length: 50 }).notNull().default('other'),
   businessModel: varchar('business_model', { length: 100 }).notNull(),
   revenueModel: varchar('revenue_model', { length: 100 }),
   stage: varchar('stage', { length: 100 }).notNull(),

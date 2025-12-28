@@ -88,7 +88,7 @@ export class FinanceAgentService implements BaseAgent {
     this.logger.debug('Running finance agent with LLM Council + RAG');
     onProgress?.('Finance agent: Analyzing your financial question...');
 
-    const sector = (input.context.metadata.sector as RagSector) || 'saas';
+    const sector = (input.context.metadata.sector as RagSector) || 'other';
     const country = (input.context.metadata.country as string) || undefined;
     const financeFocus = (input.context.metadata.financeFocus as string) || 'general';
     const currency = (input.context.metadata.currency as string) || 'auto';

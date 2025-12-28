@@ -303,8 +303,7 @@ export default function OnboardingPage() {
   const [isChecking, setIsChecking] = useState(true);
   const [formData, setFormData] = useState<Partial<OnboardingData>>({
     founderRole: 'founder',
-    industry: 'saas',
-    sector: 'saas',
+    // No default for industry/sector - user must select
     businessModel: 'b2b',
     stage: 'idea',
     teamSize: '1-5',
@@ -388,15 +387,26 @@ export default function OnboardingPage() {
       setCurrentStep(2);
       return;
     }
+    
+    // Validate sector selection
+    if (!formData.sector) {
+      toast.error('Please select a sector for your business');
+      setCurrentStep(userType === 'idea' ? 1 : 1);
+      return;
+    }
 
+    // Sync industry with sector (they should match for RAG to work correctly)
+    // The sector is the primary field used by agents
+    const selectedSector = formData.sector;
+    
     // For idea stage, set defaults for required fields
     const cleanData: OnboardingData = {
       founderName: formData.founderName!,
       founderRole: formData.founderRole || 'founder',
       companyName: formData.companyName!,
       description: formData.description!,
-      industry: formData.industry || 'saas',
-      sector: formData.sector || 'saas',
+      industry: selectedSector, // Sync industry with sector
+      sector: selectedSector,
       businessModel: formData.businessModel || 'b2b',
       stage: userType === 'idea' ? 'idea' : (formData.stage || 'mvp'),
       foundedYear: formData.foundedYear || new Date().getFullYear(),

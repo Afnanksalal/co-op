@@ -20,7 +20,7 @@ export const startups = pgTable(
 
     // === BUSINESS CLASSIFICATION ===
     industry: varchar('industry', { length: 100 }).notNull(), // Primary industry
-    sector: varchar('sector', { length: 50 }).notNull().default('saas'), // RAG sector for document filtering (70+ sectors)
+    sector: varchar('sector', { length: 50 }).notNull().default('other'), // RAG sector for document filtering (70+ sectors)
     businessModel: varchar('business_model', { length: 100 }).notNull(), // B2B, B2C, B2B2C, Marketplace, etc.
     revenueModel: varchar('revenue_model', { length: 100 }), // Subscription, Transaction, Freemium, etc.
 
