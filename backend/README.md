@@ -67,14 +67,15 @@ src/
 |---------|----------------|
 | Authentication | Supabase JWT verification |
 | Authorization | Role-based (user, admin) |
-| Rate Limiting | Redis-backed per-user throttling |
+| Rate Limiting | Redis-backed per-endpoint throttling with presets |
 | API Keys | SHA-256 hashed, timing-safe comparison |
 | Encryption | AES-256-GCM for sensitive data |
 | Input Validation | class-validator DTOs, whitelist mode |
 | Security Headers | Helmet.js middleware |
-| Audit Logging | Full audit trail |
+| Audit Logging | Full audit trail for all admin operations |
 | Session Integrity | User ownership validation on sessions |
 | Prometheus Metrics | HTTP, LLM, Redis, Agent metrics tracking |
+| Admin Controls | User management, suspend/activate, pilot usage tracking & reset |
 
 ## Environment Variables
 
@@ -218,7 +219,37 @@ curl -H "X-API-Key: coop_xxxxx" /api/v1/mcp-server/discover
 | DELETE | `/secure-documents/:id` | STANDARD | Delete document & chunks |
 | POST | `/secure-documents/query` | STANDARD | Query documents with RAG |
 
-### Rate Limit Presets
+### Admin User Management Endpoints
+
+| Method | Endpoint | Rate Limit | Description |
+|--------|----------|------------|-------------|
+| GET | `/admin/users` | 100/min | List all users with filtering |
+| GET | `/admin/users/stats` | 60/min | Get user statistics |
+| GET | `/admin/users/:id` | 100/min | Get user details |
+| POST | `/admin/users` | 30/min | Create new user |
+| PATCH | `/admin/users/:id` | 60/min | Update user details |
+| DELETE | `/admin/users/:id` | 30/min | Delete user (soft delete) |
+| POST | `/admin/users/:id/suspend` | 30/min | Suspend user |
+| POST | `/admin/users/:id/activate` | 30/min | Activate user |
+| POST | `/admin/users/:id/reset-usage` | 30/min | Reset pilot agent usage |
+| POST | `/admin/users/bulk/suspend` | 10/min | Bulk suspend users |
+| POST | `/admin/users/bulk/activate` | 10/min | Bulk activate users |
+| POST | `/admin/users/bulk/delete` | 5/min | Bulk delete users |
+
+#### Pilot Limits (Code-Defined)
+
+| Resource | Limit | Period |
+|----------|-------|--------|
+| Agent Requests | 3 | per month |
+| API Keys | 1 | total |
+| Webhooks | 1 | total |
+| Leads | 50 | total |
+| Campaigns | 5 | total |
+| Emails | 50 | per day |
+
+> Note: Pilot limits are enforced via Redis and database constraints. Admin can reset agent usage (monthly) but cannot change the limits themselves.
+
+### Rate Limit Presets (Per-Endpoint)
 
 | Preset | Limit | Window |
 |--------|-------|--------|

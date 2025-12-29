@@ -113,6 +113,20 @@
       "when": 1766931541133,
       "tag": "0015_first_christian_walker",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1766997733141,
+      "tag": "0016_mighty_mockingbird",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1766998678554,
+      "tag": "0017_huge_firebird",
+      "breakpoints": true
     }
   ]
 }

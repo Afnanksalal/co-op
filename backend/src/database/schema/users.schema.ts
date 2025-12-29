@@ -2,6 +2,7 @@ import { pgTable, uuid, varchar, timestamp, boolean, index } from 'drizzle-orm/p
 import { relations } from 'drizzle-orm';
 import { sessions } from './sessions.schema';
 import { adminUsers } from './admin-users.schema';
+import { userSettings } from './user-settings.schema';
 import { logEvents } from './log-events.schema';
 import { startups } from './startups.schema';
 
@@ -29,6 +30,7 @@ export const users = pgTable(
 export const usersRelations = relations(users, ({ many, one }) => ({
   sessions: many(sessions),
   adminUser: one(adminUsers),
+  settings: one(userSettings),
   logEvents: many(logEvents),
   startup: one(startups, { fields: [users.startupId], references: [startups.id] }),
 }));

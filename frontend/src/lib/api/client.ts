@@ -1141,6 +1141,68 @@ class ApiClient {
   async sendSingleCampaignEmail(campaignId: string, emailId: string): Promise<{ success: boolean }> {
     return this.post<{ success: boolean }>(`/outreach/campaigns/${campaignId}/emails/${emailId}/send`);
   }
+
+  // ============================================
+  // ADMIN USER MANAGEMENT ENDPOINTS
+  // ============================================
+
+  async getAdminUsers(query?: import('./types').AdminUserListQuery): Promise<PaginatedResult<import('./types').AdminUser>> {
+    const params = new URLSearchParams();
+    if (query?.search) params.set('search', query.search);
+    if (query?.status) params.set('status', query.status);
+    if (query?.role) params.set('role', query.role);
+    if (query?.onboardingCompleted !== undefined) params.set('onboardingCompleted', String(query.onboardingCompleted));
+    if (query?.page) params.set('page', String(query.page));
+    if (query?.limit) params.set('limit', String(query.limit));
+    if (query?.sortBy) params.set('sortBy', query.sortBy);
+    if (query?.sortOrder) params.set('sortOrder', query.sortOrder);
+    const queryStr = params.toString();
+    return this.get<PaginatedResult<import('./types').AdminUser>>(`/admin/users${queryStr ? `?${queryStr}` : ''}`);
+  }
+
+  async getAdminUser(userId: string): Promise<import('./types').AdminUser> {
+    return this.get<import('./types').AdminUser>(`/admin/users/${userId}`);
+  }
+
+  async getAdminUserStats(): Promise<import('./types').UserStats> {
+    return this.get<import('./types').UserStats>('/admin/users/stats');
+  }
+
+  async createAdminUser(data: import('./types').CreateAdminUserRequest): Promise<import('./types').AdminUser> {
+    return this.post<import('./types').AdminUser>('/admin/users', data);
+  }
+
+  async updateAdminUser(userId: string, data: import('./types').UpdateAdminUserRequest): Promise<import('./types').AdminUser> {
+    return this.patch<import('./types').AdminUser>(`/admin/users/${userId}`, data);
+  }
+
+  async deleteAdminUser(userId: string): Promise<void> {
+    await this.delete(`/admin/users/${userId}`);
+  }
+
+  async suspendUser(userId: string, reason?: string): Promise<import('./types').AdminUser> {
+    return this.post<import('./types').AdminUser>(`/admin/users/${userId}/suspend`, { reason });
+  }
+
+  async activateUser(userId: string): Promise<import('./types').AdminUser> {
+    return this.post<import('./types').AdminUser>(`/admin/users/${userId}/activate`);
+  }
+
+  async resetUserUsage(userId: string, type?: 'agentRequests' | 'all'): Promise<import('./types').AdminUser> {
+    return this.post<import('./types').AdminUser>(`/admin/users/${userId}/reset-usage`, { type: type ?? 'agentRequests' });
+  }
+
+  async bulkSuspendUsers(userIds: string[], reason?: string): Promise<{ suspended: number }> {
+    return this.post<{ suspended: number }>('/admin/users/bulk/suspend', { userIds, reason });
+  }
+
+  async bulkActivateUsers(userIds: string[]): Promise<{ activated: number }> {
+    return this.post<{ activated: number }>('/admin/users/bulk/activate', { userIds });
+  }
+
+  async bulkDeleteUsers(userIds: string[]): Promise<{ deleted: number }> {
+    return this.post<{ deleted: number }>('/admin/users/bulk/delete', { userIds });
+  }
 }
 
 export const api = new ApiClient();

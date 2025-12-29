@@ -5,6 +5,62 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2025-12-29
+
+### New Features
+
+#### Admin User Management
+- **Full User CRUD** - Complete user management for administrators
+  - List users with search, filtering, pagination, and sorting
+  - Create new users with role assignment
+  - Update user details (name, role, status, admin notes)
+  - Soft delete users with audit trail
+
+- **User Status Management** - Suspend and activate users
+  - Suspend users with optional reason
+  - Activate suspended users
+  - Status reflected in user settings table
+
+- **Pilot Usage Tracking** - View and reset existing pilot limits
+  - Agent requests: 3/month (stored in Redis)
+  - API keys: 1 per user
+  - Webhooks: 1 per user
+  - Leads: 50 per user
+  - Campaigns: 5 per user
+  - Admin can reset agent usage (clears Redis key)
+
+- **Bulk Operations** - Efficient multi-user actions
+  - Bulk suspend (up to 100 users)
+  - Bulk activate (up to 100 users)
+  - Bulk delete (up to 100 users)
+
+- **User Statistics** - Dashboard stats for admins
+  - Total, active, suspended user counts
+  - Admin user count
+  - Users created this month
+  - Onboarded user count
+
+### Database
+
+- **User Settings Schema** - New `user_settings` table
+  - Status tracking (active/suspended)
+  - Suspension reason storage
+  - Admin notes field
+  - Last activity timestamp
+
+### Frontend
+
+- **Admin Users Tab** - New tab in admin dashboard
+  - Stats cards with key metrics
+  - User list with selection checkboxes
+  - Search and status filtering
+  - Per-user action buttons
+  - Pilot usage dialog showing all limits
+  - Bulk action toolbar
+  - Pagination controls
+
+---
+
 ## [1.3.7] - 2025-12-28
 
 ### Bug Fixes

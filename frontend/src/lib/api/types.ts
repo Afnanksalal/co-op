@@ -1128,3 +1128,94 @@ export interface ApiResponse<T> {
   message?: string;
   meta?: PaginationMeta;
 }
+
+// === ADMIN USER MANAGEMENT ===
+export type UserStatus = 'active' | 'suspended';
+
+/**
+ * Pilot usage stats - reflects actual Redis-based usage tracking
+ */
+export interface PilotUsage {
+  agentRequestsUsed: number;
+  agentRequestsLimit: number;
+  apiKeysUsed: number;
+  webhooksUsed: number;
+  leadsUsed: number;
+  campaignsUsed: number;
+  resetsAt: string;
+}
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  name: string;
+  role: 'user' | 'admin';
+  authProvider: string | null;
+  onboardingCompleted: boolean;
+  startupId: string | null;
+  startupName: string | null;
+  status: UserStatus;
+  suspendedReason: string | null;
+  adminNotes: string | null;
+  pilotUsage: PilotUsage;
+  createdAt: string;
+  updatedAt: string;
+  lastActiveAt: string | null;
+}
+
+export interface AdminUserListQuery {
+  search?: string;
+  status?: UserStatus | 'all';
+  role?: 'user' | 'admin';
+  onboardingCompleted?: boolean;
+  page?: number;
+  limit?: number;
+  sortBy?: 'createdAt' | 'name' | 'email';
+  sortOrder?: 'asc' | 'desc';
+}
+
+export interface CreateAdminUserRequest {
+  email: string;
+  name: string;
+  role?: 'user' | 'admin';
+}
+
+export interface UpdateAdminUserRequest {
+  name?: string;
+  role?: 'user' | 'admin';
+  status?: UserStatus;
+  adminNotes?: string;
+}
+
+export interface ResetUsageRequest {
+  type?: 'agentRequests' | 'all';
+}
+
+export interface BulkActionRequest {
+  userIds: string[];
+}
+
+export interface BulkSuspendRequest extends BulkActionRequest {
+  reason?: string;
+}
+
+export interface UserStats {
+  totalUsers: number;
+  activeUsers: number;
+  suspendedUsers: number;
+  adminUsers: number;
+  usersThisMonth: number;
+  onboardedUsers: number;
+}
+
+/**
+ * Pilot limits - these are code-defined, not configurable per user
+ */
+export const PILOT_LIMITS = {
+  agentRequests: { limit: 3, period: 'month' },
+  apiKeys: { limit: 1, period: 'total' },
+  webhooks: { limit: 1, period: 'total' },
+  leads: { limit: 50, period: 'total' },
+  campaigns: { limit: 5, period: 'total' },
+  emailsPerDay: { limit: 50, period: 'day' },
+} as const;

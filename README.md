@@ -55,6 +55,7 @@ Co-Op is an open-source AI advisory platform that provides startup founders with
 | **Investor Database** | 20+ real investors with admin management |
 | **Competitor Alerts** | Real-time monitoring with email notifications |
 | **Customer Outreach** | AI-powered lead discovery & email campaigns |
+| **Admin Dashboard** | User management, pilot usage tracking, status control |
 | **Self-Hostable** | Deploy on your own infrastructure |
 
 ---
@@ -384,6 +385,9 @@ See [Backend README](./Backend/README.md) for complete API documentation.
 - [x] Webhook integrations
 - [x] Audit logging
 - [x] Rate limiting with presets
+- [x] Admin user management (CRUD, suspend, pilot usage reset)
+- [x] Bulk user operations
+- [x] Usage tracking and reset
 
 ### Coming Soon
 - [ ] Team workspaces

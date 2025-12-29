@@ -18,6 +18,16 @@ import {
   Buildings,
   Star,
   PencilSimple,
+  Users,
+  UserCircle,
+  ArrowsClockwise,
+  Prohibit,
+  CheckCircle,
+  Robot,
+  Key,
+  WebhooksLogo,
+  AddressBook,
+  Megaphone,
 } from '@phosphor-icons/react';
 import { api } from '@/lib/api/client';
 import { useRequireAdmin } from '@/lib/hooks';
@@ -34,8 +44,11 @@ import type {
   InvestorStage,
   CreateInvestorRequest,
   UpdateInvestorRequest,
+  AdminUser,
+  AdminUserListQuery,
+  UserStats,
 } from '@/lib/api/types';
-import { RAG_REGIONS, RAG_JURISDICTIONS, RAG_DOCUMENT_TYPES, SECTORS, SECTOR_LABELS, SECTOR_CATEGORIES } from '@/lib/api/types';
+import { RAG_REGIONS, RAG_JURISDICTIONS, RAG_DOCUMENT_TYPES, SECTORS, SECTOR_LABELS, SECTOR_CATEGORIES, PILOT_LIMITS } from '@/lib/api/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -170,6 +183,21 @@ export default function AdminPage() {
   const [isSavingInvestor, setIsSavingInvestor] = useState(false);
   const [investorForm, setInvestorForm] = useState<CreateInvestorRequest>(emptyInvestorForm);
 
+  // Users State
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [userStats, setUserStats] = useState<UserStats | null>(null);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
+  const [userSearch, setUserSearch] = useState('');
+  const [userStatusFilter, setUserStatusFilter] = useState<'all' | 'active' | 'suspended'>('all');
+  const [userPage, setUserPage] = useState(1);
+  const [userTotalPages, setUserTotalPages] = useState(1);
+  const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
+  const [showUserDialog, setShowUserDialog] = useState(false);
+  const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
+  const [isSavingUser, setIsSavingUser] = useState(false);
+  const [showUsageDialog, setShowUsageDialog] = useState(false);
+  const [usageUser, setUsageUser] = useState<AdminUser | null>(null);
+
   const dataLoadedRef = useRef(false);
 
 
@@ -209,13 +237,43 @@ export default function AdminPage() {
     setIsLoadingInvestors(false);
   }, []);
 
+  const loadUsers = useCallback(async (query?: AdminUserListQuery) => {
+    setIsLoadingUsers(true);
+    try {
+      const result = await api.getAdminUsers({
+        search: userSearch || undefined,
+        status: userStatusFilter,
+        page: query?.page ?? userPage,
+        limit: 20,
+        ...query,
+      });
+      setUsers(result.data);
+      setUserTotalPages(result.meta.totalPages);
+    } catch (error) {
+      console.error('Failed to load users:', error);
+      toast.error('Failed to load users');
+    }
+    setIsLoadingUsers(false);
+  }, [userSearch, userStatusFilter, userPage]);
+
+  const loadUserStats = useCallback(async () => {
+    try {
+      const stats = await api.getAdminUserStats();
+      setUserStats(stats);
+    } catch (error) {
+      console.error('Failed to load user stats:', error);
+    }
+  }, []);
+
   useEffect(() => {
     if (authLoading || !isAdmin || dataLoadedRef.current) return;
     dataLoadedRef.current = true;
     loadEmbeddings('all', 'all', 'all');
     loadMcpServers();
     loadInvestors();
-  }, [authLoading, isAdmin, loadInvestors]);
+    loadUsers();
+    loadUserStats();
+  }, [authLoading, isAdmin, loadInvestors, loadUsers, loadUserStats]);
 
   // RAG handlers
   const handleDomainChange = (value: string) => {
@@ -458,6 +516,122 @@ export default function AdminPage() {
     }
   };
 
+  // User handlers
+  const handleUserSearch = () => {
+    setUserPage(1);
+    loadUsers({ page: 1 });
+  };
+
+  const handleUserStatusFilter = (status: 'all' | 'active' | 'suspended') => {
+    setUserStatusFilter(status);
+    setUserPage(1);
+    loadUsers({ status, page: 1 });
+  };
+
+  const handleSuspendUser = async (userId: string, reason?: string) => {
+    try {
+      await api.suspendUser(userId, reason);
+      toast.success('User suspended');
+      loadUsers();
+      loadUserStats();
+    } catch {
+      toast.error('Failed to suspend user');
+    }
+  };
+
+  const handleActivateUser = async (userId: string) => {
+    try {
+      await api.activateUser(userId);
+      toast.success('User activated');
+      loadUsers();
+      loadUserStats();
+    } catch {
+      toast.error('Failed to activate user');
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    try {
+      await api.deleteAdminUser(userId);
+      toast.success('User deleted');
+      loadUsers();
+      loadUserStats();
+    } catch {
+      toast.error('Failed to delete user');
+    }
+  };
+
+  const handleResetUsage = async (userId: string) => {
+    try {
+      await api.resetUserUsage(userId, 'agentRequests');
+      toast.success('Agent usage reset');
+      loadUsers();
+    } catch {
+      toast.error('Failed to reset usage');
+    }
+  };
+
+  const openUsageDialog = (user: AdminUser) => {
+    setUsageUser(user);
+    setShowUsageDialog(true);
+  };
+
+  const handleBulkSuspend = async () => {
+    if (selectedUsers.size === 0) return;
+    try {
+      const result = await api.bulkSuspendUsers(Array.from(selectedUsers));
+      toast.success(`${result.suspended} users suspended`);
+      setSelectedUsers(new Set());
+      loadUsers();
+      loadUserStats();
+    } catch {
+      toast.error('Failed to suspend users');
+    }
+  };
+
+  const handleBulkActivate = async () => {
+    if (selectedUsers.size === 0) return;
+    try {
+      const result = await api.bulkActivateUsers(Array.from(selectedUsers));
+      toast.success(`${result.activated} users activated`);
+      setSelectedUsers(new Set());
+      loadUsers();
+      loadUserStats();
+    } catch {
+      toast.error('Failed to activate users');
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedUsers.size === 0) return;
+    try {
+      const result = await api.bulkDeleteUsers(Array.from(selectedUsers));
+      toast.success(`${result.deleted} users deleted`);
+      setSelectedUsers(new Set());
+      loadUsers();
+      loadUserStats();
+    } catch {
+      toast.error('Failed to delete users');
+    }
+  };
+
+  const toggleUserSelection = (userId: string) => {
+    setSelectedUsers((prev) => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  };
+
+  const toggleAllUsers = () => {
+    if (selectedUsers.size === users.length) {
+      setSelectedUsers(new Set());
+    } else {
+      setSelectedUsers(new Set(users.map((u) => u.id)));
+    }
+  };
+
   if (authLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3">
@@ -493,12 +667,341 @@ export default function AdminPage() {
         <p className="text-xs sm:text-sm text-muted-foreground">Manage RAG, MCP servers, and investors</p>
       </motion.div>
 
-      <Tabs defaultValue="rag" className="space-y-4 sm:space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+      <Tabs defaultValue="users" className="space-y-4 sm:space-y-6">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="rag">RAG</TabsTrigger>
           <TabsTrigger value="mcp">MCP</TabsTrigger>
           <TabsTrigger value="investors">Investors</TabsTrigger>
         </TabsList>
+
+
+        {/* Users Tab */}
+        <TabsContent value="users" className="space-y-4">
+          {/* Stats Cards */}
+          {userStats && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+              <Card className="border-border/40">
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2">
+                    <Users weight="regular" className="w-4 h-4 text-muted-foreground" />
+                    <div>
+                      <p className="text-lg font-semibold">{userStats.totalUsers}</p>
+                      <p className="text-[10px] text-muted-foreground">Total Users</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="border-border/40">
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle weight="regular" className="w-4 h-4 text-green-500" />
+                    <div>
+                      <p className="text-lg font-semibold">{userStats.activeUsers}</p>
+                      <p className="text-[10px] text-muted-foreground">Active</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="border-border/40">
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2">
+                    <Prohibit weight="regular" className="w-4 h-4 text-red-500" />
+                    <div>
+                      <p className="text-lg font-semibold">{userStats.suspendedUsers}</p>
+                      <p className="text-[10px] text-muted-foreground">Suspended</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="border-border/40">
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2">
+                    <Users weight="regular" className="w-4 h-4 text-blue-500" />
+                    <div>
+                      <p className="text-lg font-semibold">{userStats.usersThisMonth}</p>
+                      <p className="text-[10px] text-muted-foreground">This Month</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Filters & Actions */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2 flex-1">
+              <div className="relative flex-1 max-w-xs">
+                <Input
+                  placeholder="Search users..."
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleUserSearch()}
+                  className="pl-8 h-8 sm:h-9 text-xs sm:text-sm"
+                />
+                <MagnifyingGlass weight="regular" className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              </div>
+              <Select value={userStatusFilter} onValueChange={(v) => handleUserStatusFilter(v as 'all' | 'active' | 'suspended')}>
+                <SelectTrigger className="w-[100px] h-8 sm:h-9 text-xs sm:text-sm">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="suspended">Suspended</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {selectedUsers.size > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">{selectedUsers.size} selected</span>
+                <Button variant="outline" size="sm" onClick={handleBulkActivate} className="h-8 text-xs">
+                  <CheckCircle weight="regular" className="w-3.5 h-3.5 mr-1" />Activate
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleBulkSuspend} className="h-8 text-xs text-orange-600">
+                  <Prohibit weight="regular" className="w-3.5 h-3.5 mr-1" />Suspend
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 text-xs text-destructive">
+                      <Trash weight="regular" className="w-3.5 h-3.5 mr-1" />Delete
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete {selectedUsers.size} Users</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently delete the selected users. This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleBulkDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            )}
+          </div>
+
+          {/* Users List */}
+          {isLoadingUsers ? (
+            <div className="space-y-2">{[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-16 bg-muted rounded-lg animate-pulse" />)}</div>
+          ) : users.length === 0 ? (
+            <Card className="border-border/40">
+              <CardContent className="p-6 sm:p-8 text-center">
+                <Users weight="light" className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground">{userSearch ? 'No users found' : 'No users yet'}</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              {/* Header */}
+              <div className="flex items-center gap-3 px-3 py-2 text-xs text-muted-foreground border-b">
+                <input
+                  type="checkbox"
+                  checked={selectedUsers.size === users.length && users.length > 0}
+                  onChange={toggleAllUsers}
+                  className="rounded border-muted-foreground/30"
+                />
+                <span className="flex-1">User</span>
+                <span className="w-20 text-center hidden sm:block">Status</span>
+                <span className="w-28 text-center hidden sm:block">Agent Usage</span>
+                <span className="w-24">Actions</span>
+              </div>
+
+              {/* User Rows */}
+              <div className="space-y-1">
+                {users.map((user) => (
+                  <Card key={user.id} className={`border-border/40 ${selectedUsers.has(user.id) ? 'ring-1 ring-primary' : ''}`}>
+                    <CardContent className="p-3">
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedUsers.has(user.id)}
+                          onChange={() => toggleUserSelection(user.id)}
+                          className="rounded border-muted-foreground/30"
+                        />
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
+                            <UserCircle weight="regular" className="w-5 h-5 text-muted-foreground" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <p className="font-medium text-xs sm:text-sm truncate">{user.name}</p>
+                              {user.role === 'admin' && <Badge variant="default" className="text-[9px]">Admin</Badge>}
+                            </div>
+                            <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{user.email}</p>
+                          </div>
+                        </div>
+                        <div className="w-20 text-center hidden sm:block">
+                          <Badge variant={user.status === 'active' ? 'default' : 'destructive'} className="text-[9px]">
+                            {user.status}
+                          </Badge>
+                        </div>
+                        <div className="w-28 text-center hidden sm:block">
+                          <Badge 
+                            variant="outline" 
+                            className={`text-[9px] cursor-pointer ${user.pilotUsage.agentRequestsUsed >= user.pilotUsage.agentRequestsLimit ? 'text-red-500 border-red-500/30' : ''}`}
+                            onClick={() => openUsageDialog(user)}
+                          >
+                            {user.pilotUsage.agentRequestsUsed}/{user.pilotUsage.agentRequestsLimit} agents
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-0.5 w-24 justify-end">
+                          <Button variant="ghost" size="icon" onClick={() => openUsageDialog(user)} className="h-7 w-7" title="View Usage">
+                            <Robot weight="regular" className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => handleResetUsage(user.id)} className="h-7 w-7" title="Reset Agent Usage">
+                            <ArrowsClockwise weight="regular" className="w-3.5 h-3.5" />
+                          </Button>
+                          {user.status === 'active' ? (
+                            <Button variant="ghost" size="icon" onClick={() => handleSuspendUser(user.id)} className="h-7 w-7 text-orange-600" title="Suspend">
+                              <Prohibit weight="regular" className="w-3.5 h-3.5" />
+                            </Button>
+                          ) : (
+                            <Button variant="ghost" size="icon" onClick={() => handleActivateUser(user.id)} className="h-7 w-7 text-green-600" title="Activate">
+                              <CheckCircle weight="regular" className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" title="Delete">
+                                <Trash weight="regular" className="w-3.5 h-3.5" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete User</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Delete &quot;{user.name}&quot; ({user.email})? This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDeleteUser(user.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              {/* Pagination */}
+              {userTotalPages > 1 && (
+                <div className="flex items-center justify-center gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => { setUserPage((p) => Math.max(1, p - 1)); loadUsers({ page: Math.max(1, userPage - 1) }); }}
+                    disabled={userPage === 1}
+                    className="h-8 text-xs"
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-xs text-muted-foreground">Page {userPage} of {userTotalPages}</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => { setUserPage((p) => Math.min(userTotalPages, p + 1)); loadUsers({ page: Math.min(userTotalPages, userPage + 1) }); }}
+                    disabled={userPage === userTotalPages}
+                    className="h-8 text-xs"
+                  >
+                    Next
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Pilot Usage Dialog */}
+          <Dialog open={showUsageDialog} onOpenChange={setShowUsageDialog}>
+            <DialogContent className="max-w-sm">
+              <DialogHeader>
+                <DialogTitle className="text-base">Pilot Usage</DialogTitle>
+                <DialogDescription className="text-xs">
+                  {usageUser?.name} ({usageUser?.email})
+                </DialogDescription>
+              </DialogHeader>
+              {usageUser && (
+                <div className="space-y-3 py-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-3 rounded-lg bg-muted/50">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Robot weight="regular" className="w-4 h-4 text-blue-500" />
+                        <span className="text-xs font-medium">Agent Requests</span>
+                      </div>
+                      <p className={`text-lg font-semibold ${usageUser.pilotUsage.agentRequestsUsed >= usageUser.pilotUsage.agentRequestsLimit ? 'text-red-500' : ''}`}>
+                        {usageUser.pilotUsage.agentRequestsUsed}/{usageUser.pilotUsage.agentRequestsLimit}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">per month</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-muted/50">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Key weight="regular" className="w-4 h-4 text-purple-500" />
+                        <span className="text-xs font-medium">API Keys</span>
+                      </div>
+                      <p className={`text-lg font-semibold ${usageUser.pilotUsage.apiKeysUsed >= PILOT_LIMITS.apiKeys.limit ? 'text-red-500' : ''}`}>
+                        {usageUser.pilotUsage.apiKeysUsed}/{PILOT_LIMITS.apiKeys.limit}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">total</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-muted/50">
+                      <div className="flex items-center gap-2 mb-1">
+                        <WebhooksLogo weight="regular" className="w-4 h-4 text-green-500" />
+                        <span className="text-xs font-medium">Webhooks</span>
+                      </div>
+                      <p className={`text-lg font-semibold ${usageUser.pilotUsage.webhooksUsed >= PILOT_LIMITS.webhooks.limit ? 'text-red-500' : ''}`}>
+                        {usageUser.pilotUsage.webhooksUsed}/{PILOT_LIMITS.webhooks.limit}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">total</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-muted/50">
+                      <div className="flex items-center gap-2 mb-1">
+                        <AddressBook weight="regular" className="w-4 h-4 text-orange-500" />
+                        <span className="text-xs font-medium">Leads</span>
+                      </div>
+                      <p className={`text-lg font-semibold ${usageUser.pilotUsage.leadsUsed >= PILOT_LIMITS.leads.limit ? 'text-red-500' : ''}`}>
+                        {usageUser.pilotUsage.leadsUsed}/{PILOT_LIMITS.leads.limit}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">total</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-muted/50 col-span-2">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Megaphone weight="regular" className="w-4 h-4 text-pink-500" />
+                        <span className="text-xs font-medium">Campaigns</span>
+                      </div>
+                      <p className={`text-lg font-semibold ${usageUser.pilotUsage.campaignsUsed >= PILOT_LIMITS.campaigns.limit ? 'text-red-500' : ''}`}>
+                        {usageUser.pilotUsage.campaignsUsed}/{PILOT_LIMITS.campaigns.limit}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">total</p>
+                    </div>
+                  </div>
+                  <div className="text-[10px] text-muted-foreground text-center pt-2 border-t">
+                    Agent usage resets: {new Date(usageUser.pilotUsage.resetsAt).toLocaleDateString()}
+                  </div>
+                </div>
+              )}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowUsageDialog(false)} size="sm">Close</Button>
+                <Button 
+                  onClick={() => { handleResetUsage(usageUser!.id); setShowUsageDialog(false); }} 
+                  size="sm"
+                  variant="destructive"
+                >
+                  Reset Agent Usage
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </TabsContent>
 
 
         {/* RAG Tab */}
