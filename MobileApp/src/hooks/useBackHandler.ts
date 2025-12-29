@@ -1,7 +1,4 @@
-/**
- * Android Back Button Handler
- * Enables WebView back navigation on Android hardware back button
- */
+// Android back button handler for WebView navigation
 
 import { useEffect } from 'react';
 import { BackHandler, Platform } from 'react-native';

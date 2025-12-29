@@ -1,7 +1,4 @@
-/**
- * Deep Link Handler
- * Handles app scheme and universal links for OAuth callbacks
- */
+// Deep link handler for OAuth callbacks
 
 import { useEffect, useRef, useCallback } from 'react';
 import { Linking, AppState, AppStateStatus, Platform } from 'react-native';

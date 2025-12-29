@@ -46,18 +46,15 @@ class ApiError extends Error {
   }
 }
 
-// In-flight request deduplication to prevent duplicate API calls
+// Request deduplication
 const inflightRequests = new Map<string, Promise<unknown>>();
-
-// Simple in-memory cache for GET requests (5 second TTL)
+// In-memory cache (5s TTL)
 const responseCache = new Map<string, { data: unknown; timestamp: number }>();
-const CACHE_TTL = 5000; // 5 seconds
+const CACHE_TTL = 5000;
 
 class ApiClient {
   private readonly maxRetries = 3;
-  private readonly retryDelay = 1000; // 1 second base delay
-  
-  // Cacheable GET endpoints (short-lived cache for rapid re-renders)
+  private readonly retryDelay = 1000;
   private readonly cacheableEndpoints = [
     '/users/me',
     '/sessions',
@@ -237,9 +234,6 @@ class ApiClient {
     this.invalidateCacheForEndpoint(endpoint);
   }
 
-  /**
-   * Invalidate cache entries related to a mutated endpoint
-   */
   private invalidateCacheForEndpoint(endpoint: string): void {
     // Extract base resource from endpoint (e.g., /sessions/123 -> /sessions)
     const parts = endpoint.split('/').filter(Boolean);
@@ -339,16 +333,10 @@ class ApiClient {
     return this.patch<User>('/users/me/startup', data);
   }
 
-  /**
-   * Logout and invalidate current token
-   */
   async logout(): Promise<void> {
     await this.post('/users/me/logout');
   }
 
-  /**
-   * Logout from all devices (invalidate all tokens)
-   */
   async logoutAll(): Promise<void> {
     await this.post('/users/me/logout-all');
   }
@@ -419,10 +407,7 @@ class ApiClient {
     return this.get<import('./types').UsageStats>('/agents/usage');
   }
 
-  /**
-   * Legacy stream method - use streamAgentTask instead
-   * @deprecated Use streamAgentTask for better error handling and reconnection
-   */
+  // @deprecated Use streamAgentTask instead
   streamTask(
     taskId: string,
     onStatus: (status: TaskStatus) => void,
@@ -750,15 +735,7 @@ class ApiClient {
   // STREAMING ENDPOINTS
   // ============================================
 
-  /**
-   * Connect to SSE stream for real-time agent updates with automatic reconnection
-   * 
-   * Features:
-   * - Token passed via query parameter (EventSource doesn't support headers)
-   * - Automatic reconnection with exponential backoff
-   * - Maximum 5 reconnection attempts
-   * - Graceful handling of connection failures
-   */
+  // SSE stream for real-time agent updates with auto-reconnection
   streamAgentTask(
     taskId: string,
     onEvent: (event: import('./types').StreamEvent) => void | Promise<void>,
@@ -1208,7 +1185,6 @@ class ApiClient {
 export const api = new ApiClient();
 export { ApiError };
 
-// Cache invalidation helpers
 export function invalidateCache(endpoint?: string): void {
   if (endpoint) {
     // Invalidate specific endpoint

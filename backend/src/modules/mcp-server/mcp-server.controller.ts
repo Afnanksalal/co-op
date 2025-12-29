@@ -13,21 +13,6 @@ import { timingSafeEqual } from 'crypto';
 import { McpServerService } from './mcp-server.service';
 import { McpToolCallDto, McpToolResultDto, McpDiscoveryDto } from './dto/mcp-server.dto';
 
-/**
- * MCP Server Controller
- *
- * Exposes Co-Op agents as MCP tools that can be used by:
- * - Claude Desktop
- * - Cursor IDE
- * - Kiro IDE
- * - Any MCP-compatible client
- *
- * Authentication: API Key via X-API-Key header
- *
- * Usage:
- * 1. GET /api/v1/mcp-server/discover - List available tools
- * 2. POST /api/v1/mcp-server/execute - Execute a tool
- */
 @ApiTags('MCP Server')
 @Controller('mcp-server')
 export class McpServerController {
@@ -41,10 +26,6 @@ export class McpServerController {
     this.masterApiKey = this.configService.get<string>('MASTER_API_KEY', '');
   }
 
-  /**
-   * Discover available MCP tools
-   * Returns server info and list of available tools with their schemas
-   */
   @Get('discover')
   @ApiOperation({
     summary: 'Discover available MCP tools',
@@ -58,10 +39,6 @@ export class McpServerController {
     return this.mcpServerService.discoverTools();
   }
 
-  /**
-   * Execute an MCP tool
-   * Runs the specified agent and returns the result
-   */
   @Post('execute')
   @ApiOperation({
     summary: 'Execute an MCP tool',
@@ -80,10 +57,6 @@ export class McpServerController {
     return this.mcpServerService.executeTool(dto);
   }
 
-  /**
-   * Validate API key for MCP access
-   * Uses timing-safe comparison to prevent timing attacks
-   */
   private validateApiKey(apiKey?: string): void {
     // In dev mode without master key, allow access (log warning)
     if (!this.masterApiKey) {

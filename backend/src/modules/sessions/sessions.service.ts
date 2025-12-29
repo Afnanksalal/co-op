@@ -104,9 +104,7 @@ export class SessionsService {
     return sessions.map(s => this.toResponse(s));
   }
 
-  /**
-   * Escape ILIKE special characters to prevent SQL pattern injection
-   */
+  // Escape ILIKE special characters
   private escapeIlikePattern(input: string): string {
     return input
       .replace(/\\/g, '\\\\')  // Escape backslashes first
@@ -135,9 +133,7 @@ export class SessionsService {
     return this.toResponse(updated);
   }
 
-  /**
-   * Auto-generate a title from the first user message
-   */
+  // Auto-generate title from first user message
   generateTitleFromMessage(content: string): string {
     // Take first 50 chars, clean up, add ellipsis if truncated
     const cleaned = content
@@ -185,9 +181,6 @@ export class SessionsService {
     });
   }
 
-  /**
-   * Invalidate all cache entries for a session
-   */
   private async invalidateSessionCache(sessionId: string): Promise<void> {
     await this.redis.del(`${this.SESSION_PREFIX}${sessionId}`);
     await this.redis.del(`${this.ACTIVITY_PREFIX}${sessionId}`);

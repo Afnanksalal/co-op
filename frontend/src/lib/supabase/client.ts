@@ -1,11 +1,5 @@
 import { createBrowserClient } from '@supabase/ssr';
 
-/**
- * Create a Supabase client
- * 
- * SECURITY: Session integrity is validated separately via validateSessionIntegrity()
- * to detect session mixing between different users on the same device.
- */
 export function createClient() {
   return createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,18 +7,11 @@ export function createClient() {
   );
 }
 
-/**
- * Clear the Supabase client instance (for logout)
- * No-op since we don't use singleton pattern anymore
- */
 export function clearSupabaseClient() {
   // No-op - kept for API compatibility
 }
 
-/**
- * Validate that the current session belongs to the expected user
- * Call this after page load to detect session hijacking
- */
+// Validate session belongs to expected user
 export async function validateSessionIntegrity(): Promise<boolean> {
   if (typeof window === 'undefined') return true;
   
@@ -61,10 +48,7 @@ export async function validateSessionIntegrity(): Promise<boolean> {
   }
 }
 
-/**
- * Clear all authentication-related storage
- * Use on logout to ensure complete session cleanup
- */
+// Clear all auth storage on logout
 export function clearAllAuthStorage() {
   if (typeof window === 'undefined') return;
   

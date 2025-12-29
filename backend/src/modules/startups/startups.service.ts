@@ -77,9 +77,6 @@ export class StartupsService {
     return startup;
   }
 
-  /**
-   * Invalidate startup cache
-   */
   async invalidateCache(id: string): Promise<void> {
     await this.cache.invalidate(`${CACHE_PREFIX.STARTUP}${id}`);
     await this.cache.invalidate(`${CACHE_PREFIX.STARTUP}raw:${id}`);

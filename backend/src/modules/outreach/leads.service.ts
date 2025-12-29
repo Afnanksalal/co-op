@@ -246,9 +246,7 @@ export class LeadsService {
     return userLeads.map((lead) => this.toResponseDto(lead));
   }
 
-  /**
-   * Escape ILIKE special characters to prevent SQL pattern injection
-   */
+  // Escape ILIKE special characters
   private escapeIlikePattern(input: string): string {
     return input
       .replace(/\\/g, '\\\\')  // Escape backslashes first

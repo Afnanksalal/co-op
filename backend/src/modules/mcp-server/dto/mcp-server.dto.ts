@@ -17,9 +17,6 @@ import {
   McpA2ACapability,
 } from '../types/mcp-server.types';
 
-/**
- * Tool Arguments DTO
- */
 export class McpToolArgumentsDto {
   @ApiProperty({ description: 'Question for the agent' })
   @IsString()
@@ -72,9 +69,6 @@ export class McpToolArgumentsDto {
   agents?: string[];
 }
 
-/**
- * Tool Call DTO
- */
 export class McpToolCallDto {
   @ApiProperty({
     description: 'Tool name',
@@ -91,9 +85,6 @@ export class McpToolCallDto {
   arguments: McpToolArgumentsDto;
 }
 
-/**
- * Tool Output DTO
- */
 export class McpToolOutputDto {
   @ApiProperty({ description: 'Response content' })
   content: string;
@@ -105,9 +96,6 @@ export class McpToolOutputDto {
   sources: string[];
 }
 
-/**
- * Council Metadata DTO
- */
 export class McpCouncilMetadataDto implements McpCouncilMetadata {
   @ApiProperty({ description: 'Models used in council' })
   modelsUsed: string[];
@@ -122,9 +110,6 @@ export class McpCouncilMetadataDto implements McpCouncilMetadata {
   synthesized: boolean;
 }
 
-/**
- * Tool Result DTO
- */
 export class McpToolResultDto {
   @ApiProperty({ description: 'Success status' })
   success: boolean;
@@ -142,9 +127,6 @@ export class McpToolResultDto {
   councilMetadata: McpCouncilMetadataDto | null;
 }
 
-/**
- * Server Info DTO
- */
 export class McpServerInfoDto implements McpServerInfo {
   @ApiProperty({ description: 'Server name' })
   name: string;
@@ -167,9 +149,6 @@ export class McpServerInfoDto implements McpServerInfo {
   };
 }
 
-/**
- * Tool Definition DTO
- */
 export class McpToolDefinitionDto implements McpToolDefinition {
   @ApiProperty({ description: 'Tool name' })
   name: string;
@@ -181,9 +160,6 @@ export class McpToolDefinitionDto implements McpToolDefinition {
   inputSchema: McpToolSchema;
 }
 
-/**
- * A2A Capability DTO
- */
 export class McpA2ACapabilityDto implements McpA2ACapability {
   @ApiProperty({ description: 'Agent name' })
   agent: string;
@@ -195,9 +171,6 @@ export class McpA2ACapabilityDto implements McpA2ACapability {
   description: string;
 }
 
-/**
- * Discovery Response DTO
- */
 export class McpDiscoveryDto {
   @ApiProperty({ description: 'Server info', type: McpServerInfoDto })
   server: McpServerInfoDto;

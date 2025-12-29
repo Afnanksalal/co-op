@@ -48,7 +48,6 @@ export function useKeyboardShortcuts(shortcuts: ShortcutConfig[]) {
   }, [handleKeyDown]);
 }
 
-// Global shortcuts for the dashboard
 export function useGlobalShortcuts() {
   const router = useRouter();
 

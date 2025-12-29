@@ -1,7 +1,4 @@
-// ============================================
 // Co-Op Frontend Types
-// Aligned with Backend API contracts
-// ============================================
 
 // === ENUMS ===
 export const FOUNDER_ROLES = ['ceo', 'cto', 'coo', 'cfo', 'cpo', 'founder', 'cofounder'] as const;

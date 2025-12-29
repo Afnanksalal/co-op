@@ -212,22 +212,22 @@ export default function HomePage() {
 
       <main className="relative z-10">
         {/* Hero */}
-        <section className="max-w-6xl mx-auto px-6 py-24 md:py-32 text-center">
+        <section className="max-w-6xl mx-auto px-6 pt-8 pb-12 sm:py-24 md:py-32 text-center">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-sm mb-8">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-sm mb-4 sm:mb-8">
               <Sparkle weight="fill" className="w-4 h-4" />
               AI-Powered Advisory Platform
             </div>
 
-            <h1 className="font-serif text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-medium tracking-tight mb-8 leading-[1.2]">
+            <h1 className="font-serif text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-medium tracking-tight mb-4 sm:mb-8 leading-[1.2]">
               Co-Op
             </h1>
 
-            <p className="text-2xl md:text-3xl text-muted-foreground font-serif mb-4">
+            <p className="text-xl sm:text-2xl md:text-3xl text-muted-foreground font-serif mb-2 sm:mb-4">
               Cross the gaps. Build the future.
             </p>
 
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
+            <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto mb-6 sm:mb-10 leading-relaxed">
               Your AI advisory board for legal, finance, investor relations, and competitive analysis.
               Multiple AI models cross-validate every response for accuracy you can trust.
             </p>

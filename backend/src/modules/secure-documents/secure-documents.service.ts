@@ -8,16 +8,9 @@ import { UserDocsRagService } from '@/common/rag/user-docs-rag.service';
 import * as schema from '@/database/schema';
 import { userDocuments } from '@/database/schema/user-documents.schema';
 
-/** Default document expiry in days */
 const DEFAULT_EXPIRY_DAYS = 30;
-
-/** Maximum file size in bytes (10MB) */
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
-
-/** Chunk size in characters (roughly 500 tokens) */
 const CHUNK_SIZE = 2000;
-
-/** Chunk overlap in characters */
 const CHUNK_OVERLAP = 200;
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

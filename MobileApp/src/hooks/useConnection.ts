@@ -1,7 +1,4 @@
-/**
- * Connection State Hook
- * Optimized network connectivity check with caching
- */
+// Network connectivity check with caching
 
 import { useState, useCallback, useRef } from 'react';
 import { WEB_URL, CONNECTION_TIMEOUT_MS } from '../constants';

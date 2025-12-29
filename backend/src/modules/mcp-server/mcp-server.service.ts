@@ -125,9 +125,6 @@ export class McpServerService {
     private readonly council: LlmCouncilService,
   ) {}
 
-  /**
-   * Discover available MCP tools
-   */
   discoverTools(): McpDiscoveryResult {
     const tools: McpToolDefinition[] = [
       {
@@ -175,9 +172,6 @@ export class McpServerService {
     };
   }
 
-  /**
-   * Execute an MCP tool
-   */
   async executeTool(dto: McpToolCallDto): Promise<McpToolExecutionResult> {
     const startTime = Date.now();
     const toolName = dto.tool as McpAgentTool;
@@ -202,9 +196,6 @@ export class McpServerService {
     }
   }
 
-  /**
-   * Execute single agent tool
-   */
   private async executeSingleAgent(
     toolName: McpAgentTool,
     dto: McpToolCallDto,
@@ -241,13 +232,6 @@ export class McpServerService {
     };
   }
 
-  /**
-   * Execute multi-agent query with A2A council critique
-   * 1. All agents generate responses in parallel
-   * 2. Shuffle responses (anonymize)
-   * 3. Each agent critiques other agents' responses
-   * 4. Score and synthesize best response
-   */
   private async executeMultiAgent(
     dto: McpToolCallDto,
     startTime: number,
@@ -319,9 +303,6 @@ export class McpServerService {
     };
   }
 
-  /**
-   * Gather responses from all agents
-   */
   private async gatherAgentResponses(
     agents: string[],
     input: AgentInput,
@@ -350,9 +331,6 @@ export class McpServerService {
     return results.filter((r): r is A2AAgentResponse => r !== null);
   }
 
-  /**
-   * Generate cross-critiques between agents
-   */
   private async generateA2ACritiques(
     agents: string[],
     responses: A2AAgentResponse[],
@@ -379,9 +357,6 @@ export class McpServerService {
     return critiques;
   }
 
-  /**
-   * Generate a single critique using LLM
-   */
   private async critiqueResponse(
     criticAgent: string,
     response: A2AAgentResponse,
@@ -421,9 +396,6 @@ Rate 1-10 and give brief feedback. JSON only:
     }
   }
 
-  /**
-   * Synthesize final result from critiques
-   */
   private async synthesizeA2AResult(
     responses: A2AAgentResponse[],
     critiques: A2ACritique[],
@@ -491,9 +463,6 @@ Output improved synthesis. Bullet points. No preamble.`;
     }
   }
 
-  /**
-   * Shuffle array (Fisher-Yates)
-   */
   private shuffleArray<T>(array: T[]): T[] {
     const shuffled = [...array];
     for (let i = shuffled.length - 1; i > 0; i--) {
@@ -503,10 +472,6 @@ Output improved synthesis. Bullet points. No preamble.`;
     return shuffled;
   }
 
-  /**
-   * Build agent input from MCP arguments
-   * Note: MCP clients don't have real user/startup IDs, so we use placeholders
-   */
   private buildAgentInput(args: Record<string, unknown>): AgentInput {
     // Use deterministic IDs for MCP clients (based on company name hash)
     const companyName = (args.companyName as string) || 'unknown';
@@ -531,9 +496,6 @@ Output improved synthesis. Bullet points. No preamble.`;
     };
   }
 
-  /**
-   * Generate a deterministic UUID-like ID from a string
-   */
   private generateDeterministicId(input: string): string {
     // Simple hash-based deterministic ID (not a real UUID but consistent)
     let hash = 0;
@@ -547,9 +509,6 @@ Output improved synthesis. Bullet points. No preamble.`;
     return `mcp-${hex}-0000-0000-000000000000`;
   }
 
-  /**
-   * Extract council metadata from agent output
-   */
   private extractCouncilMetadata(metadata: Record<string, unknown>): McpCouncilMetadata {
     return {
       modelsUsed: (metadata.modelsUsed as string[]) ?? [],
@@ -559,9 +518,6 @@ Output improved synthesis. Bullet points. No preamble.`;
     };
   }
 
-  /**
-   * Create error result
-   */
   private errorResult(error: string, startTime: number): McpToolExecutionResult {
     return {
       success: false,

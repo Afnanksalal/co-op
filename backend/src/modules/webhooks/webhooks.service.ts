@@ -98,9 +98,9 @@ export class WebhooksService {
     }
   }
 
-  /** Pilot program: 1 webhook per user */
+  // Pilot: 1 webhook per user
   private readonly PILOT_WEBHOOK_LIMIT = 1;
-  /** Pilot program: 10 webhook triggers per day */
+  // Pilot: 10 triggers per day
   private readonly PILOT_DAILY_TRIGGER_LIMIT = 10;
 
   async create(userId: string, dto: CreateWebhookDto): Promise<WebhookResponseDto> {
@@ -248,9 +248,6 @@ export class WebhooksService {
     return { secret: plainSecret };
   }
 
-  /**
-   * Check if webhook has exceeded daily trigger limit
-   */
   private async checkDailyTriggerLimit(webhookId: string): Promise<boolean> {
     const today = new Date().toISOString().split('T')[0];
     const dailyKey = `${this.WEBHOOK_USAGE_PREFIX}${webhookId}:daily:${today}`;
@@ -371,9 +368,6 @@ export class WebhooksService {
     };
   }
 
-  /**
-   * Track webhook delivery (success or failure)
-   */
   private async trackDelivery(webhookId: string, success: boolean): Promise<void> {
     const now = new Date();
     const today = now.toISOString().split('T')[0];
@@ -398,9 +392,6 @@ export class WebhooksService {
     await this.redis.expire(monthlyKey, 86400 * 35); // Keep for ~35 days
   }
 
-  /**
-   * Get usage stats for a specific webhook
-   */
   async getWebhookUsage(webhookId: string, userId: string): Promise<WebhookUsageStats | null> {
     const webhook = await this.findById(webhookId, userId);
 
@@ -429,9 +420,6 @@ export class WebhooksService {
     };
   }
 
-  /**
-   * Get usage summary for all webhooks of a user
-   */
   async getUserUsageSummary(userId: string): Promise<UserWebhookUsageSummary> {
     const webhooks = await this.findByUserId(userId);
 
