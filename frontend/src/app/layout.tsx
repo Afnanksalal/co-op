@@ -14,7 +14,7 @@ const playfair = Playfair_Display({
   variable: '--font-serif',
 });
 
-const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://co-op-dev.vercel.app';
+const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://co-op.software';
 
 export const metadata: Metadata = {
   title: {
@@ -169,7 +169,7 @@ const jsonLd = {
   applicationCategory: 'BusinessApplication',
   operatingSystem: 'Web',
   description: 'Free AI-powered advisory board for startups. Get expert guidance on legal compliance, financial modeling, investor matching, and competitor analysis.',
-  url: 'https://co-op-dev.vercel.app',
+  url: 'https://co-op.software',
   offers: {
     '@type': 'Offer',
     price: '0',
@@ -206,7 +206,7 @@ export default function RootLayout({
         />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link rel="dns-prefetch" href="https://co-op-80fi.onrender.com" />
+        <link rel="dns-prefetch" href="https://api.co-op.software" />
       </head>
       <body className="font-sans antialiased">
         <ThemeProvider>

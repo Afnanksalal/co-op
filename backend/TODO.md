@@ -155,12 +155,13 @@
 - ✅ JWT authentication
 - ✅ API key hashing (SHA-256)
 - ✅ Timing-safe comparison
-- ✅ AES-256-GCM encryption
-- ✅ Rate limiting
+- ✅ AES-256-GCM encryption with key versioning
+- ✅ API key revocation support
+- ✅ Rate limiting with configurable presets
 - ✅ Input validation
-- ✅ Audit logging
+- ✅ Audit logging with DLQ
 - ✅ Security headers (Helmet)
-- ✅ CORS configuration
+- ✅ CORS configuration (production domains only)
 - ✅ Circuit breaker
 - ✅ IP validation for proxy headers
 - ✅ Error message sanitization
@@ -171,6 +172,26 @@
 - ✅ Auth token caching (30s) to reduce Supabase calls
 - ✅ Failed auth rate limiting (10 failed attempts/min per IP)
 - ✅ SSE token via query param (EventSource limitation)
+- ✅ Health check caching (5s TTL)
+- ✅ Webhook exponential backoff
+
+### CI/CD Pipeline (v1.4.0)
+- ✅ GitHub Actions workflow
+- ✅ Automated linting and type checking
+- ✅ Build verification for all services
+- ✅ Security audit checks
+
+### Configurable Pilot Limits (v1.4.0)
+- ✅ PILOT_AGENT_MONTHLY_REQUESTS
+- ✅ PILOT_API_KEY_LIMIT
+- ✅ PILOT_API_KEY_MONTHLY_REQUESTS
+- ✅ PILOT_WEBHOOK_LIMIT
+- ✅ PILOT_WEBHOOK_DAILY_TRIGGERS
+- ✅ PILOT_ALERT_LIMIT
+- ✅ PILOT_LEAD_LIMIT
+- ✅ PILOT_LEAD_DISCOVERY_HOURLY
+- ✅ PILOT_CAMPAIGN_LIMIT
+- ✅ PILOT_EMAILS_PER_DAY
 
 ### Bug Fixes (v1.3.3)
 - ✅ Auth rate limit rework - only count FAILED attempts, not all attempts

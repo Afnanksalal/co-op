@@ -67,6 +67,7 @@ By participating in this project, you agree to maintain a respectful and inclusi
 | `docs/` | Documentation |
 | `refactor/` | Code refactoring |
 | `test/` | Test additions |
+| `chore/` | Maintenance tasks |
 
 Example: `feature/add-slack-integration`
 
@@ -87,39 +88,60 @@ type(scope): description
 | `refactor` | Code restructuring |
 | `test` | Tests |
 | `chore` | Maintenance |
+| `perf` | Performance improvements |
+| `ci` | CI/CD changes |
 
 Examples:
 ```bash
 feat(agents): add competitor analysis caching
 fix(auth): resolve token refresh race condition
 docs(readme): update deployment instructions
+perf(rag): optimize vector search queries
+ci(github): add automated security audit
 ```
 
 ### Pull Request Process
 
 1. Create a feature branch from `main`
 2. Make your changes
-3. Run linting and tests
-4. Update documentation if needed
-5. Submit a pull request
+3. Run linting and type checking
+4. Ensure CI passes (GitHub Actions)
+5. Update documentation if needed
+6. Submit a pull request with clear description
+
+### CI/CD Pipeline
+
+All PRs trigger automated checks:
+- ESLint and Prettier formatting
+- TypeScript type checking
+- Build verification
+- Security audit (`npm audit`)
 
 ### Code Quality
 
 **Backend:**
 ```bash
 cd Backend
-npm run lint
-npm run format
-npm run build
+npm run lint          # Run ESLint
+npm run format        # Format with Prettier
+npm run build         # Verify build
+npm audit             # Security check
 ```
 
 **Frontend:**
 ```bash
 cd Frontend
-npm run lint
-npm run format
-npm run typecheck
-npm run build
+npm run lint          # Run ESLint
+npm run format        # Format with Prettier
+npm run typecheck     # TypeScript checking
+npm run build         # Verify build
+```
+
+**RAG Service:**
+```bash
+cd RAG
+pip install -r requirements.txt
+python -m py_compile app/main.py  # Syntax check
 ```
 
 ## Code Style
@@ -130,30 +152,53 @@ npm run build
 - Prefer `const` over `let`
 - Use explicit return types
 - Avoid `any` type
+- Use meaningful variable names
 
 ### React/Next.js
 
-- Use functional components
-- Use hooks appropriately
-- Keep components focused
+- Use functional components with hooks
+- Keep components focused and small
+- Use proper TypeScript types for props
+- Follow accessibility best practices
 
 ### NestJS
 
 - Follow module-based architecture
 - Use dependency injection
-- Document endpoints with Swagger
+- Document endpoints with proper DTOs
+- Use guards for authentication/authorization
+- Implement proper error handling
 
-## Testing
+### Python (RAG)
 
-- Write tests for new features
-- Maintain existing test coverage
-- Test edge cases
+- Follow PEP 8 style guide
+- Use type hints
+- Document functions with docstrings
+- Use async/await for I/O operations
+
+## Architecture Guidelines
+
+### Adding New Features
+
+1. **Backend**: Create a new module in `src/modules/`
+2. **Frontend**: Add pages in `src/app/` and components in `src/components/`
+3. **Database**: Add schema in `src/database/schema/` and migration in `src/database/migrations/`
+4. **API**: Follow RESTful conventions, add proper DTOs and validation
+
+### Security Considerations
+
+- Never commit secrets or API keys
+- Use environment variables for configuration
+- Implement proper input validation
+- Follow rate limiting guidelines
+- Add audit logging for sensitive operations
 
 ## Documentation
 
 - Update README for new features
 - Add JSDoc comments for complex functions
 - Keep API documentation current
+- Document environment variables in `.env.example`
 
 ## Questions?
 

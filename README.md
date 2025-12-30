@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <a href="https://co-op-dev.vercel.app">Live Demo</a> •
+  <a href="https://co-op.software">Live Demo</a> •
   <a href="#features">Features</a> •
   <a href="#quick-start">Quick Start</a> •
   <a href="#architecture">Architecture</a> •
@@ -67,8 +67,8 @@ Co-Op is an open-source AI advisory platform that provides startup founders with
 | **Authentication** | Supabase JWT with token verification |
 | **Authorization** | Role-based access (user, admin) |
 | **Rate Limiting** | Per-user throttling via Redis with configurable presets |
-| **API Keys** | SHA-256 hashed, timing-safe comparison |
-| **Encryption** | AES-256-GCM for sensitive data at rest |
+| **API Keys** | SHA-256 hashed, timing-safe comparison, revocation support |
+| **Encryption** | AES-256-GCM for sensitive data at rest with key versioning |
 | **Document Encryption** | User documents encrypted chunk-by-chunk |
 | **Input Validation** | class-validator DTOs, whitelist mode |
 | **SQL Injection** | Drizzle ORM parameterized queries |
@@ -84,7 +84,7 @@ Co-Op is an open-source AI advisory platform that provides startup founders with
 | **Serverless Cache** | Upstash Redis pay-per-request |
 | **Async Processing** | QStash message queue with webhooks |
 | **Circuit Breaker** | Opossum for fault tolerance |
-| **Retry Logic** | Exponential backoff with jitter |
+| **Retry Logic** | Exponential backoff with jitter (webhooks, API calls) |
 | **RAG Caching** | 30-min TTL, SHA-256 cache keys |
 | **SSE Reconnection** | Auto-reconnect with exponential backoff |
 | **Horizontal Scaling** | Stateless services, Redis-backed state |
@@ -270,9 +270,9 @@ npx expo run:android  # or run:ios
 
 | Service | Platform | URL |
 |---------|----------|-----|
-| Frontend | Vercel | [co-op-dev.vercel.app](https://co-op-dev.vercel.app) |
-| Backend | Render | `https://co-op-80fi.onrender.com` |
-| RAG | Koyeb | `https://apparent-nanice-afnan-3cac971c.koyeb.app` |
+| Frontend | Vercel | [co-op.software](https://co-op.software) |
+| Backend | Render | `https://api.co-op.software` |
+| RAG | Koyeb | `https://rag.co-op.software` |
 
 ### Infrastructure
 
@@ -325,11 +325,11 @@ All services have free tiers available.
 ```bash
 # User auth (Supabase JWT)
 curl -H "Authorization: Bearer <jwt>" \
-  https://api.example.com/api/v1/users/me
+  https://api.co-op.software/api/v1/users/me
 
 # Service auth (API Key)
 curl -H "X-API-Key: coop_xxxxx" \
-  https://api.example.com/api/v1/mcp-server/discover
+  https://api.co-op.software/api/v1/mcp-server/discover
 ```
 
 ### Key Endpoints
@@ -389,6 +389,12 @@ See [Backend README](./Backend/README.md) for complete API documentation.
 - [x] Bulk user operations
 - [x] Usage tracking and reset
 
+### CI/CD Pipeline
+- [x] GitHub Actions workflow
+- [x] Automated linting and type checking
+- [x] Build verification for all services
+- [x] Security audit checks
+
 ### Coming Soon
 - [ ] Team workspaces
 - [ ] Stripe integration
@@ -413,10 +419,15 @@ The outreach module enables AI-powered customer acquisition:
 - Unsubscribe handling
 - Daily send limits (50 emails/day pilot)
 
-### Pilot Limits
-- 50 leads maximum
-- 5 campaigns maximum
-- 50 emails per day
+### Pilot Limits (Configurable via Environment Variables)
+- Agent requests: 3/month (`PILOT_AGENT_MONTHLY_REQUESTS`)
+- API keys: 1 per user (`PILOT_API_KEY_LIMIT`)
+- Webhooks: 1 per user (`PILOT_WEBHOOK_LIMIT`)
+- Alerts: 3 per user (`PILOT_ALERT_LIMIT`)
+- Leads: 50 maximum (`PILOT_LEAD_LIMIT`)
+- Lead discovery: 5/hour (`PILOT_LEAD_DISCOVERY_HOURLY`)
+- Campaigns: 5 maximum (`PILOT_CAMPAIGN_LIMIT`)
+- Emails: 50/day (`PILOT_EMAILS_PER_DAY`)
 
 ---
 

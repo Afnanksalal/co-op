@@ -130,9 +130,10 @@ jobs:
         run: npm run build
         working-directory: Frontend
         env:
-          NEXT_PUBLIC_API_URL: https://api.example.com/api/v1
+          NEXT_PUBLIC_API_URL: https://api.co-op.software/api/v1
           NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-key
+          NEXT_PUBLIC_APP_URL: https://co-op.software
 
   frontend-typecheck:
     name: Frontend Type Check

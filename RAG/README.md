@@ -285,8 +285,9 @@ RAG/
 ### Backend Configuration
 
 ```bash
-RAG_SERVICE_URL=https://your-rag.koyeb.app
+RAG_SERVICE_URL=https://rag.co-op.software
 RAG_API_KEY=your-secure-key
+CORS_ORIGINS=https://api.co-op.software
 ```
 
 ### Flow

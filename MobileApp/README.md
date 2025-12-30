@@ -109,12 +109,15 @@ This ensures account switching works correctly by clearing both WebView and brow
 
 ```typescript
 // src/constants/config.ts
-export const WEB_URL = 'https://co-op-dev.vercel.app';
+export const WEB_URL = 'https://co-op.software';
+export const API_URL = 'https://api.co-op.software';
 export const APP_SCHEME = 'coop';
 
 export const ALLOWED_DOMAINS = [
-  'co-op-dev.vercel.app',
-  'co-op.vercel.app',
+  'co-op.software',
+  'api.co-op.software',
+  'rag.co-op.software',
+  'localhost',
 ];
 
 export const OAUTH_DOMAINS = [

@@ -135,7 +135,7 @@ services:
       # CORS (set to your frontend URL)
       # ===========================================
       - key: CORS_ORIGINS
-        value: "https://co-op-dev.vercel.app"
+        value: "https://co-op.software"
       
       # ===========================================
       # Logging

@@ -68,8 +68,8 @@ src/
 | Authentication | Supabase JWT verification |
 | Authorization | Role-based (user, admin) |
 | Rate Limiting | Redis-backed per-endpoint throttling with presets |
-| API Keys | SHA-256 hashed, timing-safe comparison |
-| Encryption | AES-256-GCM for sensitive data |
+| API Keys | SHA-256 hashed, timing-safe comparison, revocation support |
+| Encryption | AES-256-GCM for sensitive data with key versioning |
 | Input Validation | class-validator DTOs, whitelist mode |
 | Security Headers | Helmet.js middleware |
 | Audit Logging | Full audit trail for all admin operations |
@@ -159,10 +159,10 @@ Multiple AI models collaborate and cross-critique each response:
 
 ```bash
 # User auth (Supabase JWT)
-curl -H "Authorization: Bearer <jwt>" /api/v1/users/me
+curl -H "Authorization: Bearer <jwt>" https://api.co-op.software/api/v1/users/me
 
 # Service auth (API Key)
-curl -H "X-API-Key: coop_xxxxx" /api/v1/mcp-server/discover
+curl -H "X-API-Key: coop_xxxxx" https://api.co-op.software/api/v1/mcp-server/discover
 ```
 
 ### Key Endpoints
@@ -236,18 +236,22 @@ curl -H "X-API-Key: coop_xxxxx" /api/v1/mcp-server/discover
 | POST | `/admin/users/bulk/activate` | 10/min | Bulk activate users |
 | POST | `/admin/users/bulk/delete` | 5/min | Bulk delete users |
 
-#### Pilot Limits (Code-Defined)
+#### Pilot Limits (Configurable via Environment Variables)
 
-| Resource | Limit | Period |
-|----------|-------|--------|
-| Agent Requests | 3 | per month |
-| API Keys | 1 | total |
-| Webhooks | 1 | total |
-| Leads | 50 | total |
-| Campaigns | 5 | total |
-| Emails | 50 | per day |
+| Resource | Default | Environment Variable |
+|----------|---------|---------------------|
+| Agent Requests | 3/month | `PILOT_AGENT_MONTHLY_REQUESTS` |
+| API Keys | 1 | `PILOT_API_KEY_LIMIT` |
+| API Key Requests | 3/month | `PILOT_API_KEY_MONTHLY_REQUESTS` |
+| Webhooks | 1 | `PILOT_WEBHOOK_LIMIT` |
+| Webhook Triggers | 10/day | `PILOT_WEBHOOK_DAILY_TRIGGERS` |
+| Alerts | 3 | `PILOT_ALERT_LIMIT` |
+| Leads | 50 | `PILOT_LEAD_LIMIT` |
+| Lead Discovery | 5/hour | `PILOT_LEAD_DISCOVERY_HOURLY` |
+| Campaigns | 5 | `PILOT_CAMPAIGN_LIMIT` |
+| Emails | 50/day | `PILOT_EMAILS_PER_DAY` |
 
-> Note: Pilot limits are enforced via Redis and database constraints. Admin can reset agent usage (monthly) but cannot change the limits themselves.
+> Note: All limits can be adjusted via environment variables for scaling beyond pilot phase.
 
 ### Rate Limit Presets (Per-Endpoint)
 
@@ -257,6 +261,65 @@ curl -H "X-API-Key: coop_xxxxx" /api/v1/mcp-server/discover
 | STRICT | 10/min | 60s |
 | CREATE | 5/min | 60s |
 | READ | 200/min | 60s |
+
+## New Features (v1.4.0)
+
+### CI/CD Pipeline
+
+Automated GitHub Actions workflow:
+- Linting and type checking
+- Build verification for all services
+- Security audit checks
+- Runs on all PRs and pushes to main
+
+### Encryption Key Versioning
+
+```typescript
+// Supports key rotation without data loss
+ENCRYPTION_KEY="current-key"
+ENCRYPTION_KEY_V1="previous-key"  // Optional: for decrypting old data
+```
+
+### API Key Revocation
+
+```typescript
+// Revoke compromised API keys
+POST /api-keys/:id/revoke
+{ "reason": "Compromised" }
+```
+
+### Webhook Exponential Backoff
+
+Failed webhook deliveries now retry with exponential backoff:
+- Initial delay: 1 second
+- Max delay: 5 minutes
+- Max retries: 5
+
+### Configurable Pilot Limits
+
+All pilot limits configurable via environment variables:
+```bash
+PILOT_AGENT_MONTHLY_REQUESTS="3"
+PILOT_API_KEY_LIMIT="1"
+PILOT_WEBHOOK_LIMIT="1"
+PILOT_ALERT_LIMIT="3"
+PILOT_LEAD_LIMIT="50"
+PILOT_LEAD_DISCOVERY_HOURLY="5"
+PILOT_CAMPAIGN_LIMIT="5"
+PILOT_EMAILS_PER_DAY="50"
+```
+
+### Health Check Optimization
+
+Health checks now cached for 5 seconds to reduce database load.
+
+### Audit DLQ Improvements
+
+Failed audit logs now stored in Dead Letter Queue with retry mechanism.
+
+### Database Performance Indexes
+
+New indexes for improved query performance on high-traffic tables.
 
 ## New Features (v1.3.7)
 

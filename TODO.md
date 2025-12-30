@@ -160,6 +160,18 @@
 - [x] DLQ metrics tracking (taskQueueSize, taskDlqSize, retryAttemptsTotal, retrySuccessesTotal)
 - [x] Real-time thinking steps fix - all agents now pass onProgress to LLM Council
 
+### Production Readiness (v1.4.0)
+- [x] CI/CD pipeline (GitHub Actions)
+- [x] Encryption key versioning for rotation
+- [x] API key revocation support
+- [x] Webhook exponential backoff
+- [x] Session validation improvements
+- [x] Health check optimization (5s cache)
+- [x] Audit DLQ improvements
+- [x] Database performance indexes
+- [x] Configurable pilot limits via environment variables
+- [x] Production domain configuration (co-op.software)
+
 ### Agent Improvements
 - [x] Legal: Jurisdiction selector (region + specific regulations)
   - 9 regions (Global, US, EU, UK, India, Canada, APAC, LATAM, MENA)

@@ -1,7 +1,8 @@
 export const IS_DEV = __DEV__;
 
-export const WEB_URL = 'https://co-op-dev.vercel.app';
-export const API_URL = 'https://co-op-backend.onrender.com';
+// Production domains (always use production in release builds)
+export const WEB_URL = 'https://co-op.software';
+export const API_URL = 'https://api.co-op.software';
 export const APP_SCHEME = 'coop';
 
 export const COLORS = {
@@ -33,9 +34,9 @@ export const EXTERNAL_AUTH_PATHS = [
 ] as const;
 
 export const ALLOWED_DOMAINS = [
-  'co-op-dev.vercel.app',
-  'co-op.vercel.app',
-  'co-op-backend.onrender.com',
+  'co-op.software',
+  'api.co-op.software',
+  'rag.co-op.software',
   'localhost',
 ] as const;
 

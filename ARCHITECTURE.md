@@ -852,6 +852,32 @@ Error:
 
 ## Deployment Architecture
 
+### CI/CD Pipeline
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           GITHUB ACTIONS                                    │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                        ON PUSH / PR                                 │   │
+│  │                                                                     │   │
+│  │  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐  │   │
+│  │  │  Lint   │  │  Type   │  │  Build  │  │ Security│  │  Build  │  │   │
+│  │  │ Backend │  │  Check  │  │ Backend │  │  Audit  │  │Frontend │  │   │
+│  │  └─────────┘  └─────────┘  └─────────┘  └─────────┘  └─────────┘  │   │
+│  │                                                                     │   │
+│  │  Triggers: push to main, pull requests                             │   │
+│  │  Node.js: 20.x                                                     │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│  Checks:                                                                    │
+│  - ESLint + Prettier formatting                                            │
+│  - TypeScript type checking                                                │
+│  - Production build verification                                           │
+│  - npm audit for security vulnerabilities                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
 ### Production Infrastructure
 
 ```
@@ -974,11 +1000,12 @@ Error:
 
 **Problem**: Sensitive data (webhook secrets, tokens) needs protection at rest.
 
-**Solution**: AES-256-GCM with random IV and authentication tag.
+**Solution**: AES-256-GCM with random IV and authentication tag, plus key versioning.
 
 **Benefits**:
 - Industry-standard encryption
 - Authenticated encryption prevents tampering
+- Key versioning supports rotation without data loss
 - Graceful fallback for legacy plaintext data
 - Key derivation from environment variable
 
@@ -993,6 +1020,19 @@ Error:
 - Fast failure when service is down
 - Automatic recovery when service returns
 - Memory-efficient with LRU cleanup
+
+### Why CI/CD Pipeline?
+
+**Problem**: Manual testing is error-prone and inconsistent.
+
+**Solution**: GitHub Actions workflow for automated checks.
+
+**Benefits**:
+- Consistent code quality across all PRs
+- Automated linting and type checking
+- Build verification before merge
+- Security audit on every change
+- Fast feedback loop for developers
 
 ---
 

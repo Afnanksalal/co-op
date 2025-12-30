@@ -103,7 +103,7 @@ export default function PrivacyPage() {
             <h2 className="font-serif text-2xl font-medium mb-4">8. Self-Hosted Instances</h2>
             <p className="text-muted-foreground leading-relaxed">
               If you self-host Co-Op, you are responsible for your own data handling and privacy 
-              compliance. This policy applies only to the hosted version at co-op-dev.vercel.app.
+              compliance. This policy applies only to the hosted version at co-op.software.
             </p>
           </section>
 

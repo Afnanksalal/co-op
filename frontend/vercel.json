@@ -28,7 +28,7 @@
   "rewrites": [
     {
       "source": "/api/v1/:path*",
-      "destination": "https://co-op-80fi.onrender.com/api/v1/:path*"
+      "destination": "https://api.co-op.software/api/v1/:path*"
     }
   ]
 }

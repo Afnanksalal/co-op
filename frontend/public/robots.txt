@@ -1,5 +1,5 @@
 # Co-Op AI Advisory Platform
-# https://co-op-dev.vercel.app
+# https://co-op.software
 
 User-agent: *
 Allow: /
@@ -8,7 +8,7 @@ Disallow: /auth/
 Disallow: /_next/
 
 # Sitemaps
-Sitemap: https://co-op-dev.vercel.app/sitemap.xml
+Sitemap: https://co-op.software/sitemap.xml
 
 # Crawl-delay for polite crawling
 Crawl-delay: 1

@@ -28,8 +28,7 @@
         "NSMicrophoneUsageDescription": "Voice input for chat"
       },
       "associatedDomains": [
-        "applinks:co-op-dev.vercel.app",
-        "applinks:co-op.vercel.app"
+        "applinks:co-op.software"
       ],
       "requireFullScreen": false,
       "userInterfaceStyle": "automatic"
@@ -57,12 +56,7 @@
           "data": [
             {
               "scheme": "https",
-              "host": "co-op-dev.vercel.app",
-              "pathPrefix": "/auth/callback"
-            },
-            {
-              "scheme": "https",
-              "host": "co-op.vercel.app",
+              "host": "co-op.software",
               "pathPrefix": "/auth/callback"
             }
           ],

@@ -32,10 +32,10 @@ NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 
 # Backend API (Required)
-NEXT_PUBLIC_API_URL=https://co-op-80fi.onrender.com/api/v1
+NEXT_PUBLIC_API_URL=https://api.co-op.software/api/v1
 
 # App URL (Optional)
-NEXT_PUBLIC_APP_URL=https://co-op-dev.vercel.app
+NEXT_PUBLIC_APP_URL=https://co-op.software
 ```
 
 ## Project Structure
@@ -96,6 +96,11 @@ Four specialized agents with real-time SSE streaming:
 | Investor | VC matching, pitch optimization | Web research |
 | Competitor | Market analysis, positioning | Web research |
 
+New in v1.4.0:
+- **Configurable Pilot Limits** - All limits adjustable via environment variables
+- **Improved Session Validation** - Server-side session integrity checks
+- **Optimized API Client** - Exponential backoff with jitter for retries
+
 New in v1.3.7:
 - **Jurisdiction Dropdown** - Region-specific legal/regulatory context for chat and agent pages
 - **Finance Agent Parameters** - `financeFocus` and `currency` options for targeted financial advice
@@ -150,6 +155,11 @@ New in v1.3.7:
 - **Queue Health Card** - DLQ status, task counts, status breakdown
 - Circuit breaker status monitoring
 - Real-time Prometheus metrics
+
+### CI/CD Integration
+- GitHub Actions workflow for automated checks
+- Linting and type checking on all PRs
+- Build verification before merge
 
 ### Settings
 - Profile editing
