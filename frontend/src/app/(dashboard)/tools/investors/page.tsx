@@ -128,12 +128,50 @@ export default function InvestorsPage() {
   const [investors, setInvestors] = useState<Investor[]>([]);
   const [stats, setStats] = useState<InvestorStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [aiInsights, setAiInsights] = useState<{ type: 'tip' | 'warning' | 'action'; message: string }[]>([]);
+  const [isLoadingInsights, setIsLoadingInsights] = useState(false);
   
   // Filters
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] = useState<string>('all');
   const [sectorFilter, setSectorFilter] = useState<string>('all');
   const [regionFilter, setRegionFilter] = useState<string>('all');
+
+  // Fetch LLM insights when data changes
+  const fetchInvestorInsights = useCallback(async (investorData: Investor[], statsData: InvestorStats | null) => {
+    if (!statsData || investorData.length === 0) {
+      setAiInsights([]);
+      return;
+    }
+    
+    setIsLoadingInsights(true);
+    try {
+      const response = await api.generateInsights('Investor Database', {
+        totalInvestors: statsData.total,
+        resultsCount: investorData.length,
+        stageFilter,
+        sectorFilter,
+        regionFilter,
+        featuredCount: investorData.filter(i => i.isFeatured).length,
+        stageDistribution: statsData.byStage,
+        sectorDistribution: statsData.bySector?.slice(0, 5),
+      });
+      
+      if (response.insights && response.insights.length > 0) {
+        setAiInsights(response.insights.map(i => ({
+          type: i.type as 'tip' | 'warning' | 'action',
+          message: i.message,
+        })).slice(0, 3));
+      } else {
+        setAiInsights([]);
+      }
+    } catch (error) {
+      console.error('Failed to fetch investor insights:', error);
+      setAiInsights([]);
+    } finally {
+      setIsLoadingInsights(false);
+    }
+  }, [stageFilter, sectorFilter, regionFilter]);
 
   const fetchInvestors = useCallback(async () => {
     setIsLoading(true);
@@ -150,18 +188,22 @@ export default function InvestorsPage() {
       ]);
       setInvestors(investorsData || []);
       // Ensure stats arrays are safe
-      setStats(statsData ? {
+      const safeStats = statsData ? {
         ...statsData,
         byStage: Array.isArray(statsData.byStage) ? statsData.byStage : [],
         bySector: Array.isArray(statsData.bySector) ? statsData.bySector : [],
-      } : null);
+      } : null;
+      setStats(safeStats);
+      
+      // Fetch LLM insights after data loads
+      void fetchInvestorInsights(investorsData || [], safeStats);
     } catch (error) {
       console.error('Failed to fetch investors:', error);
       toast.error('Failed to load investors');
     } finally {
       setIsLoading(false);
     }
-  }, [search, stageFilter, sectorFilter, regionFilter]);
+  }, [search, stageFilter, sectorFilter, regionFilter, fetchInvestorInsights]);
 
   useEffect(() => {
     const debounce = setTimeout(fetchInvestors, 300);
@@ -213,6 +255,44 @@ export default function InvestorsPage() {
               </CardContent>
             </Card>
           ))}
+        </motion.div>
+      )}
+
+      {/* AI Insights */}
+      {!isLoading && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="p-4 rounded-xl border border-primary/20 bg-gradient-to-br from-primary/5 via-primary/10 to-primary/5"
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-primary" width="16" height="16" fill="currentColor" viewBox="0 0 256 256">
+              <path d="M208,144a15.78,15.78,0,0,1-10.42,14.94l-51.65,19-19,51.61a15.92,15.92,0,0,1-29.88,0L78,178l-51.62-19a15.92,15.92,0,0,1,0-29.88l51.65-19,19-51.61a15.92,15.92,0,0,1,29.88,0l19,51.65,51.61,19A15.78,15.78,0,0,1,208,144ZM152,48h16V64a8,8,0,0,0,16,0V48h16a8,8,0,0,0,0-16H184V16a8,8,0,0,0-16,0V32H152a8,8,0,0,0,0,16Zm88,32h-8V72a8,8,0,0,0-16,0v8h-8a8,8,0,0,0,0,16h8v8a8,8,0,0,0,16,0V96h8a8,8,0,0,0,0-16Z"/>
+            </svg>
+            <span className="text-sm font-medium text-primary">AI Investor Insights</span>
+          </div>
+          {isLoadingInsights ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              <span>Generating insights...</span>
+            </div>
+          ) : aiInsights.length > 0 ? (
+            <div className="space-y-2">
+              {aiInsights.map((insight, i) => (
+                <div key={i} className="flex items-start gap-2 text-sm">
+                  <span className={cn(
+                    'shrink-0 mt-1 w-1.5 h-1.5 rounded-full',
+                    insight.type === 'warning' ? 'bg-orange-500' :
+                    insight.type === 'action' ? 'bg-blue-500' : 'bg-green-500'
+                  )} />
+                  <span className="text-muted-foreground">{insight.message}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Search for investors to get personalized insights</p>
+          )}
         </motion.div>
       )}
 

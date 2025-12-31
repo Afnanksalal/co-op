@@ -225,20 +225,44 @@ function UploadSection({
 }) {
   const [dragActive, setDragActive] = useState(false);
   const [investorType, setInvestorType] = useState<InvestorType | undefined>();
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
+
+  const validateAndUpload = (file: File) => {
+    setUploadError(null);
+    
+    if (file.type !== 'application/pdf') {
+      setUploadError('Please upload a PDF file');
+      return;
+    }
+    
+    if (file.size > MAX_FILE_SIZE) {
+      setUploadError(`File too large. Maximum size is 25MB (your file: ${(file.size / 1024 / 1024).toFixed(1)}MB)`);
+      return;
+    }
+    
+    if (file.size === 0) {
+      setUploadError('File appears to be empty');
+      return;
+    }
+    
+    onUpload(file, investorType);
+  };
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setDragActive(false);
     const file = e.dataTransfer.files[0];
-    if (file?.type === 'application/pdf') {
-      onUpload(file, investorType);
+    if (file) {
+      validateAndUpload(file);
     }
   }, [onUpload, investorType]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      onUpload(file, investorType);
+      validateAndUpload(file);
     }
   };
 
@@ -304,6 +328,15 @@ function UploadSection({
               </>
             )}
           </div>
+
+          {uploadError && (
+            <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-xs sm:text-sm flex items-center justify-between gap-2">
+              <span>{uploadError}</span>
+              <Button variant="ghost" size="sm" className="h-7 px-2 shrink-0" onClick={() => setUploadError(null)}>
+                Dismiss
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 

@@ -93,6 +93,8 @@ export default function AlertsPage() {
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
   const [alertResults, setAlertResults] = useState<AlertResult[]>([]);
   const [isLoadingResults, setIsLoadingResults] = useState(false);
+  const [aiTips, setAiTips] = useState<{ type: 'tip' | 'warning' | 'action'; message: string }[]>([]);
+  const [isLoadingTips, setIsLoadingTips] = useState(false);
   
   // Form state
   const [newAlert, setNewAlert] = useState({
@@ -106,6 +108,43 @@ export default function AlertsPage() {
   const [keywordInput, setKeywordInput] = useState('');
   const [competitorInput, setCompetitorInput] = useState('');
 
+  // Fetch LLM insights when alerts change
+  const fetchAlertTips = useCallback(async (alertsData: Alert[]) => {
+    if (alertsData.length === 0) {
+      setAiTips([]);
+      return;
+    }
+    
+    setIsLoadingTips(true);
+    try {
+      const response = await api.generateInsights('Monitoring Alerts', {
+        totalAlerts: alertsData.length,
+        alertTypes: alertsData.map(a => a.type),
+        frequencies: alertsData.map(a => a.frequency),
+        activeCount: alertsData.filter(a => a.isActive).length,
+        pausedCount: alertsData.filter(a => !a.isActive).length,
+        hasCompetitorAlert: alertsData.some(a => a.type === 'competitor'),
+        hasFundingAlert: alertsData.some(a => a.type === 'funding'),
+        hasRealtimeAlert: alertsData.some(a => a.frequency === 'realtime'),
+        avgKeywordsPerAlert: alertsData.reduce((sum, a) => sum + (a.keywords?.length || 0), 0) / alertsData.length,
+      });
+      
+      if (response.insights && response.insights.length > 0) {
+        setAiTips(response.insights.map(i => ({
+          type: i.type as 'tip' | 'warning' | 'action',
+          message: i.message,
+        })).slice(0, 4));
+      } else {
+        setAiTips([]);
+      }
+    } catch (error) {
+      console.error('Failed to fetch alert tips:', error);
+      setAiTips([]);
+    } finally {
+      setIsLoadingTips(false);
+    }
+  }, []);
+
 
   const fetchAlerts = useCallback(async () => {
     try {
@@ -117,12 +156,15 @@ export default function AlertsPage() {
         competitors: Array.isArray(alert.competitors) ? alert.competitors : [],
       }));
       setAlerts(safeAlerts);
+      
+      // Fetch LLM insights after alerts load
+      void fetchAlertTips(safeAlerts);
     } catch {
       toast.error('Failed to load alerts');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [fetchAlertTips]);
 
   useEffect(() => {
     fetchAlerts();
@@ -422,20 +464,27 @@ export default function AlertsPage() {
               </svg>
               <span className="text-sm font-medium text-primary">AI Monitoring Tips</span>
             </div>
-            <div className="space-y-2 text-sm text-muted-foreground">
-              <div className="flex items-start gap-2">
-                <span className="shrink-0 mt-1 w-1.5 h-1.5 rounded-full bg-blue-500" />
-                <span>Add competitor product names and key features as keywords for better tracking</span>
+            {isLoadingTips ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                <span>Generating tips...</span>
               </div>
-              <div className="flex items-start gap-2">
-                <span className="shrink-0 mt-1 w-1.5 h-1.5 rounded-full bg-green-500" />
-                <span>Set up funding alerts to track when competitors raise - timing matters for your strategy</span>
+            ) : aiTips.length > 0 ? (
+              <div className="space-y-2 text-sm text-muted-foreground">
+                {aiTips.map((tip, i) => (
+                  <div key={i} className="flex items-start gap-2">
+                    <span className={cn(
+                      'shrink-0 mt-1 w-1.5 h-1.5 rounded-full',
+                      tip.type === 'warning' ? 'bg-orange-500' :
+                      tip.type === 'action' ? 'bg-blue-500' : 'bg-green-500'
+                    )} />
+                    <span>{tip.message}</span>
+                  </div>
+                ))}
               </div>
-              <div className="flex items-start gap-2">
-                <span className="shrink-0 mt-1 w-1.5 h-1.5 rounded-full bg-orange-500" />
-                <span>Use daily digests to avoid alert fatigue while staying informed</span>
-              </div>
-            </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Configure your alerts to get personalized tips</p>
+            )}
           </CardContent>
         </Card>
       )}

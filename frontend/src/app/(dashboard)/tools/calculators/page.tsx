@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { api } from '@/lib/api/client';
 
 // Currency configuration for enterprise users
 const CURRENCIES = [
@@ -81,82 +82,30 @@ const SparkleIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-// Generate AI insights based on calculator results
-function generateRunwayInsights(runwayMonths: number, netBurn: number, revenue: number): AIInsight[] {
-  const insights: AIInsight[] = [];
-  
-  if (runwayMonths < 3) {
-    insights.push({ type: 'warning', message: 'Critical runway! Start fundraising immediately or cut costs by 30%+' });
-    insights.push({ type: 'action', message: 'Consider bridge financing or revenue-based financing options' });
-  } else if (runwayMonths < 6) {
-    insights.push({ type: 'warning', message: 'Low runway. Begin fundraising process now - it typically takes 3-6 months' });
-    insights.push({ type: 'tip', message: 'Focus on metrics that matter: MRR growth, retention, and unit economics' });
-  } else if (runwayMonths < 12) {
-    insights.push({ type: 'tip', message: 'Healthy runway. Good time to focus on growth while preparing for next round' });
-  } else {
-    insights.push({ type: 'tip', message: 'Strong runway position. Consider accelerating growth investments' });
-  }
-  
-  if (revenue > 0 && netBurn > 0) {
-    const revenueRatio = revenue / (revenue + netBurn);
-    if (revenueRatio < 0.2) {
-      insights.push({ type: 'action', message: 'Revenue covers <20% of burn. Prioritize revenue growth or reduce burn' });
-    } else if (revenueRatio > 0.5) {
-      insights.push({ type: 'tip', message: 'Revenue covers >50% of burn - strong path to profitability' });
+// Fetch AI insights from LLM
+async function fetchInsights(
+  toolName: string,
+  data: Record<string, unknown>,
+  setInsights: (insights: AIInsight[]) => void,
+  setIsLoadingInsights: (loading: boolean) => void
+): Promise<void> {
+  setIsLoadingInsights(true);
+  try {
+    const response = await api.generateInsights(toolName, data);
+    if (response.insights && response.insights.length > 0) {
+      setInsights(response.insights.map(i => ({
+        type: i.type as 'tip' | 'warning' | 'action',
+        message: i.message,
+      })));
+    } else {
+      setInsights([]);
     }
+  } catch (error) {
+    console.error('Failed to fetch insights:', error);
+    setInsights([]);
+  } finally {
+    setIsLoadingInsights(false);
   }
-  
-  return insights;
-}
-
-function generateBurnInsights(total: number, salaries: number): AIInsight[] {
-  const insights: AIInsight[] = [];
-  const salaryRatio = salaries / total;
-  
-  if (salaryRatio > 0.7) {
-    insights.push({ type: 'tip', message: 'Salaries are >70% of burn - typical for early-stage. Consider equity compensation to reduce cash burn' });
-  }
-  
-  insights.push({ type: 'action', message: 'Review subscriptions quarterly - startups often have 20-30% unused SaaS spend' });
-  
-  return insights;
-}
-
-function generateValuationInsights(arr: number, multiple: number, valuation: number): AIInsight[] {
-  const insights: AIInsight[] = [];
-  
-  if (multiple > 15) {
-    insights.push({ type: 'warning', message: 'High multiple (>15x) - ensure strong growth metrics to justify valuation' });
-  } else if (multiple < 5) {
-    insights.push({ type: 'tip', message: 'Conservative multiple. If growing >100% YoY, you may be undervaluing' });
-  }
-  
-  if (arr > 0) {
-    insights.push({ type: 'action', message: `At ${multiple}x ARR, focus on NRR >120% and growth >50% YoY to maintain multiple` });
-  }
-  
-  return insights;
-}
-
-function generateUnitEconomicsInsights(ltvCacRatio: number, paybackMonths: number, churn: number): AIInsight[] {
-  const insights: AIInsight[] = [];
-  
-  if (ltvCacRatio < 3) {
-    insights.push({ type: 'warning', message: 'LTV:CAC <3x is unsustainable. Reduce CAC or increase LTV through upsells' });
-    insights.push({ type: 'action', message: 'Test referral programs - they typically have 50% lower CAC' });
-  } else if (ltvCacRatio > 5) {
-    insights.push({ type: 'tip', message: 'Strong LTV:CAC! Consider increasing marketing spend to accelerate growth' });
-  }
-  
-  if (paybackMonths > 12) {
-    insights.push({ type: 'warning', message: 'Payback >12 months strains cash. Consider annual pricing with discounts' });
-  }
-  
-  if (churn > 5) {
-    insights.push({ type: 'action', message: `${churn}% monthly churn is high. Implement customer success program to reduce by 30-50%` });
-  }
-  
-  return insights;
 }
 
 // Validation helpers
@@ -254,6 +203,7 @@ function RunwayCalculator({ currencySymbol }: { currencySymbol: string }) {
   const [monthlyRevenue, setMonthlyRevenue] = useState('');
   const [results, setResults] = useState<CalculatorResult[] | null>(null);
   const [insights, setInsights] = useState<AIInsight[]>([]);
+  const [isLoadingInsights, setIsLoadingInsights] = useState(false);
   const [errors, setErrors] = useState<ValidationError[]>([]);
 
   const validate = (): boolean => {
@@ -285,7 +235,15 @@ function RunwayCalculator({ currencySymbol }: { currencySymbol: string }) {
         { value: '∞', label: 'Runway', description: 'You are cash flow positive!', isHighlight: true },
         { value: formatCurrency(revenue - burn, currencySymbol), label: 'Monthly Profit' },
       ]);
-      setInsights([{ type: 'tip', message: 'Excellent! You\'re profitable. Consider reinvesting in growth or building reserves.' }]);
+      // Fetch LLM insights for profitable scenario
+      void fetchInsights('Runway Calculator', {
+        cashBalance: cash,
+        monthlyBurn: burn,
+        monthlyRevenue: revenue,
+        netBurn: netBurn,
+        isProfitable: true,
+        monthlyProfit: revenue - burn,
+      }, setInsights, setIsLoadingInsights);
       return;
     }
 
@@ -309,8 +267,17 @@ function RunwayCalculator({ currencySymbol }: { currencySymbol: string }) {
       { value: formatCurrency(cash * 0.25 / netBurn, currencySymbol), label: 'Months to 25% Cash' },
     ]);
     
-    // Generate AI insights
-    setInsights(generateRunwayInsights(runwayMonths, netBurn, revenue));
+    // Fetch LLM insights
+    void fetchInsights('Runway Calculator', {
+      cashBalance: cash,
+      monthlyBurn: burn,
+      monthlyRevenue: revenue,
+      netBurn: netBurn,
+      runwayMonths: runwayMonths,
+      cashOutDate: runwayDate.toISOString(),
+      isCritical: isCriticalRunway,
+      isLow: isLowRunway,
+    }, setInsights, setIsLoadingInsights);
   };
 
   const getFieldError = (field: string) => errors.find(e => e.field === field)?.message;
@@ -369,7 +336,7 @@ function RunwayCalculator({ currencySymbol }: { currencySymbol: string }) {
           </div>
         </div>
         <Button onClick={calculate} className="w-full sm:w-auto">Calculate Runway</Button>
-        {results && <ResultsDisplay results={results} insights={insights} />}
+        {results && <ResultsDisplay results={results} insights={insights} isLoadingInsights={isLoadingInsights} />}
       </CardContent>
     </Card>
   );
@@ -383,6 +350,7 @@ function BurnRateCalculator({ currencySymbol }: { currencySymbol: string }) {
   const [other, setOther] = useState('');
   const [results, setResults] = useState<CalculatorResult[] | null>(null);
   const [insights, setInsights] = useState<AIInsight[]>([]);
+  const [isLoadingInsights, setIsLoadingInsights] = useState(false);
   const [errors, setErrors] = useState<ValidationError[]>([]);
 
   const validate = (): boolean => {
@@ -408,9 +376,11 @@ function BurnRateCalculator({ currencySymbol }: { currencySymbol: string }) {
     if (!validate()) return;
     
     const salaryVal = parseFloat(salaries) || 0;
-    const total = [salaries, rent, software, marketing, other]
-      .map(v => parseFloat(v) || 0)
-      .reduce((a, b) => a + b, 0);
+    const rentVal = parseFloat(rent) || 0;
+    const softwareVal = parseFloat(software) || 0;
+    const marketingVal = parseFloat(marketing) || 0;
+    const otherVal = parseFloat(other) || 0;
+    const total = salaryVal + rentVal + softwareVal + marketingVal + otherVal;
 
     if (total === 0) {
       setResults([{ value: formatCurrency(0, currencySymbol), label: 'Monthly Burn Rate', description: 'Enter your expenses', isHighlight: true }]);
@@ -419,11 +389,11 @@ function BurnRateCalculator({ currencySymbol }: { currencySymbol: string }) {
     }
 
     const breakdown = [
-      { name: 'Salaries', value: parseFloat(salaries) || 0 },
-      { name: 'Rent/Office', value: parseFloat(rent) || 0 },
-      { name: 'Software/Tools', value: parseFloat(software) || 0 },
-      { name: 'Marketing', value: parseFloat(marketing) || 0 },
-      { name: 'Other', value: parseFloat(other) || 0 },
+      { name: 'Salaries', value: salaryVal },
+      { name: 'Rent/Office', value: rentVal },
+      { name: 'Software/Tools', value: softwareVal },
+      { name: 'Marketing', value: marketingVal },
+      { name: 'Other', value: otherVal },
     ].filter(i => i.value > 0);
 
     const largest = breakdown.sort((a, b) => b.value - a.value)[0];
@@ -435,8 +405,17 @@ function BurnRateCalculator({ currencySymbol }: { currencySymbol: string }) {
       { value: largest ? `${largest.name} (${Math.round(largest.value / total * 100)}%)` : '-', label: 'Largest Expense' },
     ]);
     
-    // Generate AI insights
-    setInsights(generateBurnInsights(total, salaryVal));
+    // Fetch LLM insights
+    void fetchInsights('Burn Rate Calculator', {
+      totalBurn: total,
+      salaries: salaryVal,
+      rent: rentVal,
+      software: softwareVal,
+      marketing: marketingVal,
+      other: otherVal,
+      salaryPercentage: total > 0 ? (salaryVal / total * 100).toFixed(1) : 0,
+      breakdown: breakdown.map(b => ({ ...b, percentage: (b.value / total * 100).toFixed(1) })),
+    }, setInsights, setIsLoadingInsights);
   };
 
   const getFieldError = (field: string) => errors.find(e => e.field === field)?.message;
@@ -479,7 +458,7 @@ function BurnRateCalculator({ currencySymbol }: { currencySymbol: string }) {
           <p className="text-xs text-destructive">{errors[0].message}</p>
         )}
         <Button onClick={calculate} className="w-full sm:w-auto">Calculate Burn Rate</Button>
-        {results && <ResultsDisplay results={results} insights={insights} />}
+        {results && <ResultsDisplay results={results} insights={insights} isLoadingInsights={isLoadingInsights} />}
       </CardContent>
     </Card>
   );
@@ -493,6 +472,7 @@ function ValuationCalculator({ currencySymbol }: { currencySymbol: string }) {
   const [raised, setRaised] = useState('');
   const [results, setResults] = useState<CalculatorResult[] | null>(null);
   const [insights, setInsights] = useState<AIInsight[]>([]);
+  const [isLoadingInsights, setIsLoadingInsights] = useState(false);
   const [errors, setErrors] = useState<ValidationError[]>([]);
 
   const validate = (): boolean => {
@@ -541,8 +521,17 @@ function ValuationCalculator({ currencySymbol }: { currencySymbol: string }) {
       ...(totalRaised > 0 ? [{ value: formatCurrency(totalRaised, currencySymbol), label: 'Total Raised' }] : []),
     ]);
     
-    // Generate AI insights
-    setInsights(generateValuationInsights(annualRevenue, revenueMultiple, revenueBasedVal));
+    // Fetch LLM insights
+    void fetchInsights('Valuation Calculator', {
+      arr: annualRevenue,
+      multiple: revenueMultiple,
+      estimatedValuation: revenueBasedVal,
+      lastRoundValuation: lastVal,
+      totalRaised: totalRaised,
+      impliedMultiple: impliedMultiple,
+      conservativeValuation: revenueBasedVal * 0.8,
+      optimisticValuation: revenueBasedVal * 1.2,
+    }, setInsights, setIsLoadingInsights);
   };
 
   const getFieldError = (field: string) => errors.find(e => e.field === field)?.message;
@@ -582,7 +571,7 @@ function ValuationCalculator({ currencySymbol }: { currencySymbol: string }) {
           <p className="text-xs text-destructive">{errors[0].message}</p>
         )}
         <Button onClick={calculate} className="w-full sm:w-auto">Calculate Valuation</Button>
-        {results && <ResultsDisplay results={results} insights={insights} />}
+        {results && <ResultsDisplay results={results} insights={insights} isLoadingInsights={isLoadingInsights} />}
       </CardContent>
     </Card>
   );
@@ -595,6 +584,7 @@ function UnitEconomicsCalculator({ currencySymbol }: { currencySymbol: string })
   const [grossMargin, setGrossMargin] = useState('70');
   const [results, setResults] = useState<CalculatorResult[] | null>(null);
   const [insights, setInsights] = useState<AIInsight[]>([]);
+  const [isLoadingInsights, setIsLoadingInsights] = useState(false);
   const [errors, setErrors] = useState<ValidationError[]>([]);
 
   const validate = (): boolean => {
@@ -622,7 +612,9 @@ function UnitEconomicsCalculator({ currencySymbol }: { currencySymbol: string })
     const customerAcqCost = parseFloat(cac) || 0;
     const avgRevPerUser = parseFloat(arpu) || 0;
     const monthlyChurn = parseFloat(churnRate) || 0;
-    const margin = parseFloat(grossMargin) || 70;    if (monthlyChurn <= 0 || avgRevPerUser <= 0) {
+    const margin = parseFloat(grossMargin) || 70;
+    
+    if (monthlyChurn <= 0 || avgRevPerUser <= 0) {
       setResults([{ value: 'Invalid', label: 'Please enter valid ARPU and churn rate', isHighlight: true, isWarning: true }]);
       setInsights([]);
       return;
@@ -653,8 +645,19 @@ function UnitEconomicsCalculator({ currencySymbol }: { currencySymbol: string })
       { value: `${avgLifetimeMonths.toFixed(1)} mo`, label: 'Avg Customer Lifetime' },
     ]);
     
-    // Generate AI insights
-    setInsights(generateUnitEconomicsInsights(ltvCacRatio, paybackMonths, monthlyChurn));
+    // Fetch LLM insights
+    void fetchInsights('Unit Economics Calculator', {
+      cac: customerAcqCost,
+      arpu: avgRevPerUser,
+      monthlyChurn: monthlyChurn,
+      grossMargin: margin,
+      ltv: ltv,
+      ltvCacRatio: ltvCacRatio,
+      paybackMonths: paybackMonths,
+      avgLifetimeMonths: avgLifetimeMonths,
+      isHealthyRatio: isHealthyRatio,
+      isGoodPayback: isGoodPayback,
+    }, setInsights, setIsLoadingInsights);
   };
 
   const getFieldError = (field: string) => errors.find(e => e.field === field)?.message;
@@ -693,13 +696,13 @@ function UnitEconomicsCalculator({ currencySymbol }: { currencySymbol: string })
           <p className="text-xs text-destructive">{errors[0].message}</p>
         )}
         <Button onClick={calculate} className="w-full sm:w-auto">Calculate Unit Economics</Button>
-        {results && <ResultsDisplay results={results} insights={insights} />}
+        {results && <ResultsDisplay results={results} insights={insights} isLoadingInsights={isLoadingInsights} />}
       </CardContent>
     </Card>
   );
 }
 
-function ResultsDisplay({ results, insights }: { results: CalculatorResult[]; insights?: AIInsight[] }) {
+function ResultsDisplay({ results, insights, isLoadingInsights }: { results: CalculatorResult[]; insights?: AIInsight[]; isLoadingInsights?: boolean }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -734,17 +737,22 @@ function ResultsDisplay({ results, insights }: { results: CalculatorResult[]; in
       </div>
       
       {/* AI Insights Section */}
-      {insights && insights.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="p-4 rounded-lg bg-gradient-to-br from-primary/5 via-primary/10 to-primary/5 border border-primary/20"
-        >
-          <div className="flex items-center gap-2 mb-3">
-            <SparkleIcon className="w-4 h-4 text-primary" />
-            <span className="text-sm font-medium text-primary">AI Insights</span>
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="p-4 rounded-lg bg-gradient-to-br from-primary/5 via-primary/10 to-primary/5 border border-primary/20"
+      >
+        <div className="flex items-center gap-2 mb-3">
+          <SparkleIcon className="w-4 h-4 text-primary" />
+          <span className="text-sm font-medium text-primary">AI Insights</span>
+        </div>
+        {isLoadingInsights ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <span>Generating insights...</span>
           </div>
+        ) : insights && insights.length > 0 ? (
           <div className="space-y-2">
             {insights.map((insight, i) => (
               <div key={i} className="flex items-start gap-2 text-sm">
@@ -757,8 +765,10 @@ function ResultsDisplay({ results, insights }: { results: CalculatorResult[]; in
               </div>
             ))}
           </div>
-        </motion.div>
-      )}
+        ) : (
+          <p className="text-sm text-muted-foreground">No insights available</p>
+        )}
+      </motion.div>
     </motion.div>
   );
 }

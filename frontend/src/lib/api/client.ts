@@ -1368,6 +1368,24 @@ class ApiClient {
     await this.delete(`/cap-tables/${capTableId}/scenarios/${scenarioId}`);
   }
 
+  // AI Insights
+  async getCapTableInsights(capTableId: string): Promise<import('./types').AIInsightsResponse> {
+    return this.get<import('./types').AIInsightsResponse>(`/cap-tables/${capTableId}/insights`);
+  }
+
+  async generateInsights(toolName: string, data: Record<string, unknown>, userContext?: {
+    companyName?: string;
+    industry?: string;
+    stage?: string;
+    country?: string;
+  }): Promise<import('./types').AIInsightsResponse> {
+    return this.post<import('./types').AIInsightsResponse>('/insights/generate', {
+      toolName,
+      data,
+      userContext,
+    });
+  }
+
   // Export
   async exportCapTable(capTableId: string, format: import('./types').CapTableExportFormat): Promise<Blob> {
     const supabase = createClient();

@@ -21,6 +21,7 @@ import { ResearchModule } from './common/research/research.module';
 import { RetryModule } from './common/retry/retry.module';
 import { StreamingModule } from './common/streaming/streaming.module';
 import { EmailModule } from './common/email/email.module';
+import { InsightsModule } from './common/insights/insights.module';
 
 // Interceptors
 import { HttpMetricsInterceptor } from './common/interceptors/http-metrics.interceptor';
@@ -79,6 +80,7 @@ import { CapTableModule } from './modules/cap-table/cap-table.module';
     RetryModule,
     StreamingModule,
     EmailModule,
+    InsightsModule,
 
     // Features
     HealthModule,

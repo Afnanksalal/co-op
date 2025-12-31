@@ -16,6 +16,7 @@ import { AuthGuard } from '@/common/guards/auth.guard';
 import { UserThrottleGuard } from '@/common/guards/user-throttle.guard';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { RateLimit, RateLimitPresets } from '@/common/decorators/rate-limit.decorator';
+import { InsightsService } from '@/common/insights/insights.service';
 import { CapTableService } from './cap-table.service';
 import {
   CreateCapTableDto,
@@ -38,7 +39,10 @@ import {
 @UseGuards(AuthGuard, UserThrottleGuard)
 @ApiBearerAuth()
 export class CapTableController {
-  constructor(private readonly capTableService: CapTableService) {}
+  constructor(
+    private readonly capTableService: CapTableService,
+    private readonly insightsService: InsightsService,
+  ) {}
 
   // ============================================
   // CAP TABLE CRUD
@@ -250,6 +254,43 @@ export class CapTableController {
     @CurrentUser('id') userId: string,
   ) {
     await this.capTableService.deleteScenario(capTableId, scenarioId, userId);
+  }
+
+  // ============================================
+  // AI INSIGHTS
+  // ============================================
+
+  @Get(':id/insights')
+  @RateLimit({ limit: 20, ttl: 60, keyPrefix: 'cap-table:insights' })
+  @ApiOperation({ summary: 'Get AI-powered insights for cap table' })
+  async getInsights(
+    @Param('id', ParseUUIDPipe) capTableId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    const summary = await this.capTableService.getCapTableSummary(capTableId, userId);
+    
+    return this.insightsService.generateInsights({
+      toolName: 'Cap Table Simulator',
+      data: {
+        totalIssuedShares: summary.capTable.totalIssuedShares,
+        fullyDilutedShares: summary.capTable.fullyDilutedShares,
+        currentValuation: summary.capTable.currentValuation,
+        shareholderCount: summary.shareholders.length,
+        shareholdersByType: summary.shareholders.reduce((acc, s) => {
+          acc[s.shareholderType] = (acc[s.shareholderType] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>),
+        ownershipByType: summary.ownershipByType,
+        roundsCount: summary.rounds.length,
+        roundsStatus: summary.rounds.map(r => ({ name: r.name, status: r.status, type: r.roundType })),
+        optionsPoolPercent: summary.ownershipByType.optionsPool || 0,
+        founderOwnership: summary.ownershipByType.founders || 0,
+        investorOwnership: summary.ownershipByType.investors || 0,
+      },
+      userContext: {
+        companyName: summary.capTable.companyName,
+      },
+    });
   }
 
   // ============================================

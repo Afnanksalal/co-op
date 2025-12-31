@@ -1480,3 +1480,14 @@ export interface CapTableSummary {
 }
 
 export type CapTableExportFormat = 'json' | 'csv' | 'carta';
+
+// AI Insights
+export interface AIInsight {
+  type: 'tip' | 'warning' | 'action' | 'success';
+  message: string;
+}
+
+export interface AIInsightsResponse {
+  insights: AIInsight[];
+  generatedAt: string;
+}

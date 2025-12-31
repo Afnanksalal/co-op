@@ -443,6 +443,25 @@ function CapTableDetail({
   onRefresh: () => void;
 }) {
   const [isExporting, setIsExporting] = useState(false);
+  const [aiInsights, setAiInsights] = useState<{ type: 'tip' | 'warning' | 'action' | 'success'; message: string }[]>([]);
+  const [isLoadingInsights, setIsLoadingInsights] = useState(false);
+
+  // Fetch LLM-powered insights
+  useEffect(() => {
+    const fetchInsights = async () => {
+      setIsLoadingInsights(true);
+      try {
+        const result = await api.getCapTableInsights(summary.capTable.id);
+        setAiInsights(result.insights);
+      } catch (err) {
+        console.error('Failed to fetch insights:', err);
+        setAiInsights([]);
+      } finally {
+        setIsLoadingInsights(false);
+      }
+    };
+    fetchInsights();
+  }, [summary.capTable.id]);
 
   const handleExport = async (format: CapTableExportFormat) => {
     try {
@@ -464,36 +483,6 @@ function CapTableDetail({
   };
 
   const totalOwnership = Object.values(summary.ownershipByType).reduce((a, b) => a + b, 0);
-  
-  // Generate AI insights based on cap table data
-  const generateCapTableInsights = () => {
-    const insights: { type: 'tip' | 'warning' | 'action'; message: string }[] = [];
-    const founderOwnership = summary.ownershipByType.founders || 0;
-    const investorOwnership = summary.ownershipByType.investors || 0;
-    const optionsPool = summary.ownershipByType.optionsPool || 0;
-    
-    if (founderOwnership < 50 && summary.rounds.length <= 2) {
-      insights.push({ type: 'warning', message: 'Founder ownership below 50% at early stage - consider negotiating better terms in future rounds' });
-    }
-    
-    if (optionsPool < 10) {
-      insights.push({ type: 'action', message: 'Options pool below 10% - expand before next funding round to avoid dilution' });
-    } else if (optionsPool > 20) {
-      insights.push({ type: 'tip', message: 'Large options pool (>20%) - great for hiring, but watch dilution impact' });
-    }
-    
-    if (investorOwnership > 40 && summary.rounds.length <= 2) {
-      insights.push({ type: 'warning', message: 'High investor ownership early - maintain leverage for future rounds' });
-    }
-    
-    if (summary.shareholders.length > 0 && summary.shareholders.filter(s => s.shareholderType === 'advisor').length === 0) {
-      insights.push({ type: 'tip', message: 'Consider adding advisors with equity - they can open doors and add credibility' });
-    }
-    
-    return insights;
-  };
-  
-  const aiInsights = generateCapTableInsights();
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -574,7 +563,7 @@ function CapTableDetail({
       </Card>
 
       {/* AI Insights */}
-      {aiInsights.length > 0 && (
+      {(isLoadingInsights || aiInsights.length > 0) && (
         <Card className="border-primary/20 bg-gradient-to-br from-primary/5 via-primary/10 to-primary/5">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-3">
@@ -582,19 +571,25 @@ function CapTableDetail({
                 <path d="M208,144a15.78,15.78,0,0,1-10.42,14.94l-51.65,19-19,51.61a15.92,15.92,0,0,1-29.88,0L78,178l-51.62-19a15.92,15.92,0,0,1,0-29.88l51.65-19,19-51.61a15.92,15.92,0,0,1,29.88,0l19,51.65,51.61,19A15.78,15.78,0,0,1,208,144ZM152,48h16V64a8,8,0,0,0,16,0V48h16a8,8,0,0,0,0-16H184V16a8,8,0,0,0-16,0V32H152a8,8,0,0,0,0,16Zm88,32h-8V72a8,8,0,0,0-16,0v8h-8a8,8,0,0,0,0,16h8v8a8,8,0,0,0,16,0V96h8a8,8,0,0,0,0-16Z"/>
               </svg>
               <span className="text-sm font-medium text-primary">AI Cap Table Insights</span>
+              {isLoadingInsights && <SpinnerIcon className="w-3 h-3 text-primary" />}
             </div>
-            <div className="space-y-2">
-              {aiInsights.map((insight, i) => (
-                <div key={i} className="flex items-start gap-2 text-sm">
-                  <span className={cn(
-                    'shrink-0 mt-1 w-1.5 h-1.5 rounded-full',
-                    insight.type === 'warning' ? 'bg-orange-500' :
-                    insight.type === 'action' ? 'bg-blue-500' : 'bg-green-500'
-                  )} />
-                  <span className="text-muted-foreground">{insight.message}</span>
-                </div>
-              ))}
-            </div>
+            {isLoadingInsights ? (
+              <p className="text-sm text-muted-foreground">Analyzing your cap table...</p>
+            ) : (
+              <div className="space-y-2">
+                {aiInsights.map((insight, i) => (
+                  <div key={i} className="flex items-start gap-2 text-sm">
+                    <span className={cn(
+                      'shrink-0 mt-1 w-1.5 h-1.5 rounded-full',
+                      insight.type === 'warning' ? 'bg-orange-500' :
+                      insight.type === 'action' ? 'bg-blue-500' :
+                      insight.type === 'success' ? 'bg-emerald-500' : 'bg-green-500'
+                    )} />
+                    <span className="text-muted-foreground">{insight.message}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -1045,6 +1040,7 @@ function ScenariosTab({
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [newScenario, setNewScenario] = useState<CreateScenarioRequest>({
     name: '',
     parameters: {
@@ -1055,10 +1051,12 @@ function ScenariosTab({
   const loadScenarios = useCallback(async () => {
     try {
       setIsLoading(true);
+      setError(null);
       const data = await api.getScenarios(capTableId);
       setScenarios(data);
     } catch (err) {
       console.error('Failed to load scenarios:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load scenarios');
     } finally {
       setIsLoading(false);
     }
@@ -1069,9 +1067,17 @@ function ScenariosTab({
   }, [loadScenarios]);
 
   const handleCreate = async () => {
-    if (!newScenario.name) return;
+    if (!newScenario.name) {
+      setError('Please enter a scenario name');
+      return;
+    }
+    if (!newScenario.parameters.newRound?.amount && !newScenario.parameters.newRound?.valuation) {
+      setError('Please enter round amount and pre-money valuation');
+      return;
+    }
     try {
       setIsCreating(true);
+      setError(null);
       await api.createScenario(capTableId, newScenario);
       setNewScenario({ name: '', parameters: { newRound: { amount: 0, valuation: 0, type: 'equity' } } });
       setDialogOpen(false);
@@ -1079,6 +1085,7 @@ function ScenariosTab({
       onRefresh();
     } catch (err) {
       console.error('Failed to create scenario:', err);
+      setError(err instanceof Error ? err.message : 'Failed to create scenario');
     } finally {
       setIsCreating(false);
     }
@@ -1087,10 +1094,12 @@ function ScenariosTab({
   const handleDelete = async (scenarioId: string) => {
     if (!confirm('Delete this scenario?')) return;
     try {
+      setError(null);
       await api.deleteScenario(capTableId, scenarioId);
       loadScenarios();
     } catch (err) {
       console.error('Failed to delete scenario:', err);
+      setError(err instanceof Error ? err.message : 'Failed to delete scenario');
     }
   };
 
@@ -1101,6 +1110,16 @@ function ScenariosTab({
         <CardDescription className="text-xs sm:text-sm">Model dilution from future funding rounds</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 sm:space-y-6">
+        {/* Error Display */}
+        {error && (
+          <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm flex items-center justify-between gap-2">
+            <span className="truncate">{error}</span>
+            <Button variant="ghost" size="sm" className="shrink-0 h-7 px-2" onClick={() => setError(null)}>
+              Dismiss
+            </Button>
+          </div>
+        )}
+
         {/* Create Scenario Dialog */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
@@ -1193,9 +1212,9 @@ function ScenariosTab({
               </div>
             </div>
             <DialogFooter>
-              <Button onClick={handleCreate} disabled={isCreating || !newScenario.name} className="w-full sm:w-auto">
+              <Button onClick={handleCreate} disabled={isCreating} className="w-full sm:w-auto">
                 {isCreating ? <SpinnerIcon className="w-4 h-4 mr-2" /> : null}
-                Calculate
+                {isCreating ? 'Calculating...' : 'Calculate'}
               </Button>
             </DialogFooter>
           </DialogContent>

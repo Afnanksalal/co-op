@@ -140,6 +140,8 @@ export default function OutreachPage() {
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [aiInsights, setAiInsights] = useState<{ type: 'tip' | 'warning' | 'action'; message: string }[]>([]);
+  const [isLoadingInsights, setIsLoadingInsights] = useState(false);
 
   // Check for mobile viewport - only after mount to prevent hydration mismatch
   useEffect(() => {
@@ -163,6 +165,44 @@ export default function OutreachPage() {
     maxLeads: 10,
   });
 
+  // Fetch LLM insights when data changes
+  const fetchOutreachInsights = useCallback(async (leadsData: Lead[], campaignsData: Campaign[]) => {
+    if (leadsData.length === 0) {
+      setAiInsights([]);
+      return;
+    }
+    
+    setIsLoadingInsights(true);
+    try {
+      const response = await api.generateInsights('Customer Outreach', {
+        totalLeads: leadsData.length,
+        totalCampaigns: campaignsData.length,
+        newLeads: leadsData.filter(l => l.status === 'new').length,
+        contactedLeads: leadsData.filter(l => l.status === 'contacted').length,
+        repliedLeads: leadsData.filter(l => l.status === 'replied').length,
+        convertedLeads: leadsData.filter(l => l.status === 'converted').length,
+        personLeads: leadsData.filter(l => l.leadType === 'person').length,
+        companyLeads: leadsData.filter(l => l.leadType === 'company').length,
+        highReachInfluencers: leadsData.filter(l => l.leadType === 'person' && l.followers && l.followers > 100000).length,
+        activeCampaigns: campaignsData.filter(c => c.status === 'sending').length,
+      });
+      
+      if (response.insights && response.insights.length > 0) {
+        setAiInsights(response.insights.map(i => ({
+          type: i.type as 'tip' | 'warning' | 'action',
+          message: i.message,
+        })).slice(0, 4));
+      } else {
+        setAiInsights([]);
+      }
+    } catch (error) {
+      console.error('Failed to fetch outreach insights:', error);
+      setAiInsights([]);
+    } finally {
+      setIsLoadingInsights(false);
+    }
+  }, []);
+
   const fetchData = useCallback(async () => {
     try {
       const [leadsData, campaignsData] = await Promise.all([
@@ -171,25 +211,44 @@ export default function OutreachPage() {
       ]);
       setLeads(leadsData || []);
       setCampaigns(campaignsData || []);
+      
+      // Fetch LLM insights after data loads
+      void fetchOutreachInsights(leadsData || [], campaignsData || []);
     } catch {
       toast.error('Failed to load data');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [fetchOutreachInsights]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
   const handleDiscover = async () => {
+    // Validation
+    if (!discoverForm.targetNiche?.trim() && !discoverForm.keywords?.trim()) {
+      toast.error('Please enter a target niche or keywords');
+      return;
+    }
+    
+    if (discoverForm.minFollowers && discoverForm.maxFollowers && discoverForm.minFollowers > discoverForm.maxFollowers) {
+      toast.error('Minimum followers cannot be greater than maximum');
+      return;
+    }
+    
+    if (discoverForm.maxLeads < 1 || discoverForm.maxLeads > 50) {
+      toast.error('Max leads must be between 1 and 50');
+      return;
+    }
+
     setIsDiscovering(true);
     try {
       const discovered = await api.discoverLeads({
         leadType: discoverForm.leadType,
         targetNiche: discoverForm.targetNiche || undefined,
         targetPlatforms: discoverForm.targetPlatforms.length > 0 ? discoverForm.targetPlatforms : undefined,
-        targetLocations: discoverForm.targetLocations ? discoverForm.targetLocations.split(',').map(s => s.trim()) : undefined,
+        targetLocations: discoverForm.targetLocations ? discoverForm.targetLocations.split(',').map(s => s.trim()).filter(Boolean) : undefined,
         minFollowers: discoverForm.minFollowers,
         maxFollowers: discoverForm.maxFollowers,
         targetCompanySizes: discoverForm.targetCompanySizes.length > 0 ? discoverForm.targetCompanySizes : undefined,
@@ -466,6 +525,41 @@ export default function OutreachPage() {
           </p>
         </CardContent>
       </Card>
+
+      {/* AI Outreach Insights */}
+      {!isLoading && leads.length > 0 && (
+        <Card className="border-primary/20 bg-gradient-to-br from-primary/5 via-primary/10 to-primary/5">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-primary" width="16" height="16" fill="currentColor" viewBox="0 0 256 256">
+                <path d="M208,144a15.78,15.78,0,0,1-10.42,14.94l-51.65,19-19,51.61a15.92,15.92,0,0,1-29.88,0L78,178l-51.62-19a15.92,15.92,0,0,1,0-29.88l51.65-19,19-51.61a15.92,15.92,0,0,1,29.88,0l19,51.65,51.61,19A15.78,15.78,0,0,1,208,144ZM152,48h16V64a8,8,0,0,0,16,0V48h16a8,8,0,0,0,0-16H184V16a8,8,0,0,0-16,0V32H152a8,8,0,0,0,0,16Zm88,32h-8V72a8,8,0,0,0-16,0v8h-8a8,8,0,0,0,0,16h8v8a8,8,0,0,0,16,0V96h8a8,8,0,0,0,0-16Z"/>
+              </svg>
+              <span className="text-sm font-medium text-primary">AI Outreach Insights</span>
+            </div>
+            {isLoadingInsights ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                <span>Generating insights...</span>
+              </div>
+            ) : aiInsights.length > 0 ? (
+              <div className="space-y-2 text-sm text-muted-foreground">
+                {aiInsights.map((insight, i) => (
+                  <div key={i} className="flex items-start gap-2">
+                    <span className={cn(
+                      'shrink-0 mt-1 w-1.5 h-1.5 rounded-full',
+                      insight.type === 'warning' ? 'bg-orange-500' :
+                      insight.type === 'action' ? 'bg-blue-500' : 'bg-green-500'
+                    )} />
+                    <span>{insight.message}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Discover leads to get personalized outreach insights</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="grid w-full grid-cols-2 max-w-md">

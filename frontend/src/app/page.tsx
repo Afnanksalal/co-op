@@ -418,7 +418,29 @@ export default function HomePage() {
             <a href="#pricing" className="text-muted-foreground hover:text-foreground transition-colors">Pricing</a>
             <a href="#developers" className="text-muted-foreground hover:text-foreground transition-colors">Developers</a>
           </nav>
-          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Product Hunt Badge - Desktop */}
+            <a
+              href="https://www.producthunt.com/products/co-op-2?utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-co-op-2"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden md:block hover:opacity-90 transition-opacity"
+            >
+              <img
+                src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1056612&theme=dark&t=1767192071870"
+                alt="Co-Op on Product Hunt"
+                width="180"
+                height="40"
+                className="dark:block hidden"
+              />
+              <img
+                src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1056612&theme=light&t=1767192071870"
+                alt="Co-Op on Product Hunt"
+                width="180"
+                height="40"
+                className="dark:hidden block"
+              />
+            </a>
             <button
               onClick={toggleTheme}
               className="p-2 rounded-lg hover:bg-muted/50 transition-colors"
@@ -452,6 +474,29 @@ export default function HomePage() {
         {/* Hero */}
         <section className="max-w-6xl mx-auto px-6 pt-8 pb-12 sm:py-24 md:py-32 text-center">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
+            {/* Product Hunt Badge - Mobile (shown prominently in hero) */}
+            <a
+              href="https://www.producthunt.com/products/co-op-2?utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-co-op-2"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block md:hidden mb-4 hover:opacity-90 transition-opacity"
+            >
+              <img
+                src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1056612&theme=dark&t=1767192071870"
+                alt="Co-Op on Product Hunt"
+                width="250"
+                height="54"
+                className="dark:block hidden"
+              />
+              <img
+                src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1056612&theme=light&t=1767192071870"
+                alt="Co-Op on Product Hunt"
+                width="250"
+                height="54"
+                className="dark:hidden block"
+              />
+            </a>
+
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-sm mb-4 sm:mb-8">
               <Sparkle weight="fill" className="w-4 h-4" />
               AI-Powered Advisory Platform
