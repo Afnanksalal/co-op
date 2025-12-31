@@ -26,6 +26,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { AIInsightsCard } from '@/components/ai-insights-card';
+import { useInsights } from '@/lib/hooks/use-insights';
 import type { Alert, AlertResult } from '@/lib/api/types';
 
 // SVG Icons
@@ -93,8 +95,7 @@ export default function AlertsPage() {
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
   const [alertResults, setAlertResults] = useState<AlertResult[]>([]);
   const [isLoadingResults, setIsLoadingResults] = useState(false);
-  const [aiTips, setAiTips] = useState<{ type: 'tip' | 'warning' | 'action'; message: string }[]>([]);
-  const [isLoadingTips, setIsLoadingTips] = useState(false);
+  const { insights, isLoading: isLoadingTips, fetchInsights } = useInsights();
   
   // Form state
   const [newAlert, setNewAlert] = useState({
@@ -111,39 +112,21 @@ export default function AlertsPage() {
   // Fetch LLM insights when alerts change
   const fetchAlertTips = useCallback(async (alertsData: Alert[]) => {
     if (alertsData.length === 0) {
-      setAiTips([]);
       return;
     }
     
-    setIsLoadingTips(true);
-    try {
-      const response = await api.generateInsights('Monitoring Alerts', {
-        totalAlerts: alertsData.length,
-        alertTypes: alertsData.map(a => a.type),
-        frequencies: alertsData.map(a => a.frequency),
-        activeCount: alertsData.filter(a => a.isActive).length,
-        pausedCount: alertsData.filter(a => !a.isActive).length,
-        hasCompetitorAlert: alertsData.some(a => a.type === 'competitor'),
-        hasFundingAlert: alertsData.some(a => a.type === 'funding'),
-        hasRealtimeAlert: alertsData.some(a => a.frequency === 'realtime'),
-        avgKeywordsPerAlert: alertsData.reduce((sum, a) => sum + (a.keywords?.length || 0), 0) / alertsData.length,
-      });
-      
-      if (response.insights && response.insights.length > 0) {
-        setAiTips(response.insights.map(i => ({
-          type: i.type as 'tip' | 'warning' | 'action',
-          message: i.message,
-        })).slice(0, 4));
-      } else {
-        setAiTips([]);
-      }
-    } catch (error) {
-      console.error('Failed to fetch alert tips:', error);
-      setAiTips([]);
-    } finally {
-      setIsLoadingTips(false);
-    }
-  }, []);
+    await fetchInsights('Monitoring Alerts', {
+      totalAlerts: alertsData.length,
+      alertTypes: alertsData.map(a => a.type),
+      frequencies: alertsData.map(a => a.frequency),
+      activeCount: alertsData.filter(a => a.isActive).length,
+      pausedCount: alertsData.filter(a => !a.isActive).length,
+      hasCompetitorAlert: alertsData.some(a => a.type === 'competitor'),
+      hasFundingAlert: alertsData.some(a => a.type === 'funding'),
+      hasRealtimeAlert: alertsData.some(a => a.frequency === 'realtime'),
+      avgKeywordsPerAlert: alertsData.reduce((sum, a) => sum + (a.keywords?.length || 0), 0) / alertsData.length,
+    });
+  }, [fetchInsights]);
 
 
   const fetchAlerts = useCallback(async () => {
@@ -456,37 +439,13 @@ export default function AlertsPage() {
 
       {/* AI-Powered Insights */}
       {alerts.length > 0 && (
-        <Card className="border-primary/20 bg-gradient-to-br from-primary/5 via-primary/10 to-primary/5">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-primary" width="16" height="16" fill="currentColor" viewBox="0 0 256 256">
-                <path d="M208,144a15.78,15.78,0,0,1-10.42,14.94l-51.65,19-19,51.61a15.92,15.92,0,0,1-29.88,0L78,178l-51.62-19a15.92,15.92,0,0,1,0-29.88l51.65-19,19-51.61a15.92,15.92,0,0,1,29.88,0l19,51.65,51.61,19A15.78,15.78,0,0,1,208,144ZM152,48h16V64a8,8,0,0,0,16,0V48h16a8,8,0,0,0,0-16H184V16a8,8,0,0,0-16,0V32H152a8,8,0,0,0,0,16Zm88,32h-8V72a8,8,0,0,0-16,0v8h-8a8,8,0,0,0,0,16h8v8a8,8,0,0,0,16,0V96h8a8,8,0,0,0,0-16Z"/>
-              </svg>
-              <span className="text-sm font-medium text-primary">AI Monitoring Tips</span>
-            </div>
-            {isLoadingTips ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                <span>Generating tips...</span>
-              </div>
-            ) : aiTips.length > 0 ? (
-              <div className="space-y-2 text-sm text-muted-foreground">
-                {aiTips.map((tip, i) => (
-                  <div key={i} className="flex items-start gap-2">
-                    <span className={cn(
-                      'shrink-0 mt-1 w-1.5 h-1.5 rounded-full',
-                      tip.type === 'warning' ? 'bg-orange-500' :
-                      tip.type === 'action' ? 'bg-blue-500' : 'bg-green-500'
-                    )} />
-                    <span>{tip.message}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">Configure your alerts to get personalized tips</p>
-            )}
-          </CardContent>
-        </Card>
+        <AIInsightsCard
+          title="AI Monitoring Tips"
+          insights={insights}
+          isLoading={isLoadingTips}
+          emptyText="Configure your alerts to get personalized tips"
+          maxInsights={4}
+        />
       )}
 
 

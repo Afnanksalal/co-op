@@ -11,6 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
+import { InlineInsights } from '@/components/ai-insights-card';
+import type { Insight } from '@/lib/hooks/use-insights';
 
 // Currency configuration for enterprise users
 const CURRENCIES = [
@@ -65,28 +67,16 @@ interface CalculatorResult {
   isWarning?: boolean;
 }
 
-interface AIInsight {
-  type: 'tip' | 'warning' | 'action';
-  message: string;
-}
-
 interface ValidationError {
   field: string;
   message: string;
 }
 
-// AI Insight Icon
-const SparkleIcon = ({ className }: { className?: string }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" className={className} width="16" height="16" fill="currentColor" viewBox="0 0 256 256">
-    <path d="M208,144a15.78,15.78,0,0,1-10.42,14.94l-51.65,19-19,51.61a15.92,15.92,0,0,1-29.88,0L78,178l-51.62-19a15.92,15.92,0,0,1,0-29.88l51.65-19,19-51.61a15.92,15.92,0,0,1,29.88,0l19,51.65,51.61,19A15.78,15.78,0,0,1,208,144ZM152,48h16V64a8,8,0,0,0,16,0V48h16a8,8,0,0,0,0-16H184V16a8,8,0,0,0-16,0V32H152a8,8,0,0,0,0,16Zm88,32h-8V72a8,8,0,0,0-16,0v8h-8a8,8,0,0,0,0,16h8v8a8,8,0,0,0,16,0V96h8a8,8,0,0,0,0-16Z"/>
-  </svg>
-);
-
 // Fetch AI insights from LLM
 async function fetchInsights(
   toolName: string,
   data: Record<string, unknown>,
-  setInsights: (insights: AIInsight[]) => void,
+  setInsights: (insights: Insight[]) => void,
   setIsLoadingInsights: (loading: boolean) => void
 ): Promise<void> {
   setIsLoadingInsights(true);
@@ -94,7 +84,7 @@ async function fetchInsights(
     const response = await api.generateInsights(toolName, data);
     if (response.insights && response.insights.length > 0) {
       setInsights(response.insights.map(i => ({
-        type: i.type as 'tip' | 'warning' | 'action',
+        type: (i.type === 'tip' || i.type === 'warning' || i.type === 'action' || i.type === 'success' ? i.type : 'tip') as Insight['type'],
         message: i.message,
       })));
     } else {
@@ -202,7 +192,7 @@ function RunwayCalculator({ currencySymbol }: { currencySymbol: string }) {
   const [monthlyBurn, setMonthlyBurn] = useState('');
   const [monthlyRevenue, setMonthlyRevenue] = useState('');
   const [results, setResults] = useState<CalculatorResult[] | null>(null);
-  const [insights, setInsights] = useState<AIInsight[]>([]);
+  const [insights, setInsights] = useState<Insight[]>([]);
   const [isLoadingInsights, setIsLoadingInsights] = useState(false);
   const [errors, setErrors] = useState<ValidationError[]>([]);
 
@@ -349,7 +339,7 @@ function BurnRateCalculator({ currencySymbol }: { currencySymbol: string }) {
   const [marketing, setMarketing] = useState('');
   const [other, setOther] = useState('');
   const [results, setResults] = useState<CalculatorResult[] | null>(null);
-  const [insights, setInsights] = useState<AIInsight[]>([]);
+  const [insights, setInsights] = useState<Insight[]>([]);
   const [isLoadingInsights, setIsLoadingInsights] = useState(false);
   const [errors, setErrors] = useState<ValidationError[]>([]);
 
@@ -471,7 +461,7 @@ function ValuationCalculator({ currencySymbol }: { currencySymbol: string }) {
   const [lastRoundVal, setLastRoundVal] = useState('');
   const [raised, setRaised] = useState('');
   const [results, setResults] = useState<CalculatorResult[] | null>(null);
-  const [insights, setInsights] = useState<AIInsight[]>([]);
+  const [insights, setInsights] = useState<Insight[]>([]);
   const [isLoadingInsights, setIsLoadingInsights] = useState(false);
   const [errors, setErrors] = useState<ValidationError[]>([]);
 
@@ -583,7 +573,7 @@ function UnitEconomicsCalculator({ currencySymbol }: { currencySymbol: string })
   const [churnRate, setChurnRate] = useState('');
   const [grossMargin, setGrossMargin] = useState('70');
   const [results, setResults] = useState<CalculatorResult[] | null>(null);
-  const [insights, setInsights] = useState<AIInsight[]>([]);
+  const [insights, setInsights] = useState<Insight[]>([]);
   const [isLoadingInsights, setIsLoadingInsights] = useState(false);
   const [errors, setErrors] = useState<ValidationError[]>([]);
 
@@ -702,7 +692,7 @@ function UnitEconomicsCalculator({ currencySymbol }: { currencySymbol: string })
   );
 }
 
-function ResultsDisplay({ results, insights, isLoadingInsights }: { results: CalculatorResult[]; insights?: AIInsight[]; isLoadingInsights?: boolean }) {
+function ResultsDisplay({ results, insights, isLoadingInsights }: { results: CalculatorResult[]; insights?: Insight[]; isLoadingInsights?: boolean }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -744,30 +734,16 @@ function ResultsDisplay({ results, insights, isLoadingInsights }: { results: Cal
         className="p-4 rounded-lg bg-gradient-to-br from-primary/5 via-primary/10 to-primary/5 border border-primary/20"
       >
         <div className="flex items-center gap-2 mb-3">
-          <SparkleIcon className="w-4 h-4 text-primary" />
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-primary" width="16" height="16" fill="currentColor" viewBox="0 0 256 256">
+            <path d="M208,144a15.78,15.78,0,0,1-10.42,14.94l-51.65,19-19,51.61a15.92,15.92,0,0,1-29.88,0L78,178l-51.62-19a15.92,15.92,0,0,1,0-29.88l51.65-19,19-51.61a15.92,15.92,0,0,1,29.88,0l19,51.65,51.61,19A15.78,15.78,0,0,1,208,144ZM152,48h16V64a8,8,0,0,0,16,0V48h16a8,8,0,0,0,0-16H184V16a8,8,0,0,0-16,0V32H152a8,8,0,0,0,0,16Zm88,32h-8V72a8,8,0,0,0-16,0v8h-8a8,8,0,0,0,0,16h8v8a8,8,0,0,0,16,0V96h8a8,8,0,0,0,0-16Z"/>
+          </svg>
           <span className="text-sm font-medium text-primary">AI Insights</span>
         </div>
-        {isLoadingInsights ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-            <span>Generating insights...</span>
-          </div>
-        ) : insights && insights.length > 0 ? (
-          <div className="space-y-2">
-            {insights.map((insight, i) => (
-              <div key={i} className="flex items-start gap-2 text-sm">
-                <span className={cn(
-                  'shrink-0 mt-0.5 w-1.5 h-1.5 rounded-full',
-                  insight.type === 'warning' ? 'bg-orange-500' :
-                  insight.type === 'action' ? 'bg-blue-500' : 'bg-green-500'
-                )} />
-                <span className="text-muted-foreground">{insight.message}</span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">No insights available</p>
-        )}
+        <InlineInsights
+          insights={insights || []}
+          isLoading={isLoadingInsights}
+          emptyText="No insights available"
+        />
       </motion.div>
     </motion.div>
   );

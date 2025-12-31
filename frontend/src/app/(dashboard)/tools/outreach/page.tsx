@@ -28,6 +28,8 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { AIInsightsCard } from '@/components/ai-insights-card';
+import { useInsights } from '@/lib/hooks/use-insights';
 import type { Lead, Campaign, LeadStatus, LeadType } from '@/lib/api/types';
 
 // SVG Icons
@@ -140,8 +142,7 @@ export default function OutreachPage() {
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
-  const [aiInsights, setAiInsights] = useState<{ type: 'tip' | 'warning' | 'action'; message: string }[]>([]);
-  const [isLoadingInsights, setIsLoadingInsights] = useState(false);
+  const { insights, isLoading: isLoadingInsights, fetchInsights } = useInsights();
 
   // Check for mobile viewport - only after mount to prevent hydration mismatch
   useEffect(() => {
@@ -168,40 +169,22 @@ export default function OutreachPage() {
   // Fetch LLM insights when data changes
   const fetchOutreachInsights = useCallback(async (leadsData: Lead[], campaignsData: Campaign[]) => {
     if (leadsData.length === 0) {
-      setAiInsights([]);
       return;
     }
     
-    setIsLoadingInsights(true);
-    try {
-      const response = await api.generateInsights('Customer Outreach', {
-        totalLeads: leadsData.length,
-        totalCampaigns: campaignsData.length,
-        newLeads: leadsData.filter(l => l.status === 'new').length,
-        contactedLeads: leadsData.filter(l => l.status === 'contacted').length,
-        repliedLeads: leadsData.filter(l => l.status === 'replied').length,
-        convertedLeads: leadsData.filter(l => l.status === 'converted').length,
-        personLeads: leadsData.filter(l => l.leadType === 'person').length,
-        companyLeads: leadsData.filter(l => l.leadType === 'company').length,
-        highReachInfluencers: leadsData.filter(l => l.leadType === 'person' && l.followers && l.followers > 100000).length,
-        activeCampaigns: campaignsData.filter(c => c.status === 'sending').length,
-      });
-      
-      if (response.insights && response.insights.length > 0) {
-        setAiInsights(response.insights.map(i => ({
-          type: i.type as 'tip' | 'warning' | 'action',
-          message: i.message,
-        })).slice(0, 4));
-      } else {
-        setAiInsights([]);
-      }
-    } catch (error) {
-      console.error('Failed to fetch outreach insights:', error);
-      setAiInsights([]);
-    } finally {
-      setIsLoadingInsights(false);
-    }
-  }, []);
+    await fetchInsights('Customer Outreach', {
+      totalLeads: leadsData.length,
+      totalCampaigns: campaignsData.length,
+      newLeads: leadsData.filter(l => l.status === 'new').length,
+      contactedLeads: leadsData.filter(l => l.status === 'contacted').length,
+      repliedLeads: leadsData.filter(l => l.status === 'replied').length,
+      convertedLeads: leadsData.filter(l => l.status === 'converted').length,
+      personLeads: leadsData.filter(l => l.leadType === 'person').length,
+      companyLeads: leadsData.filter(l => l.leadType === 'company').length,
+      highReachInfluencers: leadsData.filter(l => l.leadType === 'person' && l.followers && l.followers > 100000).length,
+      activeCampaigns: campaignsData.filter(c => c.status === 'sending').length,
+    });
+  }, [fetchInsights]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -528,37 +511,13 @@ export default function OutreachPage() {
 
       {/* AI Outreach Insights */}
       {!isLoading && leads.length > 0 && (
-        <Card className="border-primary/20 bg-gradient-to-br from-primary/5 via-primary/10 to-primary/5">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-primary" width="16" height="16" fill="currentColor" viewBox="0 0 256 256">
-                <path d="M208,144a15.78,15.78,0,0,1-10.42,14.94l-51.65,19-19,51.61a15.92,15.92,0,0,1-29.88,0L78,178l-51.62-19a15.92,15.92,0,0,1,0-29.88l51.65-19,19-51.61a15.92,15.92,0,0,1,29.88,0l19,51.65,51.61,19A15.78,15.78,0,0,1,208,144ZM152,48h16V64a8,8,0,0,0,16,0V48h16a8,8,0,0,0,0-16H184V16a8,8,0,0,0-16,0V32H152a8,8,0,0,0,0,16Zm88,32h-8V72a8,8,0,0,0-16,0v8h-8a8,8,0,0,0,0,16h8v8a8,8,0,0,0,16,0V96h8a8,8,0,0,0,0-16Z"/>
-              </svg>
-              <span className="text-sm font-medium text-primary">AI Outreach Insights</span>
-            </div>
-            {isLoadingInsights ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                <span>Generating insights...</span>
-              </div>
-            ) : aiInsights.length > 0 ? (
-              <div className="space-y-2 text-sm text-muted-foreground">
-                {aiInsights.map((insight, i) => (
-                  <div key={i} className="flex items-start gap-2">
-                    <span className={cn(
-                      'shrink-0 mt-1 w-1.5 h-1.5 rounded-full',
-                      insight.type === 'warning' ? 'bg-orange-500' :
-                      insight.type === 'action' ? 'bg-blue-500' : 'bg-green-500'
-                    )} />
-                    <span>{insight.message}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">Discover leads to get personalized outreach insights</p>
-            )}
-          </CardContent>
-        </Card>
+        <AIInsightsCard
+          title="AI Outreach Insights"
+          insights={insights}
+          isLoading={isLoadingInsights}
+          emptyText="Discover leads to get personalized outreach insights"
+          maxInsights={4}
+        />
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
