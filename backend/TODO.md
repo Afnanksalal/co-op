@@ -197,6 +197,15 @@
 - ✅ PILOT_CAMPAIGN_LIMIT
 - ✅ PILOT_EMAILS_PER_DAY
 
+### AI Insights Uniformity (v1.6.2)
+- ✅ Insights module refactored with proper DTOs and validation
+- ✅ Full Swagger documentation for insights endpoint
+- ✅ Type-safe insight generation with InsightType enum
+- ✅ Unified AIInsightsCard component for all tools
+- ✅ Unified InlineInsights component for calculators
+- ✅ Unified useInsights hook for fetching insights
+- ✅ All tools using consistent insights styling and behavior
+
 ### Bug Fixes (v1.3.3)
 - ✅ Auth rate limit rework - only count FAILED attempts, not all attempts
 - ✅ Token caching to avoid re-verifying same token repeatedly

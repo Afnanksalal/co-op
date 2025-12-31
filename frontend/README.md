@@ -151,6 +151,10 @@ New in v1.3.7:
   - Campaign analytics
 - **Pitch Deck Analyzer** - AI-powered analysis with investor-specific recommendations
 - **Cap Table Simulator** - Equity modeling with AI ownership insights
+- **Unified AI Insights** - Consistent AI-powered insights across all tools
+  - Reusable `AIInsightsCard` and `InlineInsights` components
+  - `useInsights` hook for standardized data fetching
+  - Consistent styling, loading states, and error handling
 
 ### Analytics Dashboard
 - Admin analytics with system metrics

@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.2] - 2026-01-01
+
+### AI Insights Uniformity
+
+#### Backend Improvements
+- **Insights Module Refactor** - Production-ready insights endpoint
+  - Added proper DTOs with class-validator decorators (`GenerateInsightsDto`, `InsightsResponseDto`)
+  - Created `insights.types.ts` with constants and interfaces
+  - Full Swagger documentation with `@ApiOperation`, `@ApiBody`, `@ApiResponse`
+  - Improved error handling with structured error responses
+  - Type-safe insight generation with `InsightType` enum
+
+#### Frontend Uniformity
+- **Unified Components** - Consistent AI insights across all tools
+  - `AIInsightsCard` - Reusable card component for insights display
+  - `InlineInsights` - Embedded insights for calculators
+  - `useInsights` hook - Standardized insights fetching with loading/error states
+  - Unified `Insight` type across all frontend components
+
+- **Tool Updates** - All tools now use unified insights system
+  - Cap-table page updated to use `AIInsightsCard`
+  - Calculators page updated to use `InlineInsights` component
+  - Investors, Outreach, Alerts pages using `AIInsightsCard` + `useInsights`
+  - Consistent styling, loading states, and error handling
+
+---
+
 ## [1.6.1] - 2025-12-31
 
 ### Bug Fixes

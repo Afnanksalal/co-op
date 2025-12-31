@@ -200,6 +200,19 @@
 - [x] Sessions page spacing improvements
 - [x] Mobile sidebar animation fix (framer-motion exclusion)
 
+### AI Insights Uniformity (v1.6.2)
+- [x] Unified `AIInsightsCard` component for all tools
+- [x] Unified `InlineInsights` component for embedded insights
+- [x] Unified `useInsights` hook for fetching insights
+- [x] Unified `Insight` type across frontend
+- [x] Cap-table page updated to use `AIInsightsCard`
+- [x] Calculators page updated to use `InlineInsights`
+- [x] Investors page using `AIInsightsCard` + `useInsights`
+- [x] Outreach page using `AIInsightsCard` + `useInsights`
+- [x] Alerts page using `AIInsightsCard` + `useInsights`
+- [x] Backend insights module with proper DTOs and validation
+- [x] All tools now have consistent AI insights styling and behavior
+
 ### Production Readiness (v1.4.0)
 - [x] Encryption key versioning for rotation
 - [x] API key revocation support

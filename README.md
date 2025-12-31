@@ -385,6 +385,7 @@ See [Backend README](./Backend/README.md) for complete API documentation.
 - [x] Email campaign management with tracking
 - [x] Pitch deck analyzer with investor-specific recommendations
 - [x] Cap table simulator with AI ownership insights
+- [x] Unified AI insights system across all tools
 
 ### Security & Enterprise
 - [x] AES-256-GCM encryption for sensitive data
@@ -437,10 +438,16 @@ The outreach module enables AI-powered customer acquisition:
 
 | Phase | Timeline | Features |
 |-------|----------|----------|
-| **Now** | Pilot | Single founder, 3 free requests/month, 4 agents, outreach tools |
+| **Now** | Pilot | Single founder, 3 free requests/month, 4 agents, all tools, mobile app (Android) |
 | **Q1 2026** | Teams | Multiple founders, collaboration, shared sessions |
 | **Q2 2026** | Idea Stage | Idea validation flow, market research agent |
 | **Q3 2026** | Enterprise | SSO, custom AI training, on-premise deployment |
+
+### Mobile App
+
+Download the Android app (pilot release):
+- [Download APK](https://github.com/Afnanksalal/co-op/releases/download/pilot-release/app-release.apk)
+- Report bugs: [GitHub Issues](https://github.com/Afnanksalal/co-op/issues)
 
 ---
 

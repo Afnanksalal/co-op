@@ -132,6 +132,18 @@ const pricingPlans = [
 // Detailed roadmap with changelog-style entries
 const roadmapItems = [
   {
+    version: '1.6.2',
+    date: 'Jan 1, 2026',
+    title: 'AI Insights Uniformity',
+    status: 'released',
+    highlights: [
+      'Unified AIInsightsCard and InlineInsights components',
+      'Standardized useInsights hook for all tools',
+      'Backend insights module with proper DTOs and validation',
+      'Consistent AI insights styling across all tools',
+    ],
+  },
+  {
     version: '1.6.1',
     date: 'Dec 31, 2025',
     title: 'AI Insights & Polish',

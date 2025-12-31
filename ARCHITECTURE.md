@@ -241,6 +241,7 @@ Common Services:
 | `audit.service.ts` | Audit logging for compliance |
 | `redis.service.ts` | Caching and rate limiting |
 | `user-docs-rag.service.ts` | User document RAG with encryption |
+| `insights.service.ts` | Unified AI insights generation for all tools |
 
 ### RAG Service (FastAPI)
 
