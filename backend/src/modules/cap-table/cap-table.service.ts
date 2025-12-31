@@ -8,13 +8,9 @@ import {
   capTableShareholders,
   capTableRounds,
   capTableScenarios,
-  ShareholderType,
-  RoundType,
-  RoundStatus,
   ScenarioParameters,
   ScenarioResults,
 } from '@/database/schema/cap-tables.schema';
-import { startups } from '@/database/schema/startups.schema';
 import {
   CreateCapTableDto,
   UpdateCapTableDto,

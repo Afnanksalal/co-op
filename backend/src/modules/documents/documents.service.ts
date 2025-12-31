@@ -214,9 +214,26 @@ export class DocumentsService {
       return content.toString('utf-8');
     }
 
-    // PDF files - placeholder (would need pdf-parse or similar)
+    // PDF files - extract text using pdf-parse
     if (mimeType === 'application/pdf') {
-      return `[PDF Document: ${document.originalName}]\n\nNote: PDF text extraction is not yet implemented. The document has been uploaded and can be referenced by name.`;
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { PDFParse } = require('pdf-parse');
+        const parser = new PDFParse({ data: content });
+        const result = await parser.getText();
+        const text = result.text;
+        await parser.destroy();
+
+        if (!text || text.trim().length < 10) {
+          return `[PDF Document: ${document.originalName}]\n\nNote: Could not extract text. The PDF may contain only images or scans.`;
+        }
+
+        this.logger.log(`PDF extracted: ${document.originalName} (${result.total} pages, ${text.length} chars)`);
+        return text;
+      } catch (error) {
+        this.logger.warn(`PDF extraction failed for ${document.originalName}:`, error);
+        return `[PDF Document: ${document.originalName}]\n\nNote: PDF text extraction failed. The document may be corrupted or password-protected.`;
+      }
     }
 
     // Word documents - placeholder

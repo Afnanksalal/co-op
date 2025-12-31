@@ -125,12 +125,235 @@ const pricingPlans = [
   },
 ];
 
+// Detailed roadmap with changelog-style entries
 const roadmapItems = [
-  { phase: 'Now', title: 'Full Platform', items: ['4 AI agents + A2A mode', 'Competitor alerts & investor DB', 'Customer outreach & campaigns', 'Notion export & secure docs'] },
-  { phase: 'Q1 2026', title: 'Team Features', items: ['Multiple founders per startup', 'Team collaboration', 'Shared sessions', 'Role-based access'] },
-  { phase: 'Q2 2026', title: 'Integrations', items: ['Slack notifications', 'CRM sync (HubSpot, Salesforce)', 'Calendar follow-ups', 'Google Drive sync'] },
-  { phase: 'Q3 2026', title: 'Enterprise', items: ['SSO integration', 'Custom AI training', 'On-premise deployment', 'White-label options'] },
+  {
+    version: '1.6.0',
+    date: 'Dec 31, 2025',
+    title: 'Pitch Deck & Cap Table',
+    status: 'released',
+    highlights: [
+      'AI-powered pitch deck analyzer with investor-specific recommendations',
+      'Cap table simulator with dilution modeling and Carta export',
+      'Sector benchmarking against SaaS, Fintech, Healthtech, AI/ML',
+      'Full mobile responsiveness for all new tools',
+    ],
+  },
+  {
+    version: '1.5.0',
+    date: 'Dec 31, 2025',
+    title: 'Production Hardening',
+    status: 'released',
+    highlights: [
+      'LLM Council response validation (50% model threshold)',
+      'RAG stale cache fallback for graceful degradation',
+      'Auth guard LRU eviction to prevent memory leaks',
+      'Distributed SWR locks to prevent thundering herd',
+    ],
+  },
+  {
+    version: '1.4.0',
+    date: 'Dec 29, 2025',
+    title: 'Admin & User Management',
+    status: 'released',
+    highlights: [
+      'Full admin user CRUD with bulk operations',
+      'Pilot usage tracking and reset capabilities',
+      'User suspension with audit trail',
+      'Admin statistics dashboard',
+    ],
+  },
+  {
+    version: '1.3.x',
+    date: 'Dec 26-28, 2025',
+    title: 'Security & Reliability',
+    status: 'released',
+    highlights: [
+      'Token blacklisting for immediate session revocation',
+      'Dead letter queue for failed tasks with auto-retry',
+      'Request ID tracing for error correlation',
+      'Circuit breaker metrics and cache warm-up',
+    ],
+  },
+  {
+    version: '1.2.0',
+    date: 'Dec 16, 2025',
+    title: 'Investor & Alerts',
+    status: 'released',
+    highlights: [
+      'Investor database with 20+ real VCs seeded',
+      'Competitor alerts with real-time monitoring',
+      'Financial calculators (runway, burn, valuation)',
+      'Legal jurisdiction selector (25+ jurisdictions)',
+    ],
+  },
+  {
+    version: '1.1.0',
+    date: 'Dec 15, 2025',
+    title: 'Multi-Agent & Streaming',
+    status: 'released',
+    highlights: [
+      'Real-time progress updates with thinking steps',
+      'Session message persistence for chat continuity',
+      'Enhanced multi-agent synthesis prompts',
+      'Admin metrics endpoint',
+    ],
+  },
+  {
+    version: '1.0.0',
+    date: 'Dec 13, 2025',
+    title: 'Initial Release',
+    status: 'released',
+    highlights: [
+      'LLM Council with Groq, Google AI, HuggingFace',
+      '4 AI agents: Legal, Finance, Investor, Competitor',
+      'QStash serverless queue for async processing',
+      'MCP Protocol and A2A support',
+    ],
+  },
+  {
+    version: '2.0.0',
+    date: 'Q1 2026',
+    title: 'Team Collaboration',
+    status: 'upcoming',
+    highlights: [
+      'Multiple founders per startup',
+      'Shared sessions and bookmarks',
+      'Role-based access control',
+      'Team activity feed',
+    ],
+  },
+  {
+    version: '2.1.0',
+    date: 'Q2 2026',
+    title: 'Integrations',
+    status: 'upcoming',
+    highlights: [
+      'Slack notifications and commands',
+      'CRM sync (HubSpot, Salesforce)',
+      'Calendar follow-up scheduling',
+      'Google Drive document sync',
+    ],
+  },
+  {
+    version: '3.0.0',
+    date: 'Q3 2026',
+    title: 'Enterprise',
+    status: 'upcoming',
+    highlights: [
+      'SSO integration (SAML, OIDC)',
+      'Custom AI model fine-tuning',
+      'On-premise deployment option',
+      'White-label customization',
+    ],
+  },
 ];
+
+function RoadmapSection() {
+  const [showAll, setShowAll] = useState(false);
+  const displayedItems = showAll ? roadmapItems : roadmapItems.slice(0, 3);
+  const hiddenCount = roadmapItems.length - 3;
+
+  return (
+    <section id="roadmap" className="max-w-6xl mx-auto px-6 py-24 border-t border-border/40">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        className="text-center mb-16"
+      >
+        <h2 className="font-serif text-3xl md:text-4xl font-medium tracking-tight mb-4">
+          Building in Public
+        </h2>
+        <p className="text-muted-foreground max-w-xl mx-auto">
+          We ship fast and iterate constantly. Here&apos;s our journey so far and what&apos;s coming next.
+        </p>
+      </motion.div>
+
+      <div className="space-y-4">
+        {displayedItems.map((item, index) => (
+          <motion.div
+            key={item.version}
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: index * 0.05 }}
+            className={`p-6 rounded-xl border ${
+              item.status === 'released' 
+                ? 'border-border/40 bg-card/50' 
+                : 'border-primary/30 bg-primary/5'
+            }`}
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <div className="flex items-center gap-3">
+                <Badge 
+                  variant={item.status === 'released' ? 'secondary' : 'default'}
+                  className="font-mono"
+                >
+                  v{item.version}
+                </Badge>
+                <h3 className="font-serif text-lg font-medium">{item.title}</h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">{item.date}</span>
+                {item.status === 'released' ? (
+                  <CheckCircle weight="fill" className="w-4 h-4 text-green-500" />
+                ) : (
+                  <Rocket weight="fill" className="w-4 h-4 text-primary" />
+                )}
+              </div>
+            </div>
+            <ul className="grid sm:grid-cols-2 gap-2">
+              {item.highlights.map((highlight) => (
+                <li key={highlight} className="flex items-start gap-2 text-sm text-muted-foreground">
+                  <CheckCircle 
+                    weight={item.status === 'released' ? 'fill' : 'regular'} 
+                    className={`w-4 h-4 mt-0.5 shrink-0 ${item.status === 'released' ? 'text-green-500' : 'text-muted-foreground'}`} 
+                  />
+                  <span>{highlight}</span>
+                </li>
+              ))}
+            </ul>
+          </motion.div>
+        ))}
+      </div>
+
+      {!showAll && hiddenCount > 0 && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-center mt-8"
+        >
+          <Button 
+            variant="outline" 
+            size="lg"
+            onClick={() => setShowAll(true)}
+            className="gap-2"
+          >
+            Show {hiddenCount} More Updates
+            <ArrowRight weight="bold" className="w-4 h-4" />
+          </Button>
+        </motion.div>
+      )}
+
+      {showAll && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-center mt-8"
+        >
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={() => setShowAll(false)}
+          >
+            Show Less
+          </Button>
+        </motion.div>
+      )}
+    </section>
+  );
+}
 
 export default function HomePage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -463,45 +686,7 @@ export default function HomePage() {
         </section>
 
         {/* Roadmap */}
-        <section id="roadmap" className="max-w-6xl mx-auto px-6 py-24 border-t border-border/40">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-16"
-          >
-            <h2 className="font-serif text-3xl md:text-4xl font-medium tracking-tight mb-4">Roadmap</h2>
-            <p className="text-muted-foreground max-w-xl mx-auto">
-              We&apos;re building in public. Here&apos;s what&apos;s coming next.
-            </p>
-          </motion.div>
-
-          <div className="grid md:grid-cols-4 gap-6">
-            {roadmapItems.map((item, index) => (
-              <motion.div
-                key={item.phase}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.1 }}
-                className={`p-6 rounded-xl border ${index === 0 ? 'border-primary/50 bg-primary/5' : 'border-border/40 bg-card/50'}`}
-              >
-                <Badge variant={index === 0 ? 'default' : 'secondary'} className="mb-3">
-                  {item.phase}
-                </Badge>
-                <h3 className="font-serif text-lg font-medium mb-3">{item.title}</h3>
-                <ul className="space-y-2">
-                  {item.items.map((feature) => (
-                    <li key={feature} className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <CheckCircle weight={index === 0 ? 'fill' : 'regular'} className={`w-4 h-4 ${index === 0 ? 'text-green-500' : ''}`} />
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-              </motion.div>
-            ))}
-          </div>
-        </section>
+        <RoadmapSection />
 
         {/* Developers */}
         <section id="developers" className="max-w-6xl mx-auto px-6 py-24 border-t border-border/40">

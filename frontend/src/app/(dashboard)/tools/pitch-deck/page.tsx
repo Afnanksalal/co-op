@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { motion } from '@/components/motion';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -243,9 +243,9 @@ function UploadSection({
   };
 
   // Load decks on mount
-  useState(() => {
+  useEffect(() => {
     onLoadDecks();
-  });
+  }, [onLoadDecks]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
@@ -418,20 +418,20 @@ function AnalysisView({
         <CardContent className="py-4 sm:py-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="text-center sm:text-left">
-              <h2 className="text-3xl sm:text-4xl font-bold text-primary">{analysis.overallScore}</h2>
+              <h2 className="text-3xl sm:text-4xl font-bold text-primary">{analysis.overallScore ?? 0}</h2>
               <p className="text-xs sm:text-sm text-muted-foreground">Overall Score</p>
             </div>
             <div className="grid grid-cols-3 gap-3 sm:gap-4 text-center">
               <div>
-                <p className="text-xl sm:text-2xl font-semibold">{analysis.investorFit.vc}</p>
+                <p className="text-xl sm:text-2xl font-semibold">{analysis.investorFit?.vc ?? 0}</p>
                 <p className="text-xs text-muted-foreground">VC Fit</p>
               </div>
               <div>
-                <p className="text-xl sm:text-2xl font-semibold">{analysis.investorFit.angel}</p>
+                <p className="text-xl sm:text-2xl font-semibold">{analysis.investorFit?.angel ?? 0}</p>
                 <p className="text-xs text-muted-foreground">Angel Fit</p>
               </div>
               <div>
-                <p className="text-xl sm:text-2xl font-semibold">{analysis.investorFit.corporate}</p>
+                <p className="text-xl sm:text-2xl font-semibold">{analysis.investorFit?.corporate ?? 0}</p>
                 <p className="text-xs text-muted-foreground">Corporate Fit</p>
               </div>
             </div>
@@ -453,33 +453,37 @@ function AnalysisView({
               <CardTitle className="font-serif text-lg sm:text-xl">Section Analysis</CardTitle>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="h-[400px] sm:h-auto sm:max-h-[500px]">
-                <div className="space-y-4 pr-2">
-                  {Object.entries(analysis.sections).map(([key, section]) => (
-                    <div key={key} className="space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          {section.present ? (
-                            <CheckCircleIcon className="text-green-500 shrink-0" />
-                          ) : (
-                            <XCircleIcon className="text-red-500 shrink-0" />
-                          )}
-                          <span className="font-medium text-xs sm:text-sm truncate">{SECTION_LABELS[key] || key}</span>
+              {analysis.sections && Object.keys(analysis.sections).length > 0 ? (
+                <ScrollArea className="h-[400px] sm:h-auto sm:max-h-[500px]">
+                  <div className="space-y-4 pr-2">
+                    {Object.entries(analysis.sections).map(([key, section]) => (
+                      <div key={key} className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {section.present ? (
+                              <CheckCircleIcon className="text-green-500 shrink-0" />
+                            ) : (
+                              <XCircleIcon className="text-red-500 shrink-0" />
+                            )}
+                            <span className="font-medium text-xs sm:text-sm truncate">{SECTION_LABELS[key] || key}</span>
+                          </div>
+                          <span className={cn(
+                            "font-semibold text-xs sm:text-sm shrink-0",
+                            (section.score ?? 0) >= 70 ? "text-green-500" :
+                            (section.score ?? 0) >= 50 ? "text-yellow-500" : "text-red-500"
+                          )}>
+                            {section.score ?? 0}/100
+                          </span>
                         </div>
-                        <span className={cn(
-                          "font-semibold text-xs sm:text-sm shrink-0",
-                          section.score >= 70 ? "text-green-500" :
-                          section.score >= 50 ? "text-yellow-500" : "text-red-500"
-                        )}>
-                          {section.score}/100
-                        </span>
+                        <Progress value={section.score ?? 0} className="h-1.5 sm:h-2" />
+                        <p className="text-xs sm:text-sm text-muted-foreground">{section.feedback ?? 'No feedback available'}</p>
                       </div>
-                      <Progress value={section.score} className="h-1.5 sm:h-2" />
-                      <p className="text-xs sm:text-sm text-muted-foreground">{section.feedback}</p>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
+                    ))}
+                  </div>
+                </ScrollArea>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-8">No section analysis available</p>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -492,14 +496,18 @@ function AnalysisView({
               </CardHeader>
               <CardContent>
                 <ScrollArea className="h-[200px] sm:h-auto sm:max-h-[250px]">
-                  <ul className="space-y-2 pr-2">
-                    {analysis.strengths.map((s, i) => (
-                      <li key={i} className="flex items-start gap-2 text-xs sm:text-sm">
-                        <CheckCircleIcon className="text-green-500 mt-0.5 shrink-0" />
-                        <span>{s}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  {analysis.strengths && analysis.strengths.length > 0 ? (
+                    <ul className="space-y-2 pr-2">
+                      {analysis.strengths.map((s, i) => (
+                        <li key={i} className="flex items-start gap-2 text-xs sm:text-sm">
+                          <CheckCircleIcon className="text-green-500 mt-0.5 shrink-0" />
+                          <span>{s}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">No strengths identified yet</p>
+                  )}
                 </ScrollArea>
               </CardContent>
             </Card>
@@ -510,14 +518,18 @@ function AnalysisView({
               </CardHeader>
               <CardContent>
                 <ScrollArea className="h-[200px] sm:h-auto sm:max-h-[250px]">
-                  <ul className="space-y-2 pr-2">
-                    {analysis.weaknesses.map((w, i) => (
-                      <li key={i} className="flex items-start gap-2 text-xs sm:text-sm">
-                        <XCircleIcon className="text-red-500 mt-0.5 shrink-0" />
-                        <span>{w}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  {analysis.weaknesses && analysis.weaknesses.length > 0 ? (
+                    <ul className="space-y-2 pr-2">
+                      {analysis.weaknesses.map((w, i) => (
+                        <li key={i} className="flex items-start gap-2 text-xs sm:text-sm">
+                          <XCircleIcon className="text-red-500 mt-0.5 shrink-0" />
+                          <span>{w}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">No weaknesses identified yet</p>
+                  )}
                 </ScrollArea>
               </CardContent>
             </Card>
@@ -528,14 +540,18 @@ function AnalysisView({
               </CardHeader>
               <CardContent>
                 <ScrollArea className="h-[200px] sm:h-auto sm:max-h-[250px]">
-                  <ul className="space-y-2 pr-2">
-                    {analysis.suggestions.map((s, i) => (
-                      <li key={i} className="flex items-start gap-2 text-xs sm:text-sm">
-                        <span className="text-primary font-medium shrink-0">{i + 1}.</span>
-                        <span>{s}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  {analysis.suggestions && analysis.suggestions.length > 0 ? (
+                    <ul className="space-y-2 pr-2">
+                      {analysis.suggestions.map((s, i) => (
+                        <li key={i} className="flex items-start gap-2 text-xs sm:text-sm">
+                          <span className="text-primary font-medium shrink-0">{i + 1}.</span>
+                          <span>{s}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">No suggestions available yet</p>
+                  )}
                 </ScrollArea>
               </CardContent>
             </Card>

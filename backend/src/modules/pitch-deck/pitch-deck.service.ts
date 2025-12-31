@@ -91,7 +91,7 @@ export class PitchDeckService {
    */
   private async analyzeAsync(
     deckId: string,
-    userId: string,
+    _userId: string, // Reserved for future audit logging
     startupId: string | null,
     buffer: Buffer,
   ): Promise<void> {
