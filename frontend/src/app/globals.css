@@ -612,20 +612,42 @@ html.mobile-app .space-y-8 > * + * {
    Forces tabs to be visible on mobile
    ============================================ */
 @media (max-width: 640px) {
-  /* Force TabsList to have proper height on mobile */
+  /* Force TabsList to show all tabs in a compact row */
   [role="tablist"] {
-    min-height: 52px !important;
+    min-height: 48px !important;
     height: auto !important;
-    padding: 6px !important;
+    padding: 4px !important;
     display: flex !important;
+    flex-wrap: nowrap !important;
     align-items: center !important;
+    justify-content: stretch !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    gap: 2px !important;
+    width: 100% !important;
   }
   
-  /* Force TabsTrigger to have proper size on mobile */
+  [role="tablist"]::-webkit-scrollbar {
+    display: none !important;
+  }
+  
+  /* Force TabsTrigger to be compact and equal width */
   [role="tab"] {
-    min-height: 40px !important;
-    padding: 10px 16px !important;
-    font-size: 14px !important;
+    min-height: 32px !important;
+    padding: 3px !important;
+    font-size: 10px !important;
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+  }
+  
+  /* Override grid layout on tablists - make them flex instead */
+  [role="tablist"].grid {
+    display: flex !important;
+    grid-template-columns: none !important;
   }
 }
 
