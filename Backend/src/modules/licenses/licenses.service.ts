@@ -72,6 +72,84 @@ export class LicensesService {
   async listLicenses(): Promise<LicenseSummaryDto[]> {
     const rows = await this.db.select().from(schema.licenses).orderBy(desc(schema.licenses.createdAt)).limit(250);
 
+    return this.toSummaries(rows);
+  }
+
+  async listLicensesForCustomer(email: string): Promise<LicenseSummaryDto[]> {
+    const rows = await this.db
+      .select()
+      .from(schema.licenses)
+      .where(eq(schema.licenses.customerEmail, email.toLowerCase()))
+      .orderBy(desc(schema.licenses.createdAt))
+      .limit(25);
+
+    return this.toSummaries(rows);
+  }
+
+  async createSelfServiceLicense(email: string): Promise<CreatedLicenseDto> {
+    const customerEmail = email.toLowerCase();
+    const now = new Date();
+
+    return this.db.transaction(async tx => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`self-service:${customerEmail}`}))`);
+
+      const existingRows = await tx
+        .select()
+        .from(schema.licenses)
+        .where(and(eq(schema.licenses.customerEmail, customerEmail), eq(schema.licenses.status, 'active')))
+        .orderBy(desc(schema.licenses.createdAt))
+        .limit(1);
+
+      const existingActiveLicense = existingRows.find(license => !license.expiresAt || license.expiresAt.getTime() > now.getTime());
+      if (existingActiveLicense) {
+        throw new BadRequestException('An active license already exists for this account');
+      }
+
+      const licenseKey = generateLicenseKey();
+      const [license] = await tx
+        .insert(schema.licenses)
+        .values({
+          customerEmail,
+          licenseHash: this.hash(licenseKey),
+          licensePrefix: licensePrefix(licenseKey),
+          plan: 'solo',
+          status: 'active',
+          seats: 1,
+          maxDevices: 2,
+          expiresAt: null,
+          metadata: { source: 'self_service_account_center' },
+          createdAt: now,
+          updatedAt: now,
+        })
+        .returning();
+
+      await tx.insert(schema.licenseEvents).values({
+        licenseId: license.id,
+        activationId: null,
+        eventType: 'license.self_service_created',
+        metadata: {
+          plan: license.plan,
+          seats: license.seats,
+          maxDevices: license.maxDevices,
+        },
+      });
+
+      return {
+        id: license.id,
+        customerEmail: license.customerEmail,
+        licenseKey,
+        licensePrefix: license.licensePrefix,
+        plan: license.plan,
+        status: license.status,
+        seats: license.seats,
+        maxDevices: license.maxDevices,
+        expiresAt: license.expiresAt,
+        createdAt: license.createdAt,
+      };
+    });
+  }
+
+  private async toSummaries(rows: schema.License[]): Promise<LicenseSummaryDto[]> {
     const summaries: LicenseSummaryDto[] = [];
     for (const license of rows) {
       const activeDevices = await this.countActiveDevices(license.id);

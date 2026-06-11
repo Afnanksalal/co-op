@@ -65,7 +65,7 @@ export default function HomePage() {
             <Link href="/download" className="hover:text-foreground">Download</Link>
           </nav>
           <div className="flex items-center gap-2">
-            <Link href="/login" className="hidden sm:block">
+            <Link href="/account" className="hidden sm:block">
               <Button variant="ghost" size="sm">Account</Button>
             </Link>
             <Link href="/download">
@@ -97,7 +97,7 @@ export default function HomePage() {
                   <ArrowRight weight="bold" className="h-4 w-4" />
                 </Button>
               </Link>
-              <Link href="/login">
+              <Link href="/account">
                 <Button variant="outline" size="lg" className="h-12 px-6">
                   Manage license
                 </Button>

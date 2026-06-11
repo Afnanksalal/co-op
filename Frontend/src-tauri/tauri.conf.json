@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "identifier": "com.coop.desktop",
   "build": {
-    "frontendDist": "../out",
+    "frontendDist": "../out-tauri",
     "devUrl": "http://localhost:3000",
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run export:tauri"
@@ -13,6 +13,7 @@
     "windows": [
       {
         "title": "Co-Op Desktop",
+        "url": "desktop",
         "width": 1280,
         "height": 800,
         "minWidth": 900,

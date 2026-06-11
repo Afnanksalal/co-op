@@ -91,6 +91,17 @@ class ApiClient {
     });
   }
 
+  listMyLicenses(): Promise<LicenseSummary[]> {
+    return this.request<LicenseSummary[]>('/licenses/mine', { authenticated: true });
+  }
+
+  createSelfServiceLicense(): Promise<CreatedLicense> {
+    return this.request<CreatedLicense>('/licenses/self-service', {
+      method: 'POST',
+      authenticated: true,
+    });
+  }
+
   activateCloudLicense(data: ActivateLicenseRequest): Promise<ActivationResponse> {
     return this.request<ActivationResponse>('/licenses/activate', {
       method: 'POST',

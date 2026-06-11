@@ -4,11 +4,25 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
 const BACKUP_ROOT = path.join(ROOT, '.tauri-build-backups');
+const NEXT_EXPORT_OUT = 'out';
+const TAURI_OUT = 'out-tauri';
 
 const SERVER_ONLY_FILES = [
   'src/proxy.ts',
-  'src/app/auth/callback/route.ts',
   'src/app/sitemap.ts',
+];
+
+const WEB_ONLY_ROUTES = [
+  'src/app/page.tsx',
+  'src/app/account',
+  'src/app/activate',
+  'src/app/admin',
+  'src/app/auth',
+  'src/app/download',
+  'src/app/local',
+  'src/app/login',
+  'src/app/privacy',
+  'src/app/terms',
 ];
 
 const TAURI_CONFIG = 'next.config.tauri.js';
@@ -23,11 +37,11 @@ function backupPathFor(relativePath) {
 }
 
 function backupFiles() {
-  console.log('Backing up server-only files...');
+  console.log('Backing up web-only files...');
   fs.rmSync(BACKUP_ROOT, { recursive: true, force: true });
   fs.mkdirSync(BACKUP_ROOT, { recursive: true });
 
-  for (const file of SERVER_ONLY_FILES) {
+  for (const file of [...SERVER_ONLY_FILES, ...WEB_ONLY_ROUTES]) {
     const fullPath = resolvePath(file);
     if (fs.existsSync(fullPath)) {
       fs.renameSync(fullPath, backupPathFor(file));
@@ -50,7 +64,7 @@ function backupFiles() {
 function restoreFiles() {
   console.log('Restoring original files...');
 
-  for (const file of SERVER_ONLY_FILES) {
+  for (const file of [...SERVER_ONLY_FILES, ...WEB_ONLY_ROUTES]) {
     const fullPath = resolvePath(file);
     const backupPath = backupPathFor(file);
     if (fs.existsSync(backupPath)) {
@@ -81,16 +95,37 @@ function restoreFiles() {
   fs.rmSync(BACKUP_ROOT, { recursive: true, force: true });
 }
 
-function cleanOutput() {
-  const outPath = resolvePath('out');
-  if (fs.existsSync(outPath)) {
-    fs.rmSync(outPath, { recursive: true, force: true, maxRetries: 3, retryDelay: 250 });
+function cleanBeforeBuild() {
+  for (const generatedPath of [NEXT_EXPORT_OUT, TAURI_OUT, '.next']) {
+    const fullPath = resolvePath(generatedPath);
+    if (fs.existsSync(fullPath)) {
+      fs.rmSync(fullPath, { recursive: true, force: true, maxRetries: 3, retryDelay: 250 });
+    }
   }
+}
+
+function cleanStaleNextTypes() {
+  const nextPath = resolvePath('.next');
+  if (fs.existsSync(nextPath)) {
+    fs.rmSync(nextPath, { recursive: true, force: true, maxRetries: 3, retryDelay: 250 });
+  }
+}
+
+function moveExportToTauriOut() {
+  const nextOutPath = resolvePath(NEXT_EXPORT_OUT);
+  const tauriOutPath = resolvePath(TAURI_OUT);
+
+  if (!fs.existsSync(nextOutPath)) {
+    throw new Error('Next.js static export did not produce ./out');
+  }
+
+  fs.rmSync(tauriOutPath, { recursive: true, force: true, maxRetries: 3, retryDelay: 250 });
+  fs.renameSync(nextOutPath, tauriOutPath);
 }
 
 function build() {
   console.log('Building Next.js static export for Tauri...\n');
-  cleanOutput();
+  cleanBeforeBuild();
   execSync('npx next build', {
     cwd: ROOT,
     stdio: 'inherit',
@@ -99,7 +134,8 @@ function build() {
       NEXT_PUBLIC_TAURI: '1',
     },
   });
-  console.log('\nStatic export complete. Output in ./out/');
+  moveExportToTauriOut();
+  console.log(`\nStatic export complete. Output in ./${TAURI_OUT}/`);
 }
 
 try {
@@ -110,4 +146,5 @@ try {
   process.exitCode = 1;
 } finally {
   restoreFiles();
+  cleanStaleNextTypes();
 }

@@ -35,13 +35,13 @@ function LoginContent() {
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        router.replace(safeNext(searchParams.get('next'), '/download'));
+        router.replace(safeNext(searchParams.get('next'), '/account'));
       }
     }).catch(() => undefined);
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session) {
-        router.replace(safeNext(searchParams.get('next'), '/download'));
+        router.replace(safeNext(searchParams.get('next'), '/account'));
       }
     });
 
@@ -52,7 +52,7 @@ function LoginContent() {
     setIsLoading(true);
     const supabase = createClient();
     const isTauri = typeof window !== 'undefined' && Boolean((window as unknown as { __TAURI__?: unknown }).__TAURI__);
-    const next = safeNext(searchParams.get('next'), isTauri ? '/activate' : '/download');
+    const next = safeNext(searchParams.get('next'), isTauri ? '/activate' : '/account');
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -71,7 +71,7 @@ function LoginContent() {
     event.preventDefault();
     setIsLoading(true);
     const supabase = createClient();
-    const next = safeNext(searchParams.get('next'), '/download');
+    const next = safeNext(searchParams.get('next'), '/account');
 
     if (isSignUp) {
       const { data, error } = await supabase.auth.signUp({ email, password });

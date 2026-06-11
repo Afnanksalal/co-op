@@ -87,7 +87,7 @@ export default function DownloadPage() {
             ))}
           </div>
           <div className="mt-6 flex flex-wrap gap-3">
-            <Link href="/login">
+            <Link href="/account">
               <Button variant="outline">Manage account</Button>
             </Link>
             <Link href="/activate">

@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { AdminGuard } from '@/common/guards/admin.guard';
+import { AuthGuard, type AuthenticatedRequest } from '@/common/guards/auth.guard';
 import { ApiResponseDto } from '@/common/dto/api-response.dto';
 import { ActivateLicenseDto, ActivationResponseDto, CreateLicenseDto, CreatedLicenseDto, DeactivateLicenseDto, HeartbeatLicenseDto, LicenseEntitlementDto, LicenseSummaryDto } from './dto';
 import { LicensesService } from './licenses.service';
@@ -31,6 +32,20 @@ export class LicensesController {
   async listLicenses(): Promise<ApiResponseDto<LicenseSummaryDto[]>> {
     const result = await this.licensesService.listLicenses();
     return ApiResponseDto.success(result);
+  }
+
+  @Get('mine')
+  @UseGuards(AuthGuard)
+  async listMyLicenses(@Req() request: AuthenticatedRequest): Promise<ApiResponseDto<LicenseSummaryDto[]>> {
+    const result = await this.licensesService.listLicensesForCustomer(request.user!.email);
+    return ApiResponseDto.success(result);
+  }
+
+  @Post('self-service')
+  @UseGuards(AuthGuard)
+  async createSelfServiceLicense(@Req() request: AuthenticatedRequest): Promise<ApiResponseDto<CreatedLicenseDto>> {
+    const result = await this.licensesService.createSelfServiceLicense(request.user!.email);
+    return ApiResponseDto.success(result, 'Activation key generated');
   }
 
   @Post()

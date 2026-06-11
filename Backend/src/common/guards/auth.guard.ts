@@ -1,9 +1,13 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
-import { SupabaseService } from '@/common/supabase/supabase.service';
-import type { AuthenticatedRequest } from './auth.guard';
+import { SupabaseService, SupabaseUser } from '@/common/supabase/supabase.service';
+
+export interface AuthenticatedRequest {
+  headers: { authorization?: string };
+  user?: SupabaseUser;
+}
 
 @Injectable()
-export class AdminGuard implements CanActivate {
+export class AuthGuard implements CanActivate {
   constructor(private readonly supabase: SupabaseService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -18,10 +22,6 @@ export class AdminGuard implements CanActivate {
 
     if (!supabaseUser) {
       throw new ForbiddenException('Invalid or expired token');
-    }
-
-    if (supabaseUser.role !== 'admin') {
-      throw new ForbiddenException('Admin access required');
     }
 
     request.user = supabaseUser;
