@@ -1,16 +1,10 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-
 export class ApiResponseDto<T> {
-  @ApiProperty()
   success: boolean;
 
-  @ApiPropertyOptional()
   data?: T;
 
-  @ApiPropertyOptional()
   message?: string;
 
-  @ApiPropertyOptional()
   error?: string;
 
   constructor() {

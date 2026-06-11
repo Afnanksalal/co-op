@@ -1,6 +1,5 @@
 # ===========================================
-# Co-Op Backend - Production Dockerfile
-# Optimized for Render deployment
+# Co-Op cloud license backend
 # ===========================================
 
 # Build stage
@@ -13,7 +12,7 @@ COPY package*.json ./
 RUN npm ci
 
 # Copy TypeScript config files needed for build
-COPY tsconfig.json tsconfig.build.json nest-cli.json ./
+COPY tsconfig.json tsconfig.build.json ./
 
 # Copy source code
 COPY src ./src

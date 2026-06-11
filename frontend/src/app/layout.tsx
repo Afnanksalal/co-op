@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter, Playfair_Display } from 'next/font/google';
-import { Analytics } from '@vercel/analytics/next';
 import { Toaster } from 'sonner';
 import './globals.css';
 
@@ -18,31 +17,18 @@ const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://co-op.software';
 
 export const metadata: Metadata = {
   title: {
-    default: 'Co-Op | AI Advisory Board for Startups',
+    default: 'Co-Op | Local-First Business Orchestration',
     template: '%s | Co-Op',
   },
-  description: 'Free AI-powered advisory board for startups. Get expert guidance on legal compliance, financial modeling, investor matching, and competitor analysis. Multiple AI models cross-validate every response for accuracy.',
+  description: 'Co-Op is local-first business management software with a cloud license plane, desktop activation, Ollama support, and OpenAI-compatible bring-your-own-key routing.',
   keywords: [
-    'startup advisor',
-    'AI advisory board',
-    'startup legal advice',
-    'financial modeling for startups',
-    'investor matching',
-    'competitor analysis tool',
-    'startup tools',
-    'founder tools',
-    'AI startup assistant',
-    'LLM council',
-    'startup fundraising',
-    'pitch deck review',
-    'runway calculator',
-    'burn rate calculator',
-    'valuation calculator',
-    'startup compliance',
-    'free startup tools',
-    'AI for founders',
-    'startup mentor',
-    'virtual advisory board',
+    'local-first business software',
+    'business orchestration',
+    'desktop AI software',
+    'Ollama business app',
+    'bring your own key AI',
+    'license management software',
+    'self hosted business AI',
   ],
   authors: [{ name: 'Co-Op', url: siteUrl }],
   creator: 'Co-Op',
@@ -56,22 +42,22 @@ export const metadata: Metadata = {
     locale: 'en_US',
     url: siteUrl,
     siteName: 'Co-Op',
-    title: 'Co-Op | AI Advisory Board for Startups',
-    description: 'Free AI-powered advisory board. Expert guidance on legal, finance, investor relations, and competitive analysis. Multiple AI models ensure accurate, reliable advice.',
+    title: 'Co-Op | Local-First Business Orchestration',
+    description: 'Desktop business orchestration with local data, cloud licensing, Ollama, and OpenAI-compatible BYOK routing.',
     images: [
       {
         url: '/logo.png',
         width: 512,
         height: 512,
-        alt: 'Co-Op - AI Advisory Board for Startups',
+        alt: 'Co-Op local-first business orchestration',
         type: 'image/png',
       },
     ],
   },
   twitter: {
     card: 'summary',
-    title: 'Co-Op | AI Advisory Board for Startups',
-    description: 'Free AI-powered advisory board. Expert guidance on legal, finance, investor relations, and competitive analysis.',
+    title: 'Co-Op | Local-First Business Orchestration',
+    description: 'Desktop business orchestration with local data, cloud licensing, Ollama, and BYOK routing.',
     images: ['/logo.png'],
     creator: '@coop_ai',
     site: '@coop_ai',
@@ -103,7 +89,6 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: 'black-translucent',
     title: 'Co-Op',
-    startupImage: '/logo.png',
   },
   formatDetection: {
     telephone: false,
@@ -116,9 +101,6 @@ export const metadata: Metadata = {
   applicationName: 'Co-Op',
   generator: 'Next.js',
   other: {
-    'mobile-web-app-capable': 'yes',
-    'apple-mobile-web-app-capable': 'yes',
-    'apple-mobile-web-app-status-bar-style': 'black-translucent',
     'msapplication-TileColor': '#0f1012',
     'msapplication-config': '/browserconfig.xml',
   },
@@ -139,8 +121,7 @@ export const viewport: Viewport = {
 
 import { ThemeProvider } from '@/components/theme-provider';
 
-// Script to prevent flash of wrong theme - runs before React hydration
-// Also handles mobile app safe area detection
+// Script to prevent flash of wrong theme before React hydration.
 const themeScript = `
   (function() {
     try {
@@ -151,13 +132,6 @@ const themeScript = `
     } catch (e) {
       document.documentElement.classList.add('dark');
     }
-    
-    // Detect mobile app WebView and apply safe area padding
-    if (window.ReactNativeWebView || navigator.userAgent.includes('CoOpMobile')) {
-      document.documentElement.classList.add('mobile-app');
-      // Disable framer-motion animations in mobile app
-      window.__FRAMER_MOTION_REDUCED_MOTION__ = true;
-    }
   })();
 `;
 
@@ -167,27 +141,20 @@ const jsonLd = {
   '@type': 'SoftwareApplication',
   name: 'Co-Op',
   applicationCategory: 'BusinessApplication',
-  operatingSystem: 'Web',
-  description: 'Free AI-powered advisory board for startups. Get expert guidance on legal compliance, financial modeling, investor matching, and competitor analysis.',
+  operatingSystem: 'Windows, macOS, Linux',
+  description: 'Local-first business management desktop software with cloud license control and local/BYOK model routing.',
   url: 'https://co-op.software',
   offers: {
     '@type': 'Offer',
     price: '0',
     priceCurrency: 'USD',
   },
-  aggregateRating: {
-    '@type': 'AggregateRating',
-    ratingValue: '4.8',
-    ratingCount: '100',
-  },
   featureList: [
-    'AI Legal Advisor',
-    'Financial Modeling',
-    'Investor Matching',
-    'Competitor Analysis',
-    'Runway Calculator',
-    'Burn Rate Calculator',
-    'Valuation Calculator',
+    'Cloud license activation',
+    'Local desktop runtime',
+    'Ollama provider routing',
+    'OpenAI-compatible bring-your-own-key support',
+    'Local workflow orchestration',
   ],
 };
 
@@ -223,12 +190,10 @@ export default function RootLayout({
               border: '1px solid hsl(var(--border))',
               color: 'hsl(var(--foreground))',
             },
-            className: 'toast-mobile-safe',
             duration: 4000,
           }}
           containerAriaLabel="Notifications"
         />
-        <Analytics />
       </body>
     </html>
   );

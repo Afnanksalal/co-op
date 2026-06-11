@@ -1,7 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger, LogLevel } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -27,11 +26,8 @@ function validateProductionConfig(): void {
   const logger = new Logger('PreFlight');
   const errors: string[] = [];
 
-  // Critical: Encryption key required for data security
-  if (!process.env.ENCRYPTION_KEY) {
-    errors.push('ENCRYPTION_KEY is required in production for secure data encryption');
-  } else if (process.env.ENCRYPTION_KEY.length < 32) {
-    errors.push('ENCRYPTION_KEY must be at least 32 characters');
+  if (!process.env.LICENSE_KEY_PEPPER || process.env.LICENSE_KEY_PEPPER.length < 32) {
+    errors.push('LICENSE_KEY_PEPPER is required in production and must be at least 32 characters');
   }
 
   // Critical: CORS must be explicitly configured in production
@@ -47,21 +43,6 @@ function validateProductionConfig(): void {
   // Critical: Supabase configuration
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
     errors.push('SUPABASE_URL and SUPABASE_ANON_KEY are required');
-  }
-
-  // Critical: Redis configuration
-  if (!process.env.UPSTASH_REDIS_URL || !process.env.UPSTASH_REDIS_TOKEN) {
-    errors.push('UPSTASH_REDIS_URL and UPSTASH_REDIS_TOKEN are required');
-  }
-
-  // Warning: LLM providers
-  const llmProviders = [
-    process.env.GROQ_API_KEY,
-    process.env.GOOGLE_AI_API_KEY,
-    process.env.HUGGINGFACE_API_KEY,
-  ].filter(Boolean);
-  if (llmProviders.length < 2) {
-    logger.warn('Less than 2 LLM providers configured - council cross-critique may be limited');
   }
 
   if (errors.length > 0) {
@@ -104,7 +85,7 @@ async function bootstrap(): Promise<void> {
     origin: corsOrigins === '*' ? '*' : corsOrigins.split(',').map(o => o.trim()),
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Request-Id'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'X-CoOp-Install-Id'],
     exposedHeaders: ['X-Request-Id', 'X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
   });
 
@@ -120,17 +101,6 @@ async function bootstrap(): Promise<void> {
       transformOptions: { enableImplicitConversion: true },
     }),
   );
-
-  if (!isProduction) {
-    const swaggerConfig = new DocumentBuilder()
-      .setTitle('Co-Op API')
-      .setDescription('Co-Op Platform Backend API')
-      .setVersion('1.0')
-      .addBearerAuth()
-      .build();
-    const document = SwaggerModule.createDocument(app, swaggerConfig);
-    SwaggerModule.setup('docs', app, document);
-  }
 
   // Enable graceful shutdown
   app.enableShutdownHooks();
@@ -172,8 +142,7 @@ async function bootstrap(): Promise<void> {
   process.on('SIGINT', () => void shutdown('SIGINT'));
 
   await app.listen(port);
-  logger.log(`🚀 Co-Op Backend running on port ${String(port)}`);
-  logger.log(`📚 API Docs: http://localhost:${String(port)}/docs`);
+  logger.log(`Co-Op cloud license backend running on port ${String(port)}`);
 }
 
 void bootstrap();

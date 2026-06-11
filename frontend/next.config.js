@@ -1,12 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  
-  // Vercel optimizations
-  poweredByHeader: false,
-  compress: true,
-  
+
+  // Static export doesn't support image optimization
   images: {
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: 'https',
@@ -21,24 +19,12 @@ const nextConfig = {
         hostname: 'avatars.githubusercontent.com',
       },
     ],
-    formats: ['image/avif', 'image/webp'],
   },
-  
-  // Transpile packages that may have SSR issues
-  transpilePackages: ['@phosphor-icons/react', 'framer-motion'],
-  
 
-  
-  // Experimental features for better performance
+  transpilePackages: ['@phosphor-icons/react'],
+
   experimental: {
-    optimizePackageImports: ['@phosphor-icons/react', 'framer-motion', 'date-fns'],
-  },
-  
-  // Logging
-  logging: {
-    fetches: {
-      fullUrl: process.env.NODE_ENV === 'development',
-    },
+    optimizePackageImports: ['@phosphor-icons/react'],
   },
 };
 

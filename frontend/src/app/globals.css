@@ -12,89 +12,72 @@
     --popover-foreground: 220 15% 15%;
     --primary: 220 15% 15%;
     --primary-foreground: 0 0% 98%;
-    --secondary: 220 10% 96%;
+    --secondary: 210 14% 96%;
     --secondary-foreground: 220 15% 15%;
-    --muted: 220 10% 96%;
-    --muted-foreground: 220 10% 45%;
-    --accent: 220 10% 96%;
+    --muted: 210 14% 96%;
+    --muted-foreground: 220 9% 43%;
+    --accent: 210 14% 96%;
     --accent-foreground: 220 15% 15%;
-    --destructive: 0 84% 60%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 98%;
-    --border: 220 10% 90%;
-    --input: 220 10% 90%;
-    --ring: 220 15% 15%;
-    --radius: 0.625rem;
-    
-    /* Custom accent colors */
-    --accent-blue: 217 91% 60%;
-    --accent-green: 142 71% 45%;
-    --accent-purple: 262 83% 58%;
-    --accent-orange: 25 95% 53%;
+    --border: 220 10% 88%;
+    --input: 220 10% 88%;
+    --ring: 220 15% 18%;
+    --radius: 0.5rem;
   }
 
   .dark {
-    --background: 220 15% 6%;
-    --foreground: 0 0% 95%;
-    --card: 220 15% 8%;
-    --card-foreground: 0 0% 95%;
-    --popover: 220 15% 8%;
-    --popover-foreground: 0 0% 95%;
-    --primary: 0 0% 95%;
-    --primary-foreground: 220 15% 6%;
-    --secondary: 220 15% 12%;
-    --secondary-foreground: 0 0% 95%;
-    --muted: 220 15% 12%;
-    --muted-foreground: 220 10% 55%;
-    --accent: 220 15% 12%;
-    --accent-foreground: 0 0% 95%;
-    --destructive: 0 62% 30%;
+    --background: 220 14% 7%;
+    --foreground: 0 0% 94%;
+    --card: 220 13% 10%;
+    --card-foreground: 0 0% 94%;
+    --popover: 220 13% 10%;
+    --popover-foreground: 0 0% 94%;
+    --primary: 0 0% 96%;
+    --primary-foreground: 220 14% 7%;
+    --secondary: 214 13% 15%;
+    --secondary-foreground: 0 0% 94%;
+    --muted: 214 13% 15%;
+    --muted-foreground: 220 8% 62%;
+    --accent: 214 13% 15%;
+    --accent-foreground: 0 0% 94%;
+    --destructive: 0 63% 38%;
     --destructive-foreground: 0 0% 98%;
-    --border: 220 15% 16%;
-    --input: 220 15% 16%;
-    --ring: 0 0% 80%;
+    --border: 214 13% 18%;
+    --input: 214 13% 18%;
+    --ring: 0 0% 82%;
   }
-}
 
-@layer base {
   * {
     @apply border-border;
   }
-  
+
   html {
     @apply scroll-smooth antialiased;
     text-rendering: optimizeLegibility;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
   }
-  
+
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
-  
-  h1, h2, h3, h4, h5, h6 {
-    @apply font-serif tracking-tight;
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-serif tracking-normal;
   }
-  
-  h1 {
-    @apply text-3xl sm:text-4xl font-semibold;
-  }
-  
-  h2 {
-    @apply text-2xl sm:text-3xl font-semibold;
-  }
-  
-  h3 {
-    @apply text-xl sm:text-2xl font-medium;
-  }
-  
-  p {
-    @apply leading-relaxed;
-  }
-  
-  /* Focus styles */
+
   :focus-visible {
     @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.15);
+    color: hsl(var(--foreground));
   }
 }
 
@@ -102,140 +85,50 @@
   .font-serif {
     font-family: var(--font-serif), ui-serif, Georgia, serif;
   }
-  
+
   .font-sans {
     font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   }
-  
-  /* Hidden scrollbar - still scrollable */
-  .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-  
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
-  }
-  
-  /* Text balance for headings */
+
   .text-balance {
     text-wrap: balance;
   }
-  
-  /* Gradient text */
-  .gradient-text {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-foreground to-muted-foreground;
-  }
-  
-  /* Glass effect */
+
   .glass {
-    @apply bg-background/80 backdrop-blur-xl border border-border/50;
+    @apply border border-border/50 bg-background/85 backdrop-blur-xl;
   }
-  
-  /* Subtle shadow */
-  .shadow-soft {
-    box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.05), 0 4px 16px -4px rgba(0, 0, 0, 0.1);
+
+  .container-wide {
+    @apply mx-auto max-w-7xl px-4 sm:px-6 lg:px-8;
   }
-  
-  .shadow-soft-lg {
-    box-shadow: 0 4px 12px -4px rgba(0, 0, 0, 0.08), 0 8px 24px -8px rgba(0, 0, 0, 0.12);
-  }
-  
-  /* Hover lift effect */
-  .hover-lift {
-    @apply transition-all duration-200;
-  }
-  
-  .hover-lift:hover {
-    @apply -translate-y-0.5 shadow-soft-lg;
+
+  .container-tight {
+    @apply mx-auto max-w-3xl px-4 sm:px-6;
   }
 }
 
 @layer components {
-  /* Code block styling */
-  .code-block {
-    @apply bg-muted/50 rounded-lg p-4 font-mono text-sm overflow-x-auto border border-border/50;
-  }
-  
-  .code-block code {
-    @apply text-foreground;
-  }
-  
-  /* Inline code */
-  .inline-code {
-    @apply bg-muted px-1.5 py-0.5 rounded text-sm font-mono;
-  }
-  
-  /* Card variants */
-  .card-interactive {
-    @apply transition-all duration-200 hover:border-border hover:shadow-soft cursor-pointer;
-  }
-  
-  .card-highlight {
-    @apply border-primary/20 bg-primary/5;
-  }
-  
-  /* Badge variants */
   .badge-success {
-    @apply bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20;
+    @apply border-green-500/20 bg-green-500/10 text-green-700 dark:text-green-300;
   }
-  
+
   .badge-warning {
-    @apply bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20;
+    @apply border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300;
   }
-  
+
   .badge-error {
-    @apply bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20;
+    @apply border-red-500/20 bg-red-500/10 text-red-700 dark:text-red-300;
   }
-  
+
   .badge-info {
-    @apply bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20;
+    @apply border-blue-500/20 bg-blue-500/10 text-blue-700 dark:text-blue-300;
   }
-  
-  /* Section spacing */
-  .section {
-    @apply py-12 sm:py-16 lg:py-20;
-  }
-  
-  /* Container */
-  .container-tight {
-    @apply max-w-3xl mx-auto px-4 sm:px-6;
-  }
-  
-  .container-wide {
-    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+
+  .code-block {
+    @apply overflow-x-auto rounded-lg border border-border/50 bg-muted/50 p-4 font-mono text-sm;
   }
 }
 
-/* ============================================
-   GLOBAL SCROLLBAR HIDING
-   Hide all scrollbars while keeping scroll functionality
-   ============================================ */
-
-/* Hide scrollbars globally - WebKit browsers (Chrome, Safari, Edge) */
-::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-  display: none;
-}
-
-/* Hide scrollbars globally - Firefox */
-* {
-  scrollbar-width: none;
-}
-
-/* Hide scrollbars globally - IE/Edge legacy */
-* {
-  -ms-overflow-style: none;
-}
-
-/* Selection */
-::selection {
-  background: hsl(var(--primary) / 0.15);
-  color: hsl(var(--foreground));
-}
-
-/* Animations */
 @keyframes fade-in {
   from {
     opacity: 0;
@@ -247,923 +140,27 @@
   }
 }
 
-@keyframes fade-out {
-  from {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  to {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-}
-
-@keyframes slide-up {
-  from {
-    opacity: 0;
-    transform: translateY(16px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
-}
-
-@keyframes pulse-soft {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.6;
-  }
-}
-
 .animate-fade-in {
-  animation: fade-in 0.3s ease-out forwards;
+  animation: fade-in 0.25s ease-out forwards;
 }
 
-.animate-slide-up {
-  animation: slide-up 0.4s ease-out forwards;
-}
-
-.animate-shimmer {
-  animation: shimmer 2s infinite linear;
-  background: linear-gradient(
-    90deg,
-    hsl(var(--muted)) 0%,
-    hsl(var(--muted-foreground) / 0.1) 50%,
-    hsl(var(--muted)) 100%
-  );
-  background-size: 200% 100%;
-}
-
-.animate-pulse-soft {
-  animation: pulse-soft 2s ease-in-out infinite;
-}
-
-/* Stagger animation delays */
-.stagger-1 { animation-delay: 0.05s; }
-.stagger-2 { animation-delay: 0.1s; }
-.stagger-3 { animation-delay: 0.15s; }
-.stagger-4 { animation-delay: 0.2s; }
-.stagger-5 { animation-delay: 0.25s; }
-
-/* Mobile menu scroll lock */
-html.menu-open,
-html.menu-open body {
-  overflow: hidden !important;
-  overscroll-behavior: none;
-  touch-action: none;
-  position: fixed;
-  width: 100%;
-  height: 100%;
-}
-
-/* Smooth scrolling for mobile menu content */
-.mobile-menu-scroll {
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  scroll-behavior: smooth;
-}
-
-/* Prevent pull-to-refresh on mobile */
-@supports (-webkit-touch-callout: none) {
-  body {
-    overscroll-behavior-y: none;
-  }
-}
-
-/* Hardware acceleration for smoother animations */
-.hw-accelerate {
-  transform: translateZ(0);
-  backface-visibility: hidden;
-  perspective: 1000px;
-  will-change: transform;
-}
-
-/* Print styles */
-@media print {
-  .no-print {
-    display: none !important;
-  }
-}
-
-/* Mobile safe area padding for devices with notches/home indicators */
-.pb-safe {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-}
-
-.pt-safe {
-  padding-top: env(safe-area-inset-top, 0px);
-}
-
-/* Touch manipulation for better mobile interactions */
-.touch-manipulation {
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-}
-
-/* Prevent text selection on interactive elements */
-.select-none-touch {
-  -webkit-user-select: none;
-  user-select: none;
-  -webkit-touch-callout: none;
-}
-
-/* Mobile input improvements */
-@media (max-width: 640px) {
-  /* Better textarea sizing on mobile */
-  textarea {
-    font-size: 16px !important; /* Prevents iOS zoom on focus */
-  }
-  
-  /* Smoother scrolling */
-  .overflow-y-auto,
-  .overflow-x-auto {
-    -webkit-overflow-scrolling: touch;
-  }
-}
-
-/* Active state feedback for touch */
-@media (hover: none) and (pointer: coarse) {
-  .active\:scale-95:active {
-    transform: scale(0.95);
-  }
-  
-  button:active,
-  [role="button"]:active {
-    opacity: 0.8;
-  }
-}
-
-
-/* ============================================
-   MOBILE APP (WebView) SAFE AREA STYLES
-   Applied when running inside Co-Op mobile app
-   ============================================ */
-
-/* Mobile app detection - class added by layout.tsx script */
-html.mobile-app {
-  /* CSS custom properties for safe area - will be set by WebView injection */
-  --safe-area-top: env(safe-area-inset-top, 48px);
-  --safe-area-bottom: env(safe-area-inset-bottom, 24px);
-}
-
-/* 
- * Mobile App Animation Strategy:
- * - Keep basic CSS transitions (sidebar slide, hover effects, loading spinners)
- * - Disable framer-motion JavaScript animations (page transitions, complex animations)
- */
-
-/* Keep essential loading spinners and basic transitions */
-html.mobile-app .animate-spin {
-  animation-duration: 1s !important;
-}
-
-/* Allow basic CSS transitions for UI elements */
-html.mobile-app .transition,
-html.mobile-app .transition-all,
-html.mobile-app .transition-colors,
-html.mobile-app .transition-opacity,
-html.mobile-app .transition-transform {
-  transition-duration: 150ms !important;
-}
-
-/* Disable framer-motion animations completely - EXCEPT sidebar */
-html.mobile-app [style*="transform"][style*="opacity"]:not([data-sidebar]),
-html.mobile-app [data-framer-component-type]:not([data-sidebar]),
-html.mobile-app [data-projection-id]:not([data-sidebar]) {
-  transform: none !important;
-  opacity: 1 !important;
-  transition: none !important;
-  animation: none !important;
-}
-
-/* Keep sidebar animations working in mobile app */
-html.mobile-app [data-sidebar] {
-  /* Allow framer-motion to control these */
-}
-
-/* Sidebar backdrop animation */
-html.mobile-app [data-sidebar-backdrop] {
-  /* Allow opacity transitions for backdrop */
-}
-
-/* Body - no padding, header handles safe area */
-html.mobile-app body {
-  padding-top: 0 !important;
-  padding-bottom: var(--safe-area-bottom) !important;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-}
-
-/* Fixed header - extends into safe area with internal padding */
-html.mobile-app header {
-  top: 0 !important;
-  padding-top: var(--safe-area-top) !important;
-  height: calc(3.5rem + var(--safe-area-top)) !important;
-  /* Ensure header background extends to top edge */
-  background-clip: padding-box;
-}
-
-/* Slide-out menu - also extends into safe area */
-html.mobile-app aside[class*="fixed"][class*="left-0"] {
-  top: 0 !important;
-  padding-top: var(--safe-area-top) !important;
-}
-
-/* Slide-out menu header - adjust for safe area padding on parent */
-html.mobile-app aside[class*="fixed"][class*="left-0"] > div:first-child {
-  margin-top: 0;
-}
-
-/* Main content - account for taller header */
-html.mobile-app main {
-  padding-top: calc(3.5rem + var(--safe-area-top)) !important;
-  min-height: calc(100vh - var(--safe-area-top) - var(--safe-area-bottom));
-  overflow: hidden;
-}
-
-/* Main content inner scroll container */
-html.mobile-app main > div {
-  height: 100%;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-/* Mobile app specific input handling */
-html.mobile-app input,
-html.mobile-app textarea,
-html.mobile-app select {
-  font-size: 16px !important; /* Prevent iOS zoom */
-  -webkit-appearance: none;
-  appearance: none;
-}
-
-/* Hide scrollbars in mobile app but keep functionality */
-html.mobile-app ::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-  display: none;
-}
-
-html.mobile-app * {
-  scrollbar-width: none;
-}
-
-/* Better touch targets in mobile app */
-html.mobile-app button,
-html.mobile-app a,
-html.mobile-app [role="button"] {
-  -webkit-tap-highlight-color: transparent;
-}
-
-/* Disable text selection on interactive elements */
-html.mobile-app button,
-html.mobile-app [role="button"] {
-  -webkit-user-select: none;
-  user-select: none;
-}
-
-/* ============================================
-   CHAT CONTAINER - Dynamic height for all devices
-   ============================================ */
-
-/* Default chat container height - desktop */
-.chat-container {
-  height: calc(100vh - 4rem);
-}
-
-/* Mobile (with header) - account for mobile header (56px / 3.5rem) + padding */
-@media (max-width: 767px) {
-  .chat-container {
-    height: calc(100vh - 3.5rem - 2rem); /* viewport - header - padding */
-  }
-}
-
-/* Mobile app specific - account for safe areas */
-html.mobile-app .chat-container {
-  height: calc(100vh - var(--safe-area-top) - var(--safe-area-bottom) - 3.5rem - 1rem);
-  /* Ensure input stays visible */
-  display: flex;
-  flex-direction: column;
-}
-
-/* Ensure the messages area scrolls, not the whole page */
-html.mobile-app .chat-container > div:nth-child(2) {
-  flex: 1;
-  min-height: 0; /* Important for flex children to scroll */
-  overflow-y: auto;
-}
-
-/* ============================================
-   RESPONSIVE UTILITIES FOR DASHBOARD PAGES
-   ============================================ */
-
-/* Ensure cards don't overflow on mobile */
-@media (max-width: 640px) {
-  /* Better card padding on mobile */
-  [class*="CardContent"] {
-    padding: 0.75rem;
-  }
-  
-  /* Ensure code blocks don't overflow */
-  pre, code {
-    max-width: 100%;
-    overflow-x: auto;
-  }
-}
-
-/* Ensure consistent spacing in mobile app */
-html.mobile-app .space-y-6 > * + * {
-  margin-top: 1rem;
-}
-
-html.mobile-app .space-y-8 > * + * {
-  margin-top: 1.25rem;
-}
-
-/* Better grid layouts on mobile */
-@media (max-width: 640px) {
-  .grid-cols-2 {
-    gap: 0.5rem;
-  }
-  
-  .grid-cols-3 {
-    gap: 0.375rem;
-  }
-  
-  .grid-cols-4 {
-    gap: 0.375rem;
-  }
-}
-
-/* ============================================
-   MOBILE TABS FIX - PRODUCTION READY
-   Dynamic tabs that work with any number of tabs
-   ============================================ */
-@media (max-width: 639px) {
-  /* Nuclear override - kill grid completely on mobile tablists */
-  [role="tablist"],
-  [role="tablist"].grid,
-  .grid[role="tablist"],
-  [role="tablist"].grid-cols-2,
-  [role="tablist"].grid-cols-3,
-  [role="tablist"].grid-cols-4,
-  [role="tablist"][class*="grid-cols"] {
-    display: flex !important;
-    grid-template-columns: none !important;
-    flex-direction: row !important;
-    flex-wrap: nowrap !important;
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-    scrollbar-width: none !important;
-    gap: 4px !important;
-    padding: 4px !important;
-  }
-  
-  [role="tablist"]::-webkit-scrollbar {
-    display: none !important;
-  }
-  
-  /* Each tab distributes evenly */
-  [role="tab"] {
-    flex: 1 1 0% !important;
-    min-width: 0 !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    padding: 6px 8px !important;
-    font-size: 12px !important;
-    min-height: 36px !important;
-  }
-}
-
-/* Mobile app specific - even more aggressive */
-html.mobile-app [role="tablist"],
-html.mobile-app [role="tablist"].grid,
-html.mobile-app .grid[role="tablist"] {
-  display: flex !important;
-  grid-template-columns: none !important;
-  flex-direction: row !important;
-  flex-wrap: nowrap !important;
-}
-
-html.mobile-app [role="tab"] {
-  flex: 1 1 0% !important;
-  min-width: 0 !important;
-}
-
-/* ============================================
-   MOBILE CONTAINER CONSISTENCY
-   Ensures all dashboard pages have uniform spacing
-   ============================================ */
-
-/* Dashboard page containers - ensure they don't touch edges */
-@media (max-width: 640px) {
-  .max-w-3xl,
-  .max-w-4xl,
-  .max-w-5xl,
-  .max-w-6xl {
-    max-width: 100%;
-  }
-  
-  /* Ensure grids have proper gaps on mobile */
-  .grid {
-    gap: 0.5rem;
-  }
-  
-  /* Better spacing for stacked elements */
-  .space-y-4 > * + * {
-    margin-top: 0.75rem;
-  }
-  
-  .space-y-6 > * + * {
-    margin-top: 1rem;
-  }
-  
-  .space-y-8 > * + * {
-    margin-top: 1.25rem;
-  }
-}
-
-/* ============================================
-   PRODUCTION POLISH - Mobile & Desktop
-   ============================================ */
-
-/* Smooth page transitions */
-main {
-  transition: opacity 0.15s ease-out;
-}
-
-/* Better focus states for accessibility */
-:focus-visible {
-  outline: 2px solid hsl(var(--ring));
-  outline-offset: 2px;
-}
-
-/* Prevent layout shift from scrollbar */
-html {
-  overflow-y: scroll;
-}
-
-/* Better text rendering */
-body {
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-/* Ensure buttons have consistent sizing on mobile */
-@media (max-width: 640px) {
-  /* Consistent button heights */
-  .h-9, .h-10 {
-    min-height: 36px;
-  }
-  
-  /* Better badge sizing */
-  [class*="Badge"] {
-    font-size: 10px;
-    padding: 2px 6px;
-  }
-  
-  /* Ensure inputs don't zoom on iOS */
-  input, select, textarea {
-    font-size: 16px !important;
-  }
-  
-  /* Better table responsiveness */
-  table {
-    display: block;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-  
-  /* Ensure dialogs have proper max-height */
-  [role="dialog"] {
-    max-height: 90vh;
-  }
-}
-
-/* Ensure dialogs are properly positioned on mobile */
-@media (max-width: 640px) {
-  [role="dialog"] > div {
-    max-height: calc(100vh - 4rem);
-    overflow-y: auto;
-  }
-}
-
-@keyframes slideUp {
-  from {
-    transform: translateY(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-/* Loading skeleton animation */
-.animate-pulse {
-  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-}
-
-/* Better empty state styling */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 3rem 1.5rem;
-  text-align: center;
-}
-
-/* Ensure consistent card borders */
-[class*="Card"] {
-  border-radius: var(--radius);
-}
-
-/* Better hover states for interactive cards */
-.card-interactive:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px -4px rgba(0, 0, 0, 0.1);
-}
-
-/* Ensure proper z-index stacking */
-.z-header { z-index: 40; }
-.z-sidebar { z-index: 40; }
-.z-overlay { z-index: 50; }
-.z-modal { z-index: 60; }
-.z-toast { z-index: 100; }
-
-/* Better mobile navigation */
-@media (max-width: 767px) {
-  /* Ensure nav items are easily tappable */
-  nav a, nav button {
-    min-height: 44px;
-    display: flex;
-    align-items: center;
-  }
-  
-  /* Better spacing for mobile lists */
-  .space-y-2 > * + * {
-    margin-top: 0.5rem;
-  }
-  
-  .space-y-3 > * + * {
-    margin-top: 0.75rem;
-  }
-}
-
-/* Ensure proper line heights for readability */
-p, li {
-  line-height: 1.6;
-}
-
-/* Better code block styling */
-pre {
-  border-radius: var(--radius);
-  padding: 1rem;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-code {
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 0.875em;
-}
-
-/* Ensure images don't overflow */
-img {
-  max-width: 100%;
-  height: auto;
-}
-
-/* Better form field focus states */
-input:focus, textarea:focus, select:focus {
-  outline: none;
-  box-shadow: 0 0 0 2px hsl(var(--ring));
-}
-
-/* Ensure proper truncation */
-.truncate {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Line clamp utilities */
-.line-clamp-1 {
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.line-clamp-2 {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.line-clamp-3 {
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-/* Ensure proper aspect ratios */
-.aspect-square {
-  aspect-ratio: 1 / 1;
-}
-
-.aspect-video {
-  aspect-ratio: 16 / 9;
-}
-
-/* Better disabled state styling */
-:disabled, [disabled] {
-  opacity: 0.5;
-  cursor: not-allowed;
-  pointer-events: none;
-}
-
-/* Ensure proper word breaking */
-.break-words {
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-}
-
-/* Break anywhere for long URLs/text */
-.overflow-wrap-anywhere {
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-/* Mobile app specific - ensure content doesn't get cut off */
-html.mobile-app .max-w-3xl,
-html.mobile-app .max-w-4xl,
-html.mobile-app .max-w-5xl,
-html.mobile-app .max-w-6xl {
-  max-width: 100%;
-}
-
-/* ============================================
-   MOBILE TOUCH & INTERACTION IMPROVEMENTS
-   ============================================ */
-
-/* Better touch targets on mobile */
-@media (max-width: 640px) {
-  /* Better input sizing */
-  input,
-  select,
-  textarea {
-    min-height: 40px;
-  }
-  
-  /* Better badge sizing on mobile */
-  .text-\[10px\],
-  .text-\[9px\] {
-    font-size: 10px;
-    line-height: 1.4;
-  }
-}
-
-/* ============================================
-   DEVELOPERS PAGE - Mobile Code Block Fixes
-   ============================================ */
-
-/* Ensure code blocks don't overflow on mobile */
-@media (max-width: 640px) {
-  /* Code block container */
-  pre {
-    max-width: 100%;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    font-size: 10px !important;
-  }
-  
-  pre code {
-    font-size: 10px !important;
-    word-break: break-all;
-  }
-}
-
-/* ============================================
-   SCROLL AREA IMPROVEMENTS
-   ============================================ */
-
-/* Ensure scroll areas work well on mobile */
-@media (max-width: 640px) {
-  [data-radix-scroll-area-viewport] {
-    -webkit-overflow-scrolling: touch;
-  }
-  
-  /* Add padding to scroll area content on mobile */
-  [data-radix-scroll-area-viewport] > div {
-    padding-right: 0.5rem;
-  }
-}
-
-/* Ensure proper backdrop blur support */
-@supports (backdrop-filter: blur(10px)) {
-  .backdrop-blur-sm {
-    backdrop-filter: blur(4px);
-  }
-  .backdrop-blur {
-    backdrop-filter: blur(8px);
-  }
-  .backdrop-blur-lg {
-    backdrop-filter: blur(16px);
-  }
-}
-
-/* Fallback for browsers without backdrop-filter */
-@supports not (backdrop-filter: blur(10px)) {
-  .backdrop-blur-sm,
-  .backdrop-blur,
-  .backdrop-blur-lg {
-    background-color: hsl(var(--background) / 0.95);
-  }
-}
-
-/* ============================================
-   PREMIUM UI POLISH
-   ============================================ */
-
-/* Smoother card hover transitions */
-[class*="Card"] {
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-/* Better loading skeleton animation */
-.animate-pulse {
-  animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
-/* Ensure consistent border radius across components */
-.rounded-lg {
-  border-radius: var(--radius);
-}
-
-/* Better select dropdown styling on mobile */
-@media (max-width: 640px) {
-  [role="listbox"] {
-    max-height: 50vh;
-  }
-}
-
-/* Ensure proper text contrast in badges */
-.dark [class*="Badge"] {
-  font-weight: 500;
-}
-
-/* Better scroll snap for horizontal scrolling */
-.snap-x {
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
-}
-
-.snap-start {
-  scroll-snap-align: start;
-}
-
-/* Ensure proper spacing in form groups */
-.space-y-2 > label + input,
-.space-y-2 > label + select,
-.space-y-2 > label + textarea {
-  margin-top: 0.5rem;
-}
-
-/* Better empty state styling */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem 1rem;
-  text-align: center;
-}
-
-@media (min-width: 640px) {
-  .empty-state {
-    padding: 3rem 1.5rem;
-  }
-}
-
-/* Ensure consistent icon sizing */
-svg {
-  flex-shrink: 0;
-}
-
-/* Better tooltip positioning */
-[role="tooltip"] {
-  z-index: 100;
-}
-
-/* Ensure proper stacking for popovers */
-[data-radix-popper-content-wrapper] {
-  z-index: 50 !important;
-}
-
-/* Better mobile tap feedback */
-@media (hover: none) {
-  button:active,
-  [role="button"]:active,
-  a:active {
-    transform: scale(0.98);
-    transition: transform 0.1s ease;
-  }
-}
-
-/* Ensure text doesn't overflow in flex containers */
-.min-w-0 {
-  min-width: 0;
-}
-
-/* Better progress bar styling */
-[role="progressbar"] {
-  overflow: hidden;
-  border-radius: 9999px;
-}
-
-/* Ensure consistent avatar sizing */
-.avatar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-/* Better separator styling */
-[data-orientation="horizontal"] {
-  height: 1px;
-  width: 100%;
-}
-
-[data-orientation="vertical"] {
-  width: 1px;
-  height: 100%;
-}
-
-
-/* ============================================
-   TOAST POSITIONING
-   Desktop: top-right, Mobile: top-center
-   ============================================ */
-
-/* Toast container base */
 [data-sonner-toaster] {
   z-index: 9999 !important;
 }
 
-/* Toast items styling */
 [data-sonner-toast] {
-  font-size: 14px !important;
-  padding: 12px 16px !important;
   border-radius: var(--radius) !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
 }
 
-/* Mobile - center toasts */
 @media (max-width: 640px) {
-  [data-sonner-toaster] {
-    top: 12px !important;
-    left: 50% !important;
-    right: auto !important;
-    transform: translateX(-50%) !important;
-    width: calc(100vw - 1.5rem) !important;
-    max-width: 400px !important;
+  input,
+  select,
+  textarea {
+    font-size: 16px;
   }
-  
-  [data-sonner-toast] {
-    font-size: 13px !important;
-    padding: 10px 14px !important;
-  }
-}
 
-/* Mobile app specific - account for safe area */
-html.mobile-app [data-sonner-toaster] {
-  top: calc(var(--safe-area-top, 48px) + 12px) !important;
+  table {
+    display: block;
+    overflow-x: auto;
+  }
 }

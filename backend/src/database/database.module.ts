@@ -3,7 +3,6 @@ import { ConfigService } from '@nestjs/config';
 import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import * as schema from './schema';
-import { MetricsService } from '@/common/metrics/metrics.service';
 
 export const DATABASE_CONNECTION = 'DATABASE_CONNECTION';
 export const DATABASE_POOL = 'DATABASE_POOL';
@@ -13,26 +12,25 @@ export const DATABASE_POOL = 'DATABASE_POOL';
   providers: [
     {
       provide: DATABASE_POOL,
-      inject: [ConfigService, MetricsService],
-      useFactory: (configService: ConfigService, metricsService: MetricsService): Pool => {
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService): Pool => {
         const isProduction = configService.get<string>('NODE_ENV') === 'production';
         const logger = new Logger('DatabasePool');
 
         const pool = new Pool({
           connectionString: configService.get<string>('DATABASE_URL'),
-          ssl: { rejectUnauthorized: false },
-          // Connection pool optimization
-          max: isProduction ? 20 : 10, // Max connections
-          min: isProduction ? 5 : 2, // Min connections
-          idleTimeoutMillis: 30000, // Close idle connections after 30s
-          connectionTimeoutMillis: 10000, // Timeout for new connections
-          maxUses: 7500, // Close connection after N uses (prevents memory leaks)
+          ssl: isProduction
+            ? { rejectUnauthorized: configService.get<boolean>('DATABASE_SSL_REJECT_UNAUTHORIZED', true) }
+            : false,
+          max: isProduction ? 20 : 10,
+          min: isProduction ? 5 : 2,
+          idleTimeoutMillis: 30000,
+          connectionTimeoutMillis: 10000,
+          maxUses: 7500,
         });
 
         pool.on('connect', () => {
           logger.debug('New database connection established');
-          // Update active connections metric
-          metricsService.setDbConnectionsActive(pool.totalCount);
         });
 
         pool.on('error', (err) => {
@@ -41,21 +39,7 @@ export const DATABASE_POOL = 'DATABASE_POOL';
 
         pool.on('remove', () => {
           logger.debug('Database connection removed from pool');
-          metricsService.setDbConnectionsActive(pool.totalCount);
         });
-
-        pool.on('acquire', () => {
-          metricsService.setDbConnectionsActive(pool.totalCount - pool.idleCount);
-        });
-
-        pool.on('release', () => {
-          metricsService.setDbConnectionsActive(pool.totalCount - pool.idleCount);
-        });
-
-        // Periodic connection pool metrics update
-        setInterval(() => {
-          metricsService.setDbConnectionsActive(pool.totalCount - pool.idleCount);
-        }, 10000);
 
         return pool;
       },

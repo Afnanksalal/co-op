@@ -1,14 +1,14 @@
 {
-  "name": "Co-Op - AI Advisory Board for Startups",
+  "name": "Co-Op - Local-First Business Orchestration",
   "short_name": "Co-Op",
-  "description": "Free AI-powered advisory board for startups. Get expert guidance on legal compliance, financial modeling, investor matching, and competitor analysis from multiple AI models.",
-  "start_url": "/dashboard",
+  "description": "Local-first business management software with cloud licensing, desktop activation, Ollama, and bring-your-own-key model routing.",
+  "start_url": "/download",
   "display": "standalone",
-  "background_color": "#0f1012",
-  "theme_color": "#0f1012",
+  "background_color": "#101216",
+  "theme_color": "#101216",
   "orientation": "any",
   "scope": "/",
-  "id": "co-op-ai",
+  "id": "co-op-local-first",
   "lang": "en",
   "dir": "ltr",
   "icons": [
@@ -25,54 +25,24 @@
       "purpose": "maskable"
     }
   ],
-  "categories": ["business", "productivity", "finance", "utilities"],
-  "screenshots": [],
-  "prefer_related_applications": false,
+  "categories": ["business", "productivity", "utilities"],
   "shortcuts": [
     {
-      "name": "New Chat",
-      "short_name": "Chat",
-      "description": "Start a new conversation with AI agents",
-      "url": "/chat",
+      "name": "Download",
+      "short_name": "Download",
+      "description": "Download Co-Op Desktop",
+      "url": "/download",
       "icons": [{ "src": "/logo.png", "sizes": "512x512" }]
     },
     {
-      "name": "Dashboard",
-      "short_name": "Home",
-      "description": "View your startup dashboard",
-      "url": "/dashboard",
-      "icons": [{ "src": "/logo.png", "sizes": "512x512" }]
-    },
-    {
-      "name": "Sessions",
-      "short_name": "History",
-      "description": "View your conversation history",
-      "url": "/sessions",
-      "icons": [{ "src": "/logo.png", "sizes": "512x512" }]
-    },
-    {
-      "name": "Investor Database",
-      "short_name": "Investors",
-      "description": "Browse investor database",
-      "url": "/tools/investors",
+      "name": "Activate",
+      "short_name": "Activate",
+      "description": "Activate a local Co-Op Desktop install",
+      "url": "/activate",
       "icons": [{ "src": "/logo.png", "sizes": "512x512" }]
     }
   ],
-  "share_target": {
-    "action": "/chat",
-    "method": "GET",
-    "params": {
-      "text": "prompt"
-    }
-  },
-  "display_override": ["standalone", "minimal-ui"],
-  "edge_side_panel": {
-    "preferred_width": 400
-  },
-  "handle_links": "preferred",
-  "launch_handler": {
-    "client_mode": "navigate-existing"
-  },
+  "prefer_related_applications": false,
   "related_applications": [],
   "protocol_handlers": []
 }

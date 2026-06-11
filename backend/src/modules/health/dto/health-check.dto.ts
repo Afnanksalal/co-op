@@ -1,5 +1,3 @@
-import { ApiProperty } from '@nestjs/swagger';
-
 export enum ServiceStatus {
   HEALTHY = 'healthy',
   DEGRADED = 'degraded',
@@ -7,15 +5,11 @@ export enum ServiceStatus {
 }
 
 export class HealthCheckDto {
-  @ApiProperty({ enum: ServiceStatus })
   status: ServiceStatus;
 
-  @ApiProperty()
   timestamp: string;
 
-  @ApiProperty()
   version: string;
 
-  @ApiProperty({ type: 'object', additionalProperties: { type: 'string' } })
   services: Record<string, ServiceStatus>;
 }

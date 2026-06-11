@@ -5,7 +5,8 @@ import { cookies } from 'next/headers';
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
-  const next = searchParams.get('next') ?? '/dashboard';
+  const requestedNext = searchParams.get('next');
+  const next = requestedNext?.startsWith('/') && !requestedNext.startsWith('//') ? requestedNext : '/download';
   
   const errorParam = searchParams.get('error');
   const errorDescription = searchParams.get('error_description');
@@ -45,7 +46,7 @@ export async function GET(request: Request) {
       // This helps detect session mixing on the client side
       if (data.session.user?.id) {
         response.cookies.set('coop-user-id', data.session.user.id, {
-          httpOnly: false, // Needs to be readable by client JS
+          httpOnly: true,
           secure: process.env.NODE_ENV === 'production',
           sameSite: 'lax',
           maxAge: 60 * 60 * 24 * 7, // 7 days
@@ -57,7 +58,6 @@ export async function GET(request: Request) {
     }
     
     if (error) {
-      console.error('Auth callback error:', error.message);
       return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(error.message || 'auth_failed')}`);
     }
   }

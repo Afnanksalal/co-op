@@ -1,1 +1,0 @@
-DROP TABLE "user_document_chunks" CASCADE;

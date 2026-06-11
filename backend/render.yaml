@@ -1,144 +1,27 @@
-# ===========================================
-# Render Blueprint for Co-Op Backend
-# https://render.com/docs/blueprint-spec
-# ===========================================
-# 
-# DEPLOYMENT INSTRUCTIONS:
-# 1. Push this file to your repo
-# 2. Go to Render Dashboard > Blueprints > New Blueprint Instance
-# 3. Connect your repo and select this file
-# 4. Configure environment variables marked as sync: false
-#
-# REQUIRED EXTERNAL SERVICES (not managed by Render):
-# - PostgreSQL: Neon (https://neon.tech) or Supabase
-# - Redis: Upstash (https://upstash.com)
-# - Auth: Supabase (https://supabase.com)
-# - LLM: Groq, Google AI, HuggingFace (free tiers)
-# ===========================================
-
 services:
   - type: web
-    name: co-op-backend
-    runtime: docker
-    region: oregon
+    name: co-op-license-backend
+    env: node
     plan: starter
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
+    buildCommand: npm install && npm run build
+    startCommand: npm run start:prod
     healthCheckPath: /api/v1/health
-    autoDeploy: true
-    
     envVars:
-      # ===========================================
-      # Server Configuration
-      # ===========================================
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: "3000"
       - key: API_PREFIX
         value: api/v1
-      
-      # ===========================================
-      # Database (Neon PostgreSQL)
-      # Get from: https://console.neon.tech
-      # ===========================================
       - key: DATABASE_URL
         sync: false
-      
-      # ===========================================
-      # Supabase (Auth & Storage)
-      # Get from: https://supabase.com/dashboard
-      # ===========================================
+      - key: DATABASE_SSL_REJECT_UNAUTHORIZED
+        value: "true"
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_ANON_KEY
         sync: false
-      - key: SUPABASE_SERVICE_KEY
-        sync: false
-      - key: SUPABASE_STORAGE_BUCKET
-        value: documents
-      
-      # ===========================================
-      # Upstash Redis - REST API (Caching)
-      # Get from: https://console.upstash.com
-      # ===========================================
-      - key: UPSTASH_REDIS_URL
-        sync: false
-      - key: UPSTASH_REDIS_TOKEN
-        sync: false
-      
-      # ===========================================
-      # Upstash QStash (Serverless Queue)
-      # Get from: https://console.upstash.com/qstash
-      # ===========================================
-      - key: QSTASH_TOKEN
-        sync: false
-      - key: QSTASH_CURRENT_SIGNING_KEY
-        sync: false
-      - key: QSTASH_NEXT_SIGNING_KEY
-        sync: false
-      
-      # ===========================================
-      # LLM Providers (configure at least ONE)
-      # ===========================================
-      # Groq - https://console.groq.com/keys
-      - key: GROQ_API_KEY
-        sync: false
-      # Google AI - https://aistudio.google.com/app/apikey
-      - key: GOOGLE_AI_API_KEY
-        sync: false
-      # HuggingFace - https://huggingface.co/settings/tokens
-      - key: HUGGINGFACE_API_KEY
-        sync: false
-      
-      # ===========================================
-      # LLM Council Settings
-      # Minimum 2 required for cross-critique
-      # ===========================================
-      - key: LLM_COUNCIL_MIN_MODELS
-        value: "2"
-      - key: LLM_COUNCIL_MAX_MODELS
-        value: "4"
-      
-      # ===========================================
-      # RAG Service (Optional)
-      # ===========================================
-      - key: RAG_SERVICE_URL
-        sync: false
-      - key: RAG_API_KEY
-        sync: false
-      
-      # ===========================================
-      # Notion Integration (Optional - Internal)
-      # Create at: https://www.notion.so/my-integrations
-      # ===========================================
-      - key: NOTION_API_TOKEN
-        sync: false
-      - key: NOTION_DEFAULT_PAGE_ID
-        sync: false
-      
-      # ===========================================
-      # Security
-      # ===========================================
-      - key: MASTER_API_KEY
+      - key: LICENSE_KEY_PEPPER
         generateValue: true
-      
-      # ===========================================
-      # Rate Limiting
-      # ===========================================
-      - key: THROTTLE_TTL
-        value: "60"
-      - key: THROTTLE_LIMIT
-        value: "100"
-      
-      # ===========================================
-      # CORS (set to your frontend URL)
-      # ===========================================
+      - key: LICENSE_OFFLINE_GRACE_DAYS
+        value: "14"
       - key: CORS_ORIGINS
-        value: "https://co-op.software"
-      
-      # ===========================================
-      # Logging
-      # ===========================================
-      - key: LOG_LEVEL
-        value: log
+        sync: false

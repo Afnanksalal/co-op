@@ -1,4 +1,4 @@
-# Co-Op AI Advisory Platform
+# Co-Op Local-First Business Orchestration
 # https://co-op.software
 
 User-agent: *

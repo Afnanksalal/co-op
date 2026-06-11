@@ -1,488 +1,88 @@
-<p align="center">
-  <img src="https://img.shields.io/badge/Next.js-15-black?logo=next.js" alt="Next.js">
-  <img src="https://img.shields.io/badge/NestJS-11-red?logo=nestjs" alt="NestJS">
-  <img src="https://img.shields.io/badge/Python-3.11-blue?logo=python" alt="Python">
-  <img src="https://img.shields.io/badge/Expo-54-000020?logo=expo" alt="Expo">
-  <img src="https://img.shields.io/badge/TypeScript-5-blue?logo=typescript" alt="TypeScript">
-  <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
-  <img src="https://img.shields.io/badge/PRs-Welcome-brightgreen" alt="PRs Welcome">
-</p>
+# Co-Op
 
-<h1 align="center">Co-Op</h1>
+Co-Op is local-first business management software with a cloud license control plane.
 
-<p align="center">
-  <strong>AI-Powered Advisory Platform for Startups</strong>
-</p>
+The product is intentionally split:
 
-<p align="center">
-  Expert guidance across legal, finance, investor relations, and competitive analysis.<br/>
-  Powered by a multi-model LLM Council architecture with mandatory cross-critique.
-</p>
+- `Frontend/` contains the public site, account/login screens, license admin UI, desktop activation UI, and Tauri desktop shell.
+- `Frontend/src-tauri/` contains the local runtime that stores activation state, calls the cloud license backend, and runs business workflows through Ollama or an OpenAI-compatible bring-your-own-key endpoint.
+- `Backend/` contains the cloud license backend for health checks, admin license generation, activation, heartbeat, and deactivation.
 
-<p align="center">
-  <a href="https://co-op.software">Live Demo</a> •
-  <a href="#features">Features</a> •
-  <a href="#quick-start">Quick Start</a> •
-  <a href="#architecture">Architecture</a> •
-  <a href="#deployment">Deployment</a> •
-  <a href="CONTRIBUTING.md">Contributing</a>
-</p>
+Removed legacy surfaces:
 
----
+- Hosted startup dashboard
+- Mobile app wrapper
+- Separate Python vector service
+- Old hosted document/chat modules
 
-## Overview
+## Documentation
 
-Co-Op is an open-source AI advisory platform that provides startup founders with expert guidance across multiple domains. Unlike single-model AI chatbots, Co-Op uses a unique **LLM Council** architecture where multiple AI models collaborate and cross-critique each other's responses to ensure accuracy and reduce hallucinations.
+- `AGENTS.md` is the repo guide for humans and coding agents.
+- `docs/ARCHITECTURE.md` explains the cloud license plane and local desktop data plane.
+- `docs/LICENSING.md` documents license generation, activation, heartbeat, deactivation, and offline grace.
+- `docs/AGENT_ORCHESTRATION.md` defines the local business workflow harness and council review policy.
+- `docs/OPERATIONS.md` lists development, audit, and release checks.
 
-### Key Features
+## Product Model
 
-| Feature | Description |
-|---------|-------------|
-| **LLM Council** | 2-5 AI models cross-critique every response |
-| **4 Expert Agents** | Legal, Finance, Investor, Competitor |
-| **Real-time Streaming** | True SSE streaming with fallback polling |
-| **RAG Knowledge Base** | Sector-specific document search with caching |
-| **MCP Protocol** | Use agents in Claude, Cursor, Kiro |
-| **A2A Protocol** | Multi-agent collaboration mode |
-| **Session Export** | Markdown/JSON export + email summaries |
-| **Document Upload** | PDF, DOC, TXT context for chat |
-| **Secure Documents** | AES-256 encrypted user documents with RAG |
-| **Bookmarks** | Save and organize AI responses |
-| **Usage Analytics** | Personal usage dashboard |
-| **PWA Support** | Installable with shortcuts |
-| **Mobile App** | Native iOS/Android app (Expo + Hermes) |
-| **Financial Tools** | Runway, burn rate, valuation calculators with AI insights |
-| **Pitch Deck Analyzer** | AI-powered deck analysis with investor fit scoring |
-| **Cap Table Simulator** | Equity modeling, dilution simulation, AI ownership insights |
-| **Investor Database** | 20+ real investors with admin management |
-| **Competitor Alerts** | Real-time monitoring with email notifications |
-| **Customer Outreach** | AI-powered lead discovery & email campaigns |
-| **Admin Dashboard** | User management, pilot usage tracking, status control |
-| **Self-Hostable** | Deploy on your own infrastructure |
+Co-Op Desktop runs business work locally. The cloud backend is used for account identity, payment/license ownership, device entitlement, revocation, and heartbeat checks.
 
----
+Model routing is local-first:
 
-## Security & Scalability
+- Ollama for fully local execution
+- OpenAI-compatible BYOK endpoint when a customer chooses an external provider
+- Managed providers can be added later behind explicit policy and budget controls
 
-| Security Feature | Implementation |
-|------------------|----------------|
-| **Authentication** | Supabase JWT with token verification |
-| **Authorization** | Role-based access (user, admin) |
-| **Rate Limiting** | Per-user throttling via Redis with configurable presets |
-| **API Keys** | SHA-256 hashed, timing-safe comparison, revocation support |
-| **Encryption** | AES-256-GCM for sensitive data at rest with key versioning |
-| **Document Encryption** | User documents encrypted chunk-by-chunk |
-| **Input Validation** | class-validator DTOs, whitelist mode |
-| **SQL Injection** | Drizzle ORM parameterized queries |
-| **CORS** | Configurable allowed origins |
-| **Security Headers** | Helmet.js middleware |
-| **Audit Logging** | Full audit trail for sensitive operations |
-| **IP Validation** | Proxy-aware IP extraction with validation |
-| **Error Sanitization** | Sensitive data filtered from error responses |
+## Development
 
-| Scalability Feature | Implementation |
-|---------------------|----------------|
-| **Serverless DB** | Neon PostgreSQL auto-scales |
-| **Serverless Cache** | Upstash Redis pay-per-request |
-| **Async Processing** | QStash message queue with webhooks |
-| **Circuit Breaker** | Opossum for fault tolerance with LRU cleanup |
-| **Retry Logic** | Exponential backoff with jitter + minimum delay floor |
-| **RAG Caching** | 30-min TTL + 2-hour stale cache fallback |
-| **SSE Reconnection** | Auto-reconnect with exponential backoff |
-| **Horizontal Scaling** | Stateless services, Redis-backed state |
-| **Embedding Timeout** | 30-second timeout on RAG embedding calls |
-| **LLM Timeout** | 30-second timeout on all LLM API calls |
-| **DLQ Processing** | Atomic operations prevent race conditions |
-| **Token Cache** | LRU eviction prevents memory leaks |
-| **SWR Cache** | Distributed lock prevents thundering herd |
-
----
-
-## AI Agents
-
-| Agent | Expertise | Data Source |
-|-------|-----------|-------------|
-| **⚖️ Legal** | Corporate structure, IP, compliance, contracts | RAG (document search) |
-| **💰 Finance** | Financial modeling, metrics, runway, valuation | RAG (document search) |
-| **🤝 Investor** | VC matching, pitch optimization, fundraising | Web Research (Gemini + ScrapingBee fallback) |
-| **🎯 Competitor** | Market landscape, positioning, intelligence | Web Research (Gemini + ScrapingBee fallback) |
-
----
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                           FRONTEND                                  │
-│                    Next.js 15 (Vercel)                              │
-│    Dashboard • Chat • Sessions • Bookmarks • Usage • Outreach       │
-└─────────────────────────────────────────────────────────────────────┘
-                                │
-                                ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                           BACKEND                                   │
-│                    NestJS 11 (Render)                               │
-│  ┌───────────────────────────────────────────────────────────────┐  │
-│  │                    Agent Orchestrator                         │  │
-│  │     [Legal] [Finance] [Investor] [Competitor]                 │  │
-│  │                         │                                     │  │
-│  │                         ▼                                     │  │
-│  │                    LLM Council                                │  │
-│  │     [Llama 3.3] [Gemini 2.5] [DeepSeek R1] [Kimi K2]         │  │
-│  │              Mandatory Cross-Critique                         │  │
-│  └───────────────────────────────────────────────────────────────┘  │
-│  ┌───────────────────────────────────────────────────────────────┐  │
-│  │  Outreach: Lead Discovery • Campaign Management • Email Track │  │
-│  └───────────────────────────────────────────────────────────────┘  │
-│  ┌───────────────────────────────────────────────────────────────┐  │
-│  │  Security: Auth Guard • Rate Limiting • Encryption • Audit   │  │
-│  │  Resilience: Circuit Breaker • Retry Service • Health Checks │  │
-│  └───────────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────┘
-           │                    │                    │
-           ▼                    ▼                    ▼
-┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────┐
-│   RAG Service   │  │  Web Research   │  │      Data Layer         │
-│ FastAPI (Koyeb) │  │ Gemini Search   │  │  PostgreSQL (Neon)      │
-│ Upstash Vector  │  │   Grounding     │  │  Redis (Upstash)        │
-│ Gemini Embed    │  │ + ScrapingBee   │  │  Supabase (Auth+Storage)│
-│ Query Caching   │  │   (fallback)    │  │  QStash (Queue)         │
-└─────────────────┘  └─────────────────┘  └─────────────────────────┘
-```
-
----
-
-## Project Structure
-
-```
-co-op/
-├── Backend/                 # NestJS API server
-│   ├── src/
-│   │   ├── modules/         # Feature modules
-│   │   │   ├── agents/      # AI agents + streaming
-│   │   │   ├── sessions/    # Chat sessions + export
-│   │   │   ├── outreach/    # Leads + campaigns + email tracking
-│   │   │   ├── alerts/      # Competitor monitoring
-│   │   │   ├── investors/   # Investor database
-│   │   │   ├── bookmarks/   # Saved responses
-│   │   │   ├── documents/   # Chat document upload
-│   │   │   ├── secure-documents/  # Encrypted user docs
-│   │   │   └── ...
-│   │   ├── common/          # Shared services (LLM, RAG, cache, email)
-│   │   └── database/        # Drizzle ORM schemas & migrations
-│   └── README.md
-│
-├── Frontend/                # Next.js web application
-│   ├── src/
-│   │   ├── app/             # App Router pages
-│   │   │   ├── (dashboard)/ # Protected routes
-│   │   │   │   ├── tools/outreach/  # Lead management + campaigns
-│   │   │   │   ├── tools/alerts/    # Competitor alerts
-│   │   │   │   ├── tools/investors/ # Investor search
-│   │   │   │   └── ...
-│   │   ├── components/      # UI components (Radix + custom)
-│   │   └── lib/             # API client, hooks, stores
-│   └── README.md
-│
-├── MobileApp/               # React Native mobile app (Expo SDK 54)
-│   ├── src/
-│   │   ├── components/      # WebView, Loading, Error screens
-│   │   ├── hooks/           # Connection, back handler, deep link
-│   │   ├── constants/       # App configuration
-│   │   └── utils/           # URL validation & conversion
-│   └── README.md
-│
-├── RAG/                     # Python vector search service
-│   ├── app/                 # FastAPI application
-│   └── README.md
-│
-├── ARCHITECTURE.md          # Detailed architecture documentation
-├── CONTRIBUTING.md          # Contribution guidelines
-└── README.md
-```
-
----
-
-## Quick Start
-
-### Prerequisites
-
-- Node.js 20+
-- Python 3.11+ (for RAG service)
-- PostgreSQL database (Neon recommended)
-- Redis instance (Upstash recommended)
-- Supabase project (Auth + Storage)
-- At least 2 LLM API keys
-
-### 1. Clone Repository
-
-```bash
-git clone https://github.com/Afnanksalal/co-op.git
-cd co-op
-```
-
-### 2. Backend Setup
+Backend:
 
 ```bash
 cd Backend
-cp .env.example .env
-# Configure environment variables (see .env.example for documentation)
-
 npm install
-npm run db:push
-npm run dev
+npm test
+npm run build
+npm audit --audit-level=low
 ```
 
-### 3. Frontend Setup
+Frontend:
 
 ```bash
 cd Frontend
-cp .env.example .env.local
-# Configure environment variables
-
 npm install
-npm run dev
+npm run typecheck
+npm run build
+npm run build:tauri
+npm audit --audit-level=low
+npm run audit:rust
 ```
 
-### 4. RAG Service (Optional)
+Desktop runtime tests:
 
 ```bash
-cd RAG
-cp .env.example .env
-# Configure environment variables
-
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
+cd Frontend/src-tauri
+cargo test
+cargo clippy --all-targets -- -D warnings
 ```
 
-### 5. Mobile App (Optional)
+## Required Cloud Environment
 
-```bash
-cd MobileApp
-npm install
-npm start
-# Scan QR code with Expo Go app
+Backend production requires:
 
-# Or build native app
-npx expo prebuild
-npx expo run:android  # or run:ios
-```
+- `DATABASE_URL`
+- `DATABASE_SSL_REJECT_UNAUTHORIZED=true` unless your database provider requires a pinned exception
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `LICENSE_KEY_PEPPER` with at least 32 characters
+- `CORS_ORIGINS` restricted to trusted origins
 
----
+Frontend requires:
 
-## Deployment
-
-### Production URLs
-
-| Service | Platform | URL |
-|---------|----------|-----|
-| Frontend | Vercel | [co-op.software](https://co-op.software) |
-| Backend | Render | `https://api.co-op.software` |
-| RAG | Koyeb | `https://apparent-nanice-afnan-3cac971c.koyeb.app` |
-
-### Infrastructure
-
-| Component | Provider | Purpose |
-|-----------|----------|---------|
-| Database | [Neon](https://neon.tech) | Serverless PostgreSQL |
-| Cache/Queue | [Upstash](https://upstash.com) | Redis + QStash + Vector |
-| Auth/Storage | [Supabase](https://supabase.com) | Authentication + file storage |
-| LLM | [Groq](https://console.groq.com) | Llama 3.3 70B, Kimi K2 |
-| LLM | [Google AI](https://aistudio.google.com) | Gemini 2.5 Flash |
-| LLM | [HuggingFace](https://huggingface.co) | DeepSeek R1, Phi-3, Qwen 2.5 |
-| Email | [SendGrid](https://sendgrid.com) | Transactional emails |
-| Research | [ScrapingBee](https://scrapingbee.com) | Web search fallback |
-
-All services have free tiers available.
-
----
-
-## Tech Stack
-
-### Frontend
-- Next.js 15 (App Router)
-- TypeScript 5
-- Tailwind CSS 3.4
-- Radix UI + shadcn/ui
-- Zustand (state management)
-- Framer Motion (animations)
-- Phosphor Icons
-- Vercel Analytics
-
-### Backend
-- NestJS 11
-- TypeScript 5
-- Drizzle ORM
-- Upstash QStash
-- SendGrid (email)
-- Opossum (circuit breaker)
-
-### RAG Service
-- FastAPI
-- Upstash Vector
-- Gemini Embeddings
-
----
-
-## API Overview
-
-### Authentication
-
-```bash
-# User auth (Supabase JWT)
-curl -H "Authorization: Bearer <jwt>" \
-  https://api.co-op.software/api/v1/users/me
-
-# Service auth (API Key)
-curl -H "X-API-Key: coop_xxxxx" \
-  https://api.co-op.software/api/v1/mcp-server/discover
-```
-
-### Key Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/users/me/onboarding` | POST | Complete startup profile |
-| `/sessions` | POST | Create advisory session |
-| `/sessions/:id/export` | POST | Export session (MD/JSON) |
-| `/sessions/:id/email` | POST | Email session summary |
-| `/agents/run` | POST | Run agent (sync) |
-| `/agents/queue` | POST | Queue agent (async) |
-| `/agents/stream/:taskId` | GET | SSE stream for task |
-| `/analytics/me` | GET | Personal usage analytics |
-| `/bookmarks` | GET/POST | Manage bookmarks |
-| `/documents/upload` | POST | Upload chat document |
-| `/secure-documents/upload` | POST | Upload encrypted document |
-| `/outreach/leads/discover` | POST | AI-powered lead discovery |
-| `/outreach/leads` | GET/POST | Manage leads |
-| `/outreach/campaigns` | GET/POST | Manage email campaigns |
-| `/outreach/campaigns/:id/send` | POST | Send campaign emails |
-| `/alerts` | GET/POST | Competitor alerts |
-| `/investors` | GET | Search investor database |
-
-See [Backend README](./Backend/README.md) for complete API documentation.
-
----
-
-## Features
-
-### Core Platform
-- [x] Multi-model LLM Council with cross-critique
-- [x] 4 domain-specific AI agents
-- [x] True SSE streaming with fallback polling
-- [x] RAG knowledge base with caching
-- [x] Session management with pin/export
-- [x] Document upload for chat context
-- [x] Bookmarks system
-- [x] User analytics dashboard
-- [x] PWA with shortcuts
-
-### Tools
-- [x] Financial calculators (Runway, Burn Rate, Valuation, Unit Economics) with AI insights
-- [x] Searchable investor database (20+ real investors)
-- [x] Real-time competitor alerts (3 per user, email notifications)
-- [x] Customer outreach with AI lead discovery
-- [x] Email campaign management with tracking
-- [x] Pitch deck analyzer with investor-specific recommendations
-- [x] Cap table simulator with AI ownership insights
-- [x] Unified AI insights system across all tools
-
-### Security & Enterprise
-- [x] AES-256-GCM encryption for sensitive data
-- [x] Encrypted user document storage
-- [x] API key management
-- [x] Webhook integrations
-- [x] Audit logging
-- [x] Rate limiting with presets
-- [x] Admin user management (CRUD, suspend, pilot usage reset)
-- [x] Bulk user operations
-- [x] Usage tracking and reset
-
-### Coming Soon
-- [ ] Team workspaces
-- [ ] Stripe integration
-- [ ] Slack integration
-
----
-
-## Customer Outreach
-
-The outreach module enables AI-powered customer acquisition:
-
-### Lead Discovery
-- Discover influencers (People) or companies using AI-powered web research
-- Filter by platform, niche, followers, location, company size
-- Automatic lead scoring based on startup fit
-- Rate limited to 5 discoveries per hour (pilot)
-
-### Campaign Management
-- **Single Template Mode**: Use variable placeholders like `{{name}}`, `{{company}}`
-- **AI Personalized Mode**: Generate unique emails per lead using LLM
-- Email tracking (opens, clicks)
-- Unsubscribe handling
-- Daily send limits (50 emails/day pilot)
-
-### Pilot Limits (Configurable via Environment Variables)
-- Agent requests: 3/month (`PILOT_AGENT_MONTHLY_REQUESTS`)
-- API keys: 1 per user (`PILOT_API_KEY_LIMIT`)
-- Webhooks: 1 per user (`PILOT_WEBHOOK_LIMIT`)
-- Alerts: 3 per user (`PILOT_ALERT_LIMIT`)
-- Leads: 50 maximum (`PILOT_LEAD_LIMIT`)
-- Lead discovery: 5/hour (`PILOT_LEAD_DISCOVERY_HOURLY`)
-- Campaigns: 5 maximum (`PILOT_CAMPAIGN_LIMIT`)
-- Emails: 50/day (`PILOT_EMAILS_PER_DAY`)
-
----
-
-## Roadmap
-
-| Phase | Timeline | Features |
-|-------|----------|----------|
-| **Now** | Pilot | Single founder, 3 free requests/month, 4 agents, all tools, mobile app (Android) |
-| **Q1 2026** | Teams | Multiple founders, collaboration, shared sessions |
-| **Q2 2026** | Idea Stage | Idea validation flow, market research agent |
-| **Q3 2026** | Enterprise | SSO, custom AI training, on-premise deployment |
-
-### Mobile App
-
-Download the Android app (pilot release):
-- [Download APK](https://github.com/Afnanksalal/co-op/releases/download/pilot-release/app-release.apk)
-- Report bugs: [GitHub Issues](https://github.com/Afnanksalal/co-op/issues)
-
----
-
-## Contributing
-
-We welcome contributions! See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
-
-```bash
-# Fork and clone
-git clone https://github.com/YOUR_USERNAME/co-op.git
-
-# Create feature branch
-git checkout -b feature/amazing-feature
-
-# Make changes and commit
-git commit -m 'feat: add amazing feature'
-
-# Push and create PR
-git push origin feature/amazing-feature
-```
-
----
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_API_URL`
+- `NEXT_PUBLIC_CLOUD_URL` for the desktop activation cloud base URL, or derive it from `NEXT_PUBLIC_API_URL`
 
 ## License
 
-MIT License - see [LICENSE](./LICENSE) for details.
-
----
-
-<p align="center">
-  Built with ❤️ for founders
-</p>
-
-<p align="center">
-  <a href="https://github.com/Afnanksalal/co-op">GitHub</a> •
-  <a href="https://github.com/Afnanksalal/co-op/issues">Issues</a> •
-  <a href="https://github.com/Afnanksalal/co-op/discussions">Discussions</a>
-</p>
+MIT

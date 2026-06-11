@@ -1,20 +1,14 @@
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
-import { SupabaseService } from '@/common/supabase/supabase.service';
-import { UsersService } from '@/modules/users/users.service';
-import { AuthenticatedUser } from './auth.guard';
+import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { SupabaseService, SupabaseUser } from '@/common/supabase/supabase.service';
 
 interface AuthenticatedRequest {
   headers: { authorization?: string };
-  user?: AuthenticatedUser;
+  user?: SupabaseUser;
 }
 
 @Injectable()
 export class AdminGuard implements CanActivate {
-  constructor(
-    private readonly supabase: SupabaseService,
-    @Inject(forwardRef(() => UsersService))
-    private readonly usersService: UsersService,
-  ) {}
+  constructor(private readonly supabase: SupabaseService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
@@ -36,19 +30,8 @@ export class AdminGuard implements CanActivate {
       throw new ForbiddenException('Admin access required');
     }
 
-    // Sync user to our database (creates if not exists)
-    const dbUser = await this.usersService.findOrCreateFromSupabase(
-      supabaseUser.id,
-      supabaseUser.email,
-      supabaseUser.name,
-      supabaseUser.authProvider,
-    );
-
-    // Merge Supabase user info with our database info
     request.user = {
       ...supabaseUser,
-      onboardingCompleted: dbUser.onboardingCompleted,
-      startupId: dbUser.startup?.id ?? null,
     };
 
     return true;

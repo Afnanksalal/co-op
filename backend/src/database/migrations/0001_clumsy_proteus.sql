@@ -1,1 +1,0 @@
-ALTER TABLE "startups" ADD COLUMN "sector" varchar(50) DEFAULT 'saas' NOT NULL;

@@ -30,7 +30,7 @@ export default function Error({
           <Button variant="outline" onClick={reset}>
             Try Again
           </Button>
-          <Link href="/dashboard">
+          <Link href="/download">
             <Button>
               <ArrowLeft weight="bold" className="w-4 h-4" />
               Go Home
