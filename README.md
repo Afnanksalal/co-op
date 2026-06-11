@@ -81,7 +81,7 @@ Frontend requires:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `NEXT_PUBLIC_API_URL`
-- `NEXT_PUBLIC_CLOUD_URL` for the desktop activation cloud base URL, or derive it from `NEXT_PUBLIC_API_URL`
+- `NEXT_PUBLIC_APP_URL`
 
 ## License
 

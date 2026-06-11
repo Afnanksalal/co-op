@@ -27,7 +27,7 @@ export default function PrivacyPage() {
           <section>
             <h2 className="mb-4 font-serif text-2xl font-medium tracking-normal">1. What The Cloud Stores</h2>
             <p className="leading-8 text-muted-foreground">
-              The Co-Op cloud control plane stores account information, authentication records, payment and license metadata, issued license prefixes, hashed license keys, hashed activation tokens, device names you provide, application version, activation status, and heartbeat timestamps.
+              The Co-Op cloud control plane stores account information, authentication records, payment and license metadata, issued license prefixes, hashed license keys, hashed activation tokens, generated device labels, application version, activation status, and heartbeat timestamps.
             </p>
           </section>
 

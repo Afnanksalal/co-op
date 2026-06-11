@@ -73,7 +73,6 @@ Frontend:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `NEXT_PUBLIC_API_URL`
-- `NEXT_PUBLIC_CLOUD_URL`
 - `NEXT_PUBLIC_APP_URL`
 
 ## Release Checklist
@@ -81,7 +80,7 @@ Frontend:
 - Confirm backend tests, build, and npm audit pass.
 - Confirm frontend typecheck, web build, Tauri export, npm audit, and Rust audit pass.
 - Confirm Rust tests and clippy pass.
-- Smoke test `/`, `/login`, `/download`, `/activate`, `/local`, and `/admin/licenses`.
+- Smoke test `/`, `/login`, `/download`, `/activate`, `/desktop`, and `/admin/licenses`.
 - Verify production CORS origins before deployment.
 - Verify `LICENSE_KEY_PEPPER` is set and not reused from development.
 - Remove generated folders after local verification: `Backend/dist`, `Frontend/.next`, `Frontend/out`, and `Frontend/src-tauri/target`.

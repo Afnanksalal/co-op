@@ -24,8 +24,8 @@ Local desktop data plane:
 
 1. An admin creates a license from `/admin/licenses`.
 2. The backend stores only a keyed hash of the generated license key and returns the raw key once.
-3. The customer installs Co-Op Desktop and activates with email, license key, and device name.
-4. The desktop runtime sends a hashed machine fingerprint and install ID to `POST /api/v1/licenses/activate`.
+3. The customer installs Co-Op Desktop and activates with the license key only.
+4. The desktop runtime sends the key, hashed machine fingerprint, generated device label, and install ID to `POST /api/v1/licenses/activate`.
 5. The backend returns an activation token and entitlement payload.
 6. The desktop runtime stores activation state locally.
 7. Heartbeats call `POST /api/v1/licenses/heartbeat` to refresh entitlement and offline grace.
@@ -45,8 +45,9 @@ Local desktop data plane:
 - `/` presents the local-first desktop product.
 - `/login` handles cloud account sign-in.
 - `/download` gives customers the software download entry point.
-- `/activate` is the desktop activation screen.
-- `/local` is the desktop operations console.
+- `/account` is the authenticated customer center for activation-key generation.
+- `/activate` is a narrow desktop activation fallback route.
+- `/desktop` is the installed Tauri software shell.
 - `/admin/licenses` lets admins generate and inspect licenses.
 - `src/lib/api/client.ts` talks to the cloud license API.
 - `src/lib/desktop/runtime.ts` wraps Tauri command calls.

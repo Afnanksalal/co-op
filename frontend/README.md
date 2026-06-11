@@ -8,7 +8,7 @@ Next.js web shell and Tauri desktop UI for Co-Op.
 - `/login` cloud account login
 - `/download` software download flow
 - `/activate` desktop license activation
-- `/local` local runtime console
+- `/desktop` installed desktop shell
 - `/admin/licenses` admin license generator
 
 ## Commands
@@ -27,7 +27,6 @@ npm run audit:rust
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `NEXT_PUBLIC_API_URL`
-- `NEXT_PUBLIC_CLOUD_URL`
 - `NEXT_PUBLIC_APP_URL`
 
 The Tauri export temporarily removes server-only Next files and builds a static `out/` directory.

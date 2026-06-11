@@ -58,7 +58,7 @@ export interface CreateLicenseRequest {
 }
 
 export interface ActivateLicenseRequest {
-  email: string;
+  email?: string;
   licenseKey: string;
   machineFingerprint: string;
   installId: string;

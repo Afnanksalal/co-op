@@ -26,7 +26,7 @@ Each activation stores:
 - install ID
 - machine fingerprint hash
 - activation token hash
-- device name
+- generated device label
 - app version
 - status
 - activation and heartbeat timestamps
@@ -37,7 +37,7 @@ A unique partial index allows one active activation per license and machine fing
 
 1. Admin creates a license with email, plan, seat count, device limit, expiry, and metadata.
 2. Backend generates a license key and stores a keyed hash.
-3. Desktop sends email, license key, install ID, device name, app version, and machine fingerprint hash.
+3. Desktop asks the customer only for the license key, then sends the key with install ID, generated device label, app version, and machine fingerprint hash.
 4. Backend validates license status, expiry, and device capacity.
 5. Backend returns an activation token and entitlement.
 6. Desktop stores the activation token and entitlement locally.
