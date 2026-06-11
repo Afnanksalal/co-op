@@ -20,19 +20,20 @@ export class SupabaseService {
   constructor(private readonly configService: ConfigService) {
     const supabaseUrl = this.configService.get<string>('SUPABASE_URL');
     const supabaseAnonKey = this.configService.get<string>('SUPABASE_ANON_KEY');
+    const supabaseServiceKey = this.configService.get<string>('SUPABASE_SERVICE_KEY');
 
     if (!supabaseUrl || !supabaseAnonKey) {
       throw new Error('SUPABASE_URL and SUPABASE_ANON_KEY must be configured');
     }
 
-    this.client = createClient(supabaseUrl, supabaseAnonKey, {
+    this.client = createClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey, {
       auth: {
         autoRefreshToken: false,
         persistSession: false,
       },
     });
 
-    this.logger.log('Supabase client initialized');
+    this.logger.log(`Supabase client initialized with ${supabaseServiceKey ? 'service' : 'anon'} key`);
   }
 
   async verifyToken(token: string): Promise<SupabaseUser | null> {
@@ -42,7 +43,7 @@ export class SupabaseService {
     } = await this.client.auth.getUser(token);
 
     if (error || !user) {
-      this.logger.debug(`Token verification failed: ${error?.message ?? 'No user'}`);
+      this.logger.warn(`Token verification failed: ${error?.message ?? 'No user'}`);
       return null;
     }
 

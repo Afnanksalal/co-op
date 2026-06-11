@@ -12,6 +12,7 @@ import type {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
 const REQUEST_TIMEOUT_MS = 15000;
+const TOKEN_REFRESH_WINDOW_SECONDS = 60;
 
 export class ApiError extends Error {
   constructor(
@@ -25,28 +26,50 @@ export class ApiError extends Error {
 }
 
 class ApiClient {
-  private async headers(authenticated: boolean): Promise<HeadersInit> {
+  private async getAccessToken(forceRefresh = false): Promise<string> {
+    const supabase = createClient();
+
+    if (forceRefresh) {
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.refreshSession();
+
+      if (error || !session?.access_token) {
+        throw new ApiError('Sign in required', 401);
+      }
+
+      return session.access_token;
+    }
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session?.access_token) {
+      throw new ApiError('Sign in required', 401);
+    }
+
+    if (session.expires_at && session.expires_at - Math.floor(Date.now() / 1000) <= TOKEN_REFRESH_WINDOW_SECONDS) {
+      return this.getAccessToken(true);
+    }
+
+    return session.access_token;
+  }
+
+  private async headers(authenticated: boolean, forceRefresh = false): Promise<HeadersInit> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
 
     if (authenticated) {
-      const supabase = createClient();
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session?.access_token) {
-        throw new ApiError('Sign in required', 401);
-      }
-
-      headers.Authorization = `Bearer ${session.access_token}`;
+      headers.Authorization = `Bearer ${await this.getAccessToken(forceRefresh)}`;
     }
 
     return headers;
   }
 
-  private async request<T>(endpoint: string, options: RequestInit & { authenticated?: boolean } = {}): Promise<T> {
+  private async send<T>(endpoint: string, options: RequestInit & { authenticated?: boolean } = {}, forceRefresh = false): Promise<T> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
@@ -55,7 +78,7 @@ class ApiClient {
         ...options,
         signal: controller.signal,
         headers: {
-          ...(await this.headers(Boolean(options.authenticated))),
+          ...(await this.headers(Boolean(options.authenticated), forceRefresh)),
           ...options.headers,
         },
       });
@@ -76,6 +99,18 @@ class ApiClient {
       throw new ApiError(error instanceof Error ? error.message : 'Network request failed', 0);
     } finally {
       clearTimeout(timeout);
+    }
+  }
+
+  private async request<T>(endpoint: string, options: RequestInit & { authenticated?: boolean } = {}): Promise<T> {
+    try {
+      return await this.send<T>(endpoint, options);
+    } catch (error) {
+      if (options.authenticated && error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+        return this.send<T>(endpoint, options, true);
+      }
+
+      throw error;
     }
   }
 
