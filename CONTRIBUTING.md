@@ -6,12 +6,12 @@ Read `AGENTS.md` before making product or architecture changes. It is the shared
 
 ## Before Opening Changes
 
-- Run backend tests and build from `Backend/`.
-- Run frontend typecheck, web build, and Tauri export from `Frontend/`.
-- Run Rust tests from `Frontend/src-tauri/`.
-- Run `npm audit --audit-level=low` in both `Backend/` and `Frontend/`.
-- Run `npm run audit:rust` from `Frontend/`.
-- Run `cargo clippy --all-targets -- -D warnings` from `Frontend/src-tauri/`.
+- Run backend tests and build from `backend/`.
+- Run frontend typecheck, web build, and Tauri export from `frontend/`.
+- Run Rust tests from `frontend/src-tauri/`.
+- Run `npm audit --audit-level=low` in both `backend/` and `frontend/`.
+- Run `npm run audit:rust` from `frontend/`.
+- Run `cargo clippy --all-targets -- -D warnings` from `frontend/src-tauri/`.
 
 ## Product Guardrails
 

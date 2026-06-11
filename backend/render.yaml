@@ -4,7 +4,7 @@ services:
     env: node
     plan: starter
     buildCommand: npm install && npm run build
-    startCommand: npm run start:prod
+    startCommand: npm run db:migrate && npm run start:prod
     healthCheckPath: /api/v1/health
     envVars:
       - key: NODE_ENV

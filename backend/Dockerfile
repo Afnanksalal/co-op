@@ -14,8 +14,9 @@ RUN npm ci
 # Copy TypeScript config files needed for build
 COPY tsconfig.json tsconfig.build.json ./
 
-# Copy source code
+# Copy source code and operational scripts
 COPY src ./src
+COPY scripts ./scripts
 
 # Build the application
 RUN npm run build
@@ -40,6 +41,8 @@ ENV NODE_ENV=production
 # Copy production dependencies and built app
 COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
+COPY --from=builder --chown=nestjs:nodejs /app/scripts ./scripts
+COPY --from=builder --chown=nestjs:nodejs /app/src/database/migrations ./src/database/migrations
 COPY --from=builder --chown=nestjs:nodejs /app/package.json ./
 
 # Switch to non-root user
@@ -52,5 +55,5 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/v1/health || exit 1
 
-# Start the application
-CMD ["node", "dist/main.js"]
+# Start the application after applying idempotent schema migrations
+CMD ["sh", "-c", "npm run db:migrate && node dist/main.js"]

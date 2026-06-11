@@ -30,3 +30,5 @@ npm run audit:rust
 - `NEXT_PUBLIC_APP_URL`
 
 The Tauri export temporarily removes server-only Next files and builds a static `out/` directory.
+
+Desktop activation uses the cloud URL embedded at build time. Set `COOP_CLOUD_URL` for desktop releases, or keep `NEXT_PUBLIC_API_URL` pointed at the deployed backend; `/api/v1` is stripped before the URL is baked into the Tauri binary.

@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerGuard } from '@nestjs/throttler';
 
 import { envSchema } from './config/env.config';
 import { DatabaseModule } from './database/database.module';
@@ -27,6 +29,12 @@ import { LicensesModule } from './modules/licenses/licenses.module';
     SupabaseModule,
     HealthModule,
     LicensesModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
   ],
 })
 export class AppModule {}

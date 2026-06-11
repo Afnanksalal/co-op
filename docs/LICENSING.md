@@ -73,3 +73,7 @@ Payment providers should update license status, expiry, plan, seats, max devices
 `LICENSE_KEY_PEPPER` is part of the keyed license hash. Rotating it invalidates existing hashes unless a migration supports dual verification. Treat rotation as a planned security event with customer support coverage.
 
 Lost license keys should be handled by issuing a replacement license and revoking the old one. Do not build a raw-key recovery path.
+
+## Existing Account Backfill
+
+The first production deploy must run `npm run db:migrate` before the account center reads license data. If Supabase users already existed before licensing was introduced, run `npm run licenses:backfill-users` from `backend/` with `SUPABASE_SERVICE_KEY` set. The backfill creates one active solo license for users that do not already have an active unexpired license and writes the raw one-time keys to a private CSV.

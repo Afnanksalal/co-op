@@ -12,6 +12,8 @@
     "dev": "ts-node -r tsconfig-paths/register src/main.ts",
     "start:debug": "node --inspect -r ts-node/register -r tsconfig-paths/register src/main.ts",
     "start:prod": "node dist/main.js",
+    "db:migrate": "node scripts/migrate.mjs",
+    "licenses:backfill-users": "node scripts/backfill-supabase-users.mjs",
     "test": "node --test -r ts-node/register -r tsconfig-paths/register test/license-crypto.test.ts"
   },
   "dependencies": {
@@ -29,6 +31,7 @@
     "pg": "^8.13.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "ws": "^8.21.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {

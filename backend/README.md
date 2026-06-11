@@ -24,10 +24,12 @@ Required:
 Required in production:
 
 - `LICENSE_KEY_PEPPER`
+- `CORS_ORIGINS`
 
 Optional:
 
 - `DATABASE_SSL_REJECT_UNAUTHORIZED`
+- `SUPABASE_SERVICE_KEY` for one-off Supabase user backfills
 - `LICENSE_OFFLINE_GRACE_DAYS`
 - `THROTTLE_TTL`
 - `THROTTLE_LIMIT`
@@ -38,7 +40,18 @@ Optional:
 
 ```bash
 npm install
+npm run db:migrate
 npm test
 npm run build
 npm audit --audit-level=low
 ```
+
+## Existing User Backfill
+
+If users already exist in Supabase before the license tables are deployed, run:
+
+```bash
+SUPABASE_SERVICE_KEY=... npm run licenses:backfill-users
+```
+
+The script creates one active solo license for each Supabase user without an active license and writes the raw one-time activation keys to `license-backfill-*.csv`. Keep that CSV private; raw keys are never stored in the database.

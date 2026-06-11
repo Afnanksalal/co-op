@@ -2,7 +2,7 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 const USER_ID_COOKIE = 'coop-user-id';
-const PUBLIC_ROUTES = ['/', '/login', '/privacy', '/terms', '/download', '/activate'];
+const PUBLIC_ROUTES = ['/', '/login', '/privacy', '/terms', '/download', '/activate', '/desktop'];
 
 function isPublicRoute(pathname: string): boolean {
   return PUBLIC_ROUTES.includes(pathname) || pathname.startsWith('/auth/');

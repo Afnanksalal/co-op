@@ -4,9 +4,9 @@ Co-Op is local-first business management software with a cloud license control p
 
 The product is intentionally split:
 
-- `Frontend/` contains the public site, account/login screens, license admin UI, desktop activation UI, and Tauri desktop shell.
-- `Frontend/src-tauri/` contains the local runtime that stores activation state, calls the cloud license backend, and runs business workflows through Ollama or an OpenAI-compatible bring-your-own-key endpoint.
-- `Backend/` contains the cloud license backend for health checks, admin license generation, activation, heartbeat, and deactivation.
+- `frontend/` contains the public site, account/login screens, license admin UI, desktop activation UI, and Tauri desktop shell.
+- `frontend/src-tauri/` contains the local runtime that stores activation state, calls the cloud license backend, and runs business workflows through Ollama or an OpenAI-compatible bring-your-own-key endpoint.
+- `backend/` contains the cloud license backend for health checks, admin license generation, activation, heartbeat, and deactivation.
 
 Removed legacy surfaces:
 
@@ -38,7 +38,7 @@ Model routing is local-first:
 Backend:
 
 ```bash
-cd Backend
+cd backend
 npm install
 npm test
 npm run build
@@ -48,7 +48,7 @@ npm audit --audit-level=low
 Frontend:
 
 ```bash
-cd Frontend
+cd frontend
 npm install
 npm run typecheck
 npm run build
@@ -60,7 +60,7 @@ npm run audit:rust
 Desktop runtime tests:
 
 ```bash
-cd Frontend/src-tauri
+cd frontend/src-tauri
 cargo test
 cargo clippy --all-targets -- -D warnings
 ```

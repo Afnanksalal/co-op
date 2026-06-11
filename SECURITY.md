@@ -11,7 +11,7 @@ Report security issues privately to `security@co-op.software`.
 - Desktop workflow/provider state is stored locally by the Tauri runtime.
 - Production startup fails without a strong `LICENSE_KEY_PEPPER` value.
 - Frontend and backend dependency audits are part of the release checks.
-- Rust audits run with warning denial through `npm run audit:rust` from `Frontend/`; the only ignored RustSec IDs are upstream Tauri/wry GTK3/glib/unic/proc-macro advisories that have no patched Tauri release yet.
+- Rust audits run with warning denial through `npm run audit:rust` from `frontend/`; the only ignored RustSec IDs are upstream Tauri/wry GTK3/glib/unic/proc-macro advisories that have no patched Tauri release yet.
 
 ## Operator Checklist
 

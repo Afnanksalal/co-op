@@ -15,11 +15,11 @@ Co-Op is local-first business management software with a cloud license control p
 
 ## Workspace Map
 
-- `Backend/` is the NestJS license control plane.
-- `Backend/src/modules/licenses/` contains activation, heartbeat, deactivation, and admin license generation.
-- `Backend/src/database/schema/licenses.schema.ts` is the source of truth for the cloud license schema.
-- `Frontend/` is the Next.js public site, account UI, admin license UI, and desktop UI shell.
-- `Frontend/src-tauri/` is the Rust Tauri runtime that stores local activation state, model routing settings, and workflow run history.
+- `backend/` is the NestJS license control plane.
+- `backend/src/modules/licenses/` contains activation, heartbeat, deactivation, and admin license generation.
+- `backend/src/database/schema/licenses.schema.ts` is the source of truth for the cloud license schema.
+- `frontend/` is the Next.js public site, account UI, admin license UI, and desktop UI shell.
+- `frontend/src-tauri/` is the Rust Tauri runtime that stores local activation state, model routing settings, and workflow run history.
 - `docs/` contains durable architecture, licensing, orchestration, and operations references.
 
 ## Required Checks
@@ -27,12 +27,12 @@ Co-Op is local-first business management software with a cloud license control p
 Run the narrowest relevant checks while iterating. Before shipping product changes, run the full suite:
 
 ```bash
-cd Backend
+cd backend
 npm test
 npm run build
 npm audit --audit-level=low
 
-cd ../Frontend
+cd ../frontend
 npm run typecheck
 npm run build
 npm run build:tauri
@@ -46,7 +46,7 @@ cargo clippy --all-targets -- -D warnings
 
 ## Engineering Rules
 
-- Keep generated output out of the repo workspace after verification: `Backend/dist`, `Frontend/.next`, `Frontend/out`, and `Frontend/src-tauri/target`.
+- Keep generated output out of the repo workspace after verification: `backend/dist`, `frontend/.next`, `frontend/out`, `frontend/out-tauri`, and `frontend/src-tauri/target`.
 - Prefer existing patterns and small, typed modules over broad rewrites.
 - Keep DTOs, API clients, and Rust command payloads aligned when changing contracts.
 - Add tests when changing license crypto, entitlement logic, provider routing, workflow validation, local state persistence, or security-sensitive behavior.

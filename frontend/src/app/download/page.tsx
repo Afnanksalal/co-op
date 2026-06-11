@@ -29,7 +29,7 @@ const activationSteps = [
   },
   {
     title: 'Generate license',
-    description: 'Operators issue a license key from the cloud backend.',
+    description: 'Generate the activation key from your account center.',
     icon: Key,
   },
   {
@@ -89,9 +89,6 @@ export default function DownloadPage() {
           <div className="mt-6 flex flex-wrap gap-3">
             <Link href="/account">
               <Button variant="outline">Manage account</Button>
-            </Link>
-            <Link href="/activate">
-              <Button>Open activation screen</Button>
             </Link>
           </div>
         </section>

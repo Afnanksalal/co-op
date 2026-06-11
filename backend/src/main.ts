@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger, LogLevel } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { randomUUID } from 'node:crypto';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -30,9 +31,8 @@ function validateProductionConfig(): void {
     errors.push('LICENSE_KEY_PEPPER is required in production and must be at least 32 characters');
   }
 
-  // Critical: CORS must be explicitly configured in production
   if (!process.env.CORS_ORIGINS || process.env.CORS_ORIGINS === '*') {
-    logger.warn('CORS_ORIGINS is set to "*" in production - consider restricting to specific origins');
+    errors.push('CORS_ORIGINS must be set to explicit origins in production');
   }
 
   // Critical: Database URL required
@@ -90,6 +90,12 @@ async function bootstrap(): Promise<void> {
   });
 
   app.setGlobalPrefix(apiPrefix);
+
+  app.use((request: { requestId?: string }, response: { setHeader: (key: string, value: string) => void }, next: () => void) => {
+    request.requestId = randomUUID();
+    response.setHeader('X-Request-Id', request.requestId);
+    next();
+  });
 
   app.useGlobalFilters(new HttpExceptionFilter());
 
