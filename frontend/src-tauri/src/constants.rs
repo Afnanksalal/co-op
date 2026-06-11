@@ -2,7 +2,7 @@ pub const STATE_FILE: &str = "state.json";
 pub const STATE_SCHEMA_VERSION: u32 = 2;
 pub const DEFAULT_CLOUD_URL: &str = match option_env!("COOP_CLOUD_URL") {
     Some(value) => value,
-    None => "https://api.co-op.software",
+    None => "https://co-op-80fi.onrender.com",
 };
 pub const DEFAULT_OLLAMA_URL: &str = "http://localhost:11434";
 pub const REQUEST_TIMEOUT_SECS: u64 = 30;

@@ -7,6 +7,7 @@ use crate::constants::{
     MAX_CHAT_SESSIONS, MAX_DOCUMENTS, MAX_INTEGRATIONS, MAX_LEADS, MAX_PITCH_DECKS,
     MAX_RESEARCH_RUNS, MAX_STORED_WORKFLOW_RUNS, STATE_FILE, STATE_SCHEMA_VERSION,
 };
+use crate::knowledge_store::{migrate_legacy_documents, to_document_summary};
 use crate::secrets::{hydrate_activation_secret, hydrate_model_secrets};
 use crate::types::{
     default_investors, ActivationState, ActivationStateView, DesktopState, DesktopStateResponse,
@@ -26,8 +27,9 @@ pub fn load_or_create_state(app: &AppHandle) -> Result<DesktopState, String> {
     let mut state = serde_json::from_str::<DesktopState>(&content)
         .map_err(|error| format!("Local state is corrupt: {error}"))?;
     repair_state(&mut state);
-    hydrate_activation_secret(&state.install_id, &mut state.activation);
-    hydrate_model_secrets(&state.install_id, &mut state.model_settings);
+    hydrate_activation_secret(app, &state.install_id, &mut state.activation);
+    hydrate_model_secrets(app, &state.install_id, &mut state.model_settings);
+    migrate_legacy_documents(app, &mut state)?;
     Ok(state)
 }
 
@@ -96,6 +98,22 @@ pub fn is_activation_usable(activation: &ActivationState, now: DateTime<Utc>) ->
         .unwrap_or(false)
 }
 
+pub fn require_usable_activation(state: &DesktopState) -> Result<(), String> {
+    let activation = state
+        .activation
+        .as_ref()
+        .ok_or_else(|| "Activate Co-Op Desktop before using local business tools.".to_string())?;
+
+    if !is_activation_usable(activation, Utc::now()) {
+        return Err(
+            "License heartbeat grace has expired. Refresh the license before using Co-Op Desktop."
+                .to_string(),
+        );
+    }
+
+    Ok(())
+}
+
 pub fn parse_rfc3339(value: &str) -> Option<DateTime<Utc>> {
     DateTime::parse_from_rfc3339(value)
         .ok()
@@ -120,6 +138,44 @@ fn repair_state(state: &mut DesktopState) {
     if state.investors.is_empty() {
         state.investors = default_investors();
     }
+    if state
+        .model_settings
+        .email_from
+        .trim()
+        .eq_ignore_ascii_case("founder@example.com")
+    {
+        state.model_settings.email_from.clear();
+    }
+    if state
+        .model_settings
+        .email_from_name
+        .trim()
+        .eq_ignore_ascii_case("Co-Op")
+    {
+        state.model_settings.email_from_name.clear();
+    }
+    if state.workspace.sector.trim().is_empty() {
+        state.workspace.sector = if state.workspace.industry.trim().is_empty() {
+            "other".to_string()
+        } else {
+            state.workspace.industry.trim().to_string()
+        };
+    }
+    if state.workspace.founder_role.trim().is_empty() {
+        state.workspace.founder_role = "founder".to_string();
+    }
+    if state.workspace.revenue_model.trim().is_empty() {
+        state.workspace.revenue_model = "not_yet".to_string();
+    }
+    if state.workspace.is_revenue.trim().is_empty() {
+        state.workspace.is_revenue = "pre_revenue".to_string();
+    }
+    if state.workspace.funding_stage.trim().is_empty() {
+        state.workspace.funding_stage = "bootstrapped".to_string();
+    }
+    if state.workspace.country.trim().is_empty() && !state.workspace.location.trim().is_empty() {
+        state.workspace.country = state.workspace.location.trim().to_string();
+    }
 }
 
 fn normalize_for_persistence(state: &mut DesktopState) {
@@ -136,6 +192,11 @@ fn normalize_for_persistence(state: &mut DesktopState) {
     state.cap_tables.truncate(MAX_CAP_TABLES);
     state.bookmarks.truncate(MAX_BOOKMARKS);
     state.integrations.truncate(MAX_INTEGRATIONS);
+    state.documents = state
+        .documents
+        .iter()
+        .map(to_document_summary)
+        .collect::<Vec<_>>();
 }
 
 #[cfg(test)]

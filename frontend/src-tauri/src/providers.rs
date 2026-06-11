@@ -334,7 +334,7 @@ async fn send_resend(
         .email_api_key
         .as_deref()
         .ok_or_else(|| "Resend API key is not saved".to_string())?;
-    let from = format!("{} <{}>", settings.email_from_name, settings.email_from);
+    let from = formatted_sender(settings);
     let request = ResendEmailRequest {
         from: &from,
         to: vec![to],
@@ -372,7 +372,7 @@ async fn send_sendgrid(
         }],
         from: SendGridEmail {
             email: &settings.email_from,
-            name: Some(&settings.email_from_name),
+            name: optional_sender_name(settings),
         },
         subject,
         content: vec![SendGridContent {
@@ -389,6 +389,24 @@ async fn send_sendgrid(
         .map_err(|error| format!("SendGrid request failed: {error}"))?;
     let _ = ensure_success(response, "SendGrid").await?;
     Ok("Sent with SendGrid".to_string())
+}
+
+fn formatted_sender(settings: &ModelSettings) -> String {
+    let sender_name = settings.email_from_name.trim();
+    if sender_name.is_empty() {
+        settings.email_from.trim().to_string()
+    } else {
+        format!("{sender_name} <{}>", settings.email_from.trim())
+    }
+}
+
+fn optional_sender_name(settings: &ModelSettings) -> Option<&str> {
+    let sender_name = settings.email_from_name.trim();
+    if sender_name.is_empty() {
+        None
+    } else {
+        Some(sender_name)
+    }
 }
 
 fn parse_firecrawl_sources(payload: Value) -> Vec<ResearchSource> {
@@ -542,5 +560,22 @@ mod tests {
         assert!(html.contains("&lt;script&gt;"));
         assert!(html.contains("&amp;"));
         assert!(html.contains("&quot;team&quot;"));
+    }
+
+    #[test]
+    fn sender_format_omits_blank_display_name() {
+        let mut settings = ModelSettings {
+            email_from: "owner@example.com".to_string(),
+            email_from_name: String::new(),
+            ..ModelSettings::default()
+        };
+
+        assert_eq!(formatted_sender(&settings), "owner@example.com");
+        assert_eq!(optional_sender_name(&settings), None);
+
+        settings.email_from_name = "Ops Team".to_string();
+
+        assert_eq!(formatted_sender(&settings), "Ops Team <owner@example.com>");
+        assert_eq!(optional_sender_name(&settings), Some("Ops Team"));
     }
 }

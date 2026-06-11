@@ -1,6 +1,6 @@
 import { MetadataRoute } from 'next';
 
-const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://co-op.software';
+const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return [

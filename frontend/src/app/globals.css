@@ -59,7 +59,9 @@
 
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings:
+      'rlig' 1,
+      'calt' 1;
   }
 
   h1,
@@ -104,6 +106,30 @@
 
   .container-tight {
     @apply mx-auto max-w-3xl px-4 sm:px-6;
+  }
+
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
+  html.coop-desktop-shell,
+  html.coop-desktop-shell body,
+  html.coop-desktop-shell * {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  html.coop-desktop-shell::-webkit-scrollbar,
+  html.coop-desktop-shell body::-webkit-scrollbar,
+  html.coop-desktop-shell *::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
   }
 }
 

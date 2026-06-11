@@ -28,3 +28,9 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 sha2 = "0.10"
 uuid = { version = "1.23", features = ["v4", "serde"] }
 keyring = "3.6.3"
+aes-gcm = "0.10"
+base64 = "0.22"
+pdf-extract = "0.10"
+quick-xml = "0.39"
+zip = { version = "4.2", default-features = false, features = ["deflate"] }
+rusqlite = { version = "0.32.1", features = ["bundled"] }

@@ -1,10 +1,22 @@
-# Agent Orchestration
+# Advisor Orchestration
 
-Co-Op is a business operations harness, not a token-burning model debate product. The runtime uses one selected provider for the primary workflow and only adds a review pass when the configured risk policy requires it.
+Co-Op is a business operations harness, not a token-burning model debate product. The runtime uses one selected provider for the primary work plan and only adds review when the configured risk policy requires it.
 
-## Workflow Surface
+```mermaid
+flowchart TD
+  Request["Owner asks Co-Op"] --> Validate["Validate request"]
+  Validate --> Context["Attach company profile, files, and memory"]
+  Context --> Primary["Run selected AI provider"]
+  Primary --> Risk{"Extra review needed?"}
+  Risk -- "No" --> Save["Save local work record"]
+  Risk -- "Yes" --> Review["Run review pass"]
+  Review --> Save
+  Save --> Result["Return answer to owner"]
+```
 
-The desktop runtime accepts these workflow types:
+## Work Surface
+
+The desktop runtime accepts these work areas:
 
 - `operations`
 - `finance`
@@ -12,9 +24,9 @@ The desktop runtime accepts these workflow types:
 - `sales`
 - `strategy`
 
-Each workflow has a clear objective, a selected provider, a bounded token budget, a local audit entry, and a concrete result or error. Objectives are validated before execution so empty or oversized requests never reach a provider.
+Each work plan has a clear objective, a selected provider, a bounded answer budget, a local audit entry, and a concrete result or error. Objectives are validated before execution so empty or oversized requests never reach a provider.
 
-The desktop chat surface supports these agent types:
+The desktop chat surface supports these advisor areas:
 
 - `operations`
 - `legal`
@@ -23,7 +35,7 @@ The desktop chat surface supports these agent types:
 - `competitor`
 - `sales`
 
-Each chat session can independently enable A2A review, local RAG context, live research context, and council review.
+Each chat session can independently enable second-look review, company file context, live research context, and final review.
 
 ## Provider Routing
 
@@ -32,7 +44,7 @@ Supported provider modes:
 - `ollama`: default local execution through `http://localhost:11434`.
 - `openai_compatible`: customer-supplied API key and base URL for OpenAI-compatible chat completions.
 
-Provider settings are stored by the desktop runtime. Provider API keys are written to OS credential storage, and the cloud backend does not receive provider API keys, workflow prompts, or workflow outputs.
+Provider settings are stored by the desktop runtime. Provider API keys are written to OS credential storage, and the cloud backend does not receive provider API keys, work prompts, or work outputs.
 
 Supported research modes:
 
@@ -45,14 +57,14 @@ Supported campaign email modes:
 - `resend`: sends through the customer's locally stored Resend key.
 - `sendgrid`: sends through the customer's locally stored SendGrid key.
 
-## Council Review Policy
+## Review Policy
 
-Council mode is a review gate:
+Review level is a guardrail:
 
-- `off`: run only the primary workflow.
-- `review_only`: run one concise review pass after the primary workflow.
-- `high_risk_only`: run the review pass only for inherently sensitive workflow types or risky objectives.
-- `full_council`: run the review gate for every chat/workflow request and include A2A review when enabled in chat.
+- No extra review: run only the primary response.
+- Standard review: run one concise review pass after the primary response.
+- Sensitive work only: run the review pass only for sensitive work areas or risky objectives.
+- Full review: run the review gate for every chat/work request and include second-look review when enabled in chat.
 
 High-risk review currently applies to `finance`, `legal`, and `strategy`, plus operational or sales objectives involving contracts, compliance, payroll, payments, banking, investors, board decisions, acquisitions, terminations, security, or privacy.
 
@@ -60,24 +72,26 @@ This keeps cost and latency reasonable. Co-Op must not fan out the same prompt t
 
 ## Runtime Contract
 
-Every workflow run should:
+Every work run should:
 
 - Check the local license state before work starts.
-- Validate the workflow type and objective length.
+- Validate the work type and objective length.
 - Load the configured provider policy.
+- Attach local business memory so decisions can reference company entities and relationships.
 - Build a business-focused system prompt with privacy and human-approval guidance.
 - Run through the selected provider.
-- Apply the council review gate only when policy requires it.
+- Apply the review gate only when policy requires it.
 - Store the latest run history locally, including status, steps, output, error, and timestamps.
 
 Every chat run should:
 
 - Load startup workspace context.
-- Attach local vector RAG context when enabled.
+- Attach local business memory derived from workspace, files, research, outreach, campaigns, and work history.
+- Attach local company file context when enabled.
 - Attach live Firecrawl research context when enabled and configured.
-- Run the selected agent prompt.
-- Run A2A review when enabled.
-- Run council review when configured.
+- Run the selected advisor prompt.
+- Run second-look review when enabled.
+- Run final review when configured.
 - Store the entire session locally.
 - Respect local retention caps so chat and research history cannot grow without bound.
 
@@ -92,4 +106,4 @@ Workflow output should be actionable business material:
 
 ## Extending The Harness
 
-Add a new workflow type only when it has distinct validation needs, prompt behavior, UI affordances, or audit semantics. Keep provider adapters behind the existing routing contract so the local app remains the execution boundary.
+Add a new work type only when it has distinct validation needs, prompt behavior, UI affordances, or audit semantics. Keep provider adapters behind the existing routing contract so the local app remains the execution boundary.

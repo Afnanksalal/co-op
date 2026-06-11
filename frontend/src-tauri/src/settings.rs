@@ -24,8 +24,8 @@ pub fn save_model_settings(
         state.model_settings.email_api_key.clone(),
     );
     validate_model_settings(&mut settings)?;
-    persist_model_secrets(&state.install_id, &settings)?;
+    persist_model_secrets(&app, &state.install_id, &settings)?;
     state.model_settings = settings;
     save_state(&app, &state)?;
-    Ok(to_response(state))
+    Ok(to_response(load_or_create_state(&app)?))
 }

@@ -118,7 +118,7 @@ pub async fn activate_license(
         .data
         .ok_or_else(|| "License activation response was empty".to_string())?;
     let now = Utc::now().to_rfc3339();
-    persist_activation_token(&state.install_id, &data.activation_token)?;
+    persist_activation_token(&app, &state.install_id, &data.activation_token)?;
     state.activation = Some(ActivationState {
         activation_token: data.activation_token,
         customer_email: data.entitlement.customer_email,
@@ -200,7 +200,7 @@ pub async fn heartbeat_license(app: AppHandle) -> Result<DesktopStateResponse, S
 #[tauri::command]
 pub fn clear_activation(app: AppHandle) -> Result<DesktopStateResponse, String> {
     let mut state = load_or_create_state(&app)?;
-    delete_activation_token(&state.install_id);
+    delete_activation_token(&app, &state.install_id);
     state.activation = None;
     save_state(&app, &state)?;
     Ok(to_response(state))
@@ -255,5 +255,41 @@ mod tests {
         let activation = activation_with_token("coop_act_test_token_value_long_enough");
 
         assert!(validate_heartbeat_activation(&activation).is_ok());
+    }
+
+    #[test]
+    fn cloud_activation_payload_matches_backend_dto_names() {
+        let payload = CloudActivateRequest {
+            license_key: "COOP-AAAA-BBBB-CCCC-DDDD-EEEE-FFFF",
+            machine_fingerprint: "machine-fingerprint-value",
+            install_id: "install-id",
+            device_name: Some("Office Workstation"),
+            app_version: "1.0.0",
+        };
+        let json = serde_json::to_value(payload).expect("payload should serialize");
+
+        assert!(json.get("licenseKey").is_some());
+        assert!(json.get("machineFingerprint").is_some());
+        assert!(json.get("installId").is_some());
+        assert!(json.get("deviceName").is_some());
+        assert!(json.get("appVersion").is_some());
+        assert!(json.get("license_key").is_none());
+        assert!(json.get("machine_fingerprint").is_none());
+    }
+
+    #[test]
+    fn cloud_heartbeat_payload_matches_backend_dto_names() {
+        let payload = CloudHeartbeatRequest {
+            activation_token: "coop_act_test_token_value_long_enough",
+            machine_fingerprint: "machine-fingerprint-value",
+            app_version: "1.0.0",
+        };
+        let json = serde_json::to_value(payload).expect("payload should serialize");
+
+        assert!(json.get("activationToken").is_some());
+        assert!(json.get("machineFingerprint").is_some());
+        assert!(json.get("appVersion").is_some());
+        assert!(json.get("activation_token").is_none());
+        assert!(json.get("machine_fingerprint").is_none());
     }
 }

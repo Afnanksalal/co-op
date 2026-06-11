@@ -152,11 +152,51 @@ pub fn validate_workspace(profile: &StartupProfile) -> Result<(), String> {
     if profile.company_name.trim().len() < 2 {
         return Err("Company name is required".to_string());
     }
-    if profile.problem.trim().len() < 10 {
-        return Err("Problem statement must be at least 10 characters".to_string());
+    if !matches!(
+        profile.stage.trim(),
+        "idea" | "prototype" | "mvp" | "beta" | "launched" | "growth" | "scale"
+    ) {
+        return Err("Unsupported company stage".to_string());
     }
-    if profile.solution.trim().len() < 10 {
-        return Err("Solution summary must be at least 10 characters".to_string());
+    if !profile.website.trim().is_empty()
+        && !profile.website.starts_with("http://")
+        && !profile.website.starts_with("https://")
+    {
+        return Err("Website must start with http:// or https://".to_string());
+    }
+    if profile
+        .cofounder_count
+        .map(|count| count > 50)
+        .unwrap_or(false)
+    {
+        return Err("Co-founder count must be 50 or fewer".to_string());
+    }
+    if profile
+        .monthly_revenue
+        .map(|value| value.is_sign_negative())
+        .unwrap_or(false)
+    {
+        return Err("Monthly revenue cannot be negative".to_string());
+    }
+    if profile
+        .total_raised
+        .map(|value| value.is_sign_negative())
+        .unwrap_or(false)
+    {
+        return Err("Total raised cannot be negative".to_string());
+    }
+    if profile
+        .founded_year
+        .map(|year| !(1900..=2100).contains(&year))
+        .unwrap_or(false)
+    {
+        return Err("Founded year must be between 1900 and 2100".to_string());
+    }
+    if profile.problem.trim().len() < 10 && profile.description.trim().len() < 10 {
+        return Err("Add a problem statement or company description".to_string());
+    }
+    if profile.solution.trim().len() < 10 && profile.tagline.trim().len() < 5 {
+        return Err("Add a solution summary or clear tagline".to_string());
     }
     Ok(())
 }

@@ -2,10 +2,11 @@ use chrono::Utc;
 use tauri::AppHandle;
 use uuid::Uuid;
 
+use crate::graph::graph_context;
 use crate::providers::call_model;
-use crate::rag::document_context;
+use crate::rag::document_context_from_store;
 use crate::research::research_context;
-use crate::storage::{load_or_create_state, save_state, to_response};
+use crate::storage::{load_or_create_state, require_usable_activation, save_state, to_response};
 use crate::types::{ChatMessageRecord, ChatRequest, ChatSession, DesktopStateResponse};
 use crate::validation::{validate_chat_request, validate_model_settings};
 use crate::workflows::workspace_context;
@@ -17,6 +18,7 @@ pub async fn run_agent_chat(
 ) -> Result<DesktopStateResponse, String> {
     validate_chat_request(&request)?;
     let mut state = load_or_create_state(&app)?;
+    require_usable_activation(&state)?;
     let mut settings = state.model_settings.clone();
     validate_model_settings(&mut settings)?;
 
@@ -65,8 +67,9 @@ pub async fn run_agent_chat(
         "Startup workspace:\n{}\n\n",
         workspace_context(&state.workspace)
     );
+    context.push_str(&graph_context(&state));
     if request.rag_enabled {
-        let rag = document_context(&state.documents, &request.message);
+        let rag = document_context_from_store(&app, &request.message)?;
         if !rag.is_empty() {
             context.push_str(&rag);
         }
@@ -89,11 +92,11 @@ pub async fn run_agent_chat(
     if request.a2a_enabled {
         let critique = call_model(
       &settings,
-      "You are a second Co-Op agent. Critique the draft answer and add missing cross-functional concerns.",
+        "You are a second Co-Op advisor. Review the draft answer and add missing cross-functional concerns.",
       &format!("Agent: {}\nDraft:\n{}", request.agent_type, answer),
     )
     .await?;
-        answer = format!("{answer}\n\nA2A review:\n{critique}");
+        answer = format!("{answer}\n\nSecond look:\n{critique}");
     }
 
     if matches!(
@@ -102,11 +105,11 @@ pub async fn run_agent_chat(
     ) {
         let review = call_model(
       &settings,
-      "You are Co-Op's council reviewer. Identify hallucination risk, decision risk, missing facts, and concrete next actions.",
+      "You are Co-Op's final reviewer. Identify decision risk, missing facts, and concrete next actions.",
       &answer,
     )
     .await?;
-        answer = format!("{answer}\n\nCouncil notes:\n{review}");
+        answer = format!("{answer}\n\nReview notes:\n{review}");
     }
 
     state.chat_sessions[index].messages.push(ChatMessageRecord {

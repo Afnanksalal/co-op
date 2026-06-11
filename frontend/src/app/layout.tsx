@@ -13,14 +13,15 @@ const playfair = Playfair_Display({
   variable: '--font-serif',
 });
 
-const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://co-op.software';
+const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
 export const metadata: Metadata = {
   title: {
     default: 'Co-Op | Local-First Business Orchestration',
     template: '%s | Co-Op',
   },
-  description: 'Co-Op is local-first business management software with a cloud license plane, desktop activation, Ollama support, and OpenAI-compatible bring-your-own-key routing.',
+  description:
+    'Co-Op is local-first business management software with a cloud license plane, desktop activation, Ollama support, and OpenAI-compatible bring-your-own-key routing.',
   keywords: [
     'local-first business software',
     'business orchestration',
@@ -43,7 +44,8 @@ export const metadata: Metadata = {
     url: siteUrl,
     siteName: 'Co-Op',
     title: 'Co-Op | Local-First Business Orchestration',
-    description: 'Desktop business orchestration with local data, cloud licensing, Ollama, and OpenAI-compatible BYOK routing.',
+    description:
+      'Desktop business orchestration with local data, cloud licensing, Ollama, and OpenAI-compatible BYOK routing.',
     images: [
       {
         url: '/logo.png',
@@ -57,7 +59,8 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary',
     title: 'Co-Op | Local-First Business Orchestration',
-    description: 'Desktop business orchestration with local data, cloud licensing, Ollama, and BYOK routing.',
+    description:
+      'Desktop business orchestration with local data, cloud licensing, Ollama, and BYOK routing.',
     images: ['/logo.png'],
     creator: '@coop_ai',
     site: '@coop_ai',
@@ -77,12 +80,8 @@ export const metadata: Metadata = {
   },
   manifest: '/manifest.json',
   icons: {
-    icon: [
-      { url: '/logo.png', type: 'image/png', sizes: '512x512' },
-    ],
-    apple: [
-      { url: '/logo.png', sizes: '180x180', type: 'image/png' },
-    ],
+    icon: [{ url: '/logo.png', type: 'image/png', sizes: '512x512' }],
+    apple: [{ url: '/logo.png', sizes: '180x180', type: 'image/png' }],
     shortcut: '/logo.png',
   },
   appleWebApp: {
@@ -142,8 +141,9 @@ const jsonLd = {
   name: 'Co-Op',
   applicationCategory: 'BusinessApplication',
   operatingSystem: 'Windows, macOS, Linux',
-  description: 'Local-first business management desktop software with cloud license control and local/BYOK model routing.',
-  url: 'https://co-op.software',
+  description:
+    'Local-first business management desktop software with cloud license control and local/BYOK model routing.',
+  url: siteUrl,
   offers: {
     '@type': 'Offer',
     price: '0',
@@ -158,11 +158,18 @@ const jsonLd = {
   ],
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+const apiOrigin = (() => {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (!apiUrl) return null;
+
+  try {
+    return new URL(apiUrl).origin;
+  } catch {
+    return null;
+  }
+})();
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} ${playfair.variable}`} suppressHydrationWarning>
       <head>
@@ -173,12 +180,10 @@ export default function RootLayout({
         />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link rel="dns-prefetch" href="https://api.co-op.software" />
+        {apiOrigin && <link rel="dns-prefetch" href={apiOrigin} />}
       </head>
       <body className="font-sans antialiased">
-        <ThemeProvider>
-          {children}
-        </ThemeProvider>
+        <ThemeProvider>{children}</ThemeProvider>
         <Toaster
           position="top-right"
           expand={false}

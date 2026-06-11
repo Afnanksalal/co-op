@@ -36,18 +36,35 @@ export interface ModelSettingsUpdate extends ModelSettings {
 }
 
 export interface StartupProfile {
+  founderName: string;
+  founderRole: string;
   companyName: string;
+  tagline: string;
   website: string;
+  description: string;
   stage: string;
   industry: string;
+  sector: string;
   location: string;
+  country: string;
+  city: string;
+  operatingRegions: string;
   teamSize: string;
+  cofounderCount: number | null;
   targetCustomers: string;
   problem: string;
   solution: string;
   businessModel: string;
+  revenueModel: string;
+  isRevenue: string;
+  monthlyRevenue: number | null;
+  fundingStage: string;
+  totalRaised: number | null;
   traction: string;
+  competitiveAdvantage: string;
   goals: string;
+  foundedYear: number | null;
+  launchDate: string;
   updatedAt: string;
 }
 
@@ -85,6 +102,7 @@ export interface KnowledgeDocument {
   title: string;
   source: string;
   content: string;
+  chunkCount: number;
   chunks: KnowledgeChunk[];
   createdAt: string;
 }
@@ -96,6 +114,27 @@ export interface SearchResult {
   source: string;
   content: string;
   score: number;
+}
+
+export interface KnowledgeGraphNode {
+  id: string;
+  label: string;
+  nodeType: string;
+  summary: string;
+}
+
+export interface KnowledgeGraphEdge {
+  id: string;
+  source: string;
+  target: string;
+  relationship: string;
+  weight: number;
+}
+
+export interface KnowledgeGraphSnapshot {
+  generatedAt: string;
+  nodes: KnowledgeGraphNode[];
+  edges: KnowledgeGraphEdge[];
 }
 
 export interface ResearchSource {
@@ -184,6 +223,8 @@ export interface PitchDeckAnalysis {
   id: string;
   title: string;
   deckNotes: string;
+  sourceFileName: string | null;
+  slideCount: number;
   score: number;
   analysis: string;
   createdAt: string;
@@ -217,6 +258,15 @@ export interface IntegrationEndpoint {
   createdAt: string;
 }
 
+export interface WorkflowTraceEvent {
+  id: string;
+  stage: string;
+  label: string;
+  status: string;
+  detail: string;
+  createdAt: string;
+}
+
 export interface WorkflowRun {
   id: string;
   workflowType: string;
@@ -224,6 +274,9 @@ export interface WorkflowRun {
   provider: string;
   status: string;
   steps: string[];
+  trace: WorkflowTraceEvent[];
+  riskLevel: string;
+  approvalRequired: boolean;
   output: string | null;
   error: string | null;
   createdAt: string;
@@ -333,6 +386,9 @@ export interface AlertRequest {
 export interface PitchDeckRequest {
   title: string;
   deckNotes: string;
+  fileName?: string | null;
+  fileMimeType?: string | null;
+  fileDataBase64?: string | null;
 }
 
 export interface CapTableRequest {
@@ -366,18 +422,35 @@ export interface BusinessToolResult {
 }
 
 const emptyWorkspace: StartupProfile = {
+  founderName: '',
+  founderRole: 'founder',
   companyName: '',
+  tagline: '',
   website: '',
+  description: '',
   stage: 'idea',
   industry: '',
+  sector: 'other',
   location: '',
+  country: '',
+  city: '',
+  operatingRegions: '',
   teamSize: '',
+  cofounderCount: null,
   targetCustomers: '',
   problem: '',
   solution: '',
   businessModel: '',
+  revenueModel: 'not_yet',
+  isRevenue: 'pre_revenue',
+  monthlyRevenue: null,
+  fundingStage: 'bootstrapped',
+  totalRaised: null,
   traction: '',
+  competitiveAdvantage: '',
   goals: '',
+  foundedYear: null,
+  launchDate: '',
   updatedAt: new Date(0).toISOString(),
 };
 
@@ -413,8 +486,8 @@ const previewState: DesktopState = {
     firecrawlApiKeySaved: false,
     emailProvider: 'none',
     emailApiKeySaved: false,
-    emailFrom: 'founder@example.com',
-    emailFromName: 'Co-Op',
+    emailFrom: '',
+    emailFromName: '',
   },
 };
 
@@ -422,7 +495,7 @@ export function isTauriRuntime(): boolean {
   if (typeof window === 'undefined') return false;
   return Boolean(
     (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ ||
-    (window as unknown as { __TAURI__?: unknown }).__TAURI__,
+    (window as unknown as { __TAURI__?: unknown }).__TAURI__
   );
 }
 
@@ -446,25 +519,25 @@ export async function heartbeatLicense(): Promise<DesktopState> {
 }
 
 export async function clearActivation(): Promise<DesktopState> {
-  if (!isTauriRuntime()) return previewState;
+  if (!isTauriRuntime()) throwDesktopOnly('Local activation');
   return invokeDesktop<DesktopState>('clear_activation');
 }
 
 export async function saveModelSettings(settings: ModelSettingsUpdate): Promise<DesktopState> {
-  if (!isTauriRuntime()) {
-    return { ...previewState, modelSettings: settings };
-  }
+  if (!isTauriRuntime()) throwDesktopOnly('Model settings');
   return invokeDesktop<DesktopState>('save_model_settings', { settings });
 }
 
 export async function saveWorkspaceProfile(profile: StartupProfile): Promise<DesktopState> {
-  if (!isTauriRuntime()) return { ...previewState, workspace: profile };
+  if (!isTauriRuntime()) throwDesktopOnly('Workspace profile');
   return invokeDesktop<DesktopState>('save_workspace_profile', { profile });
 }
 
 export async function runBusinessWorkflow(request: WorkflowRequest): Promise<WorkflowRun> {
   if (!isTauriRuntime()) {
-    throw new Error('Business workflows run inside Co-Op Desktop because they use local models and local state.');
+    throw new Error(
+      'Business workflows run inside Co-Op Desktop because they use local models and local state.'
+    );
   }
   return invokeDesktop<WorkflowRun>('run_business_workflow', { request });
 }
@@ -475,13 +548,24 @@ export async function runAgentChat(request: ChatRequest): Promise<DesktopState> 
 }
 
 export async function addKnowledgeDocument(request: DocumentRequest): Promise<DesktopState> {
-  if (!isTauriRuntime()) return previewState;
+  if (!isTauriRuntime()) throwDesktopOnly('Knowledge documents');
   return invokeDesktop<DesktopState>('add_knowledge_document', { request });
 }
 
 export async function searchKnowledge(request: SearchRequest): Promise<SearchResult[]> {
-  if (!isTauriRuntime()) return [];
+  if (!isTauriRuntime()) throwDesktopOnly('Knowledge search');
   return invokeDesktop<SearchResult[]>('search_knowledge', { request });
+}
+
+export async function getKnowledgeGraph(): Promise<KnowledgeGraphSnapshot> {
+  if (!isTauriRuntime()) {
+    return {
+      generatedAt: new Date(0).toISOString(),
+      nodes: [],
+      edges: [],
+    };
+  }
+  return invokeDesktop<KnowledgeGraphSnapshot>('get_knowledge_graph');
 }
 
 export async function runResearchQuery(request: ResearchRequest): Promise<ResearchRun> {
@@ -490,7 +574,7 @@ export async function runResearchQuery(request: ResearchRequest): Promise<Resear
 }
 
 export async function createLead(request: LeadRequest): Promise<DesktopState> {
-  if (!isTauriRuntime()) return previewState;
+  if (!isTauriRuntime()) throwDesktopOnly('Lead management');
   return invokeDesktop<DesktopState>('create_lead', { request });
 }
 
@@ -500,7 +584,7 @@ export async function discoverLeads(request: DiscoverLeadsRequest): Promise<Desk
 }
 
 export async function createCampaign(request: CampaignRequest): Promise<DesktopState> {
-  if (!isTauriRuntime()) return previewState;
+  if (!isTauriRuntime()) throwDesktopOnly('Campaign management');
   return invokeDesktop<DesktopState>('create_campaign', { request });
 }
 
@@ -515,7 +599,7 @@ export async function sendCampaignEmails(request: CampaignEmailRequest): Promise
 }
 
 export async function saveAlert(request: AlertRequest): Promise<DesktopState> {
-  if (!isTauriRuntime()) return previewState;
+  if (!isTauriRuntime()) throwDesktopOnly('Alerts');
   return invokeDesktop<DesktopState>('save_alert', { request });
 }
 
@@ -530,23 +614,30 @@ export async function analyzePitchDeck(request: PitchDeckRequest): Promise<Deskt
 }
 
 export async function saveCapTable(request: CapTableRequest): Promise<DesktopState> {
-  if (!isTauriRuntime()) return previewState;
+  if (!isTauriRuntime()) throwDesktopOnly('Cap tables');
   return invokeDesktop<DesktopState>('save_cap_table', { request });
 }
 
-export async function runCalculator(toolType: string, values: number[]): Promise<BusinessToolResult> {
+export async function runCalculator(
+  toolType: string,
+  values: number[]
+): Promise<BusinessToolResult> {
   if (!isTauriRuntime()) throw new Error('Calculators run inside Co-Op Desktop.');
   return invokeDesktop<BusinessToolResult>('run_calculator', { toolType, values });
 }
 
 export async function saveBookmark(request: BookmarkRequest): Promise<DesktopState> {
-  if (!isTauriRuntime()) return previewState;
+  if (!isTauriRuntime()) throwDesktopOnly('Bookmarks');
   return invokeDesktop<DesktopState>('save_bookmark', { request });
 }
 
 export async function saveIntegration(request: IntegrationRequest): Promise<DesktopState> {
-  if (!isTauriRuntime()) return previewState;
+  if (!isTauriRuntime()) throwDesktopOnly('Integrations');
   return invokeDesktop<DesktopState>('save_integration', { request });
+}
+
+function throwDesktopOnly(feature: string): never {
+  throw new Error(`Co-Op Desktop is required for ${feature.toLowerCase()}.`);
 }
 
 async function invokeDesktop<T>(command: string, args?: Record<string, unknown>): Promise<T> {

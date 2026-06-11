@@ -5,7 +5,7 @@ use uuid::Uuid;
 use crate::constants::MAX_RESEARCH_RUNS;
 use crate::providers::{call_model, search_firecrawl};
 use crate::rag::add_knowledge_document;
-use crate::storage::{load_or_create_state, save_state};
+use crate::storage::{load_or_create_state, require_usable_activation, save_state};
 use crate::types::{DocumentRequest, ResearchRequest, ResearchRun, ResearchSource};
 use crate::validation::{validate_model_settings, validate_objective};
 
@@ -16,6 +16,7 @@ pub async fn run_research_query(
 ) -> Result<ResearchRun, String> {
     validate_objective("Research query", &request.query)?;
     let mut state = load_or_create_state(&app)?;
+    require_usable_activation(&state)?;
     let mut settings = state.model_settings.clone();
     validate_model_settings(&mut settings)?;
     state.model_settings = settings.clone();

@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect } from 'react';
 import Link from 'next/link';
 import { Warning, ArrowLeft } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
@@ -12,27 +11,26 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  useEffect(() => {
-    console.error(error);
-  }, [error]);
-
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-8">
-      <div className="text-center max-w-md">
-        <Warning weight="light" className="w-16 h-16 text-muted-foreground mx-auto mb-6" />
-        <h1 className="font-serif text-3xl font-medium tracking-tight mb-4">
+    <div className="flex min-h-screen items-center justify-center bg-background p-8">
+      <div className="max-w-md text-center">
+        <Warning weight="light" className="mx-auto mb-6 h-16 w-16 text-muted-foreground" />
+        <h1 className="mb-4 font-serif text-3xl font-medium tracking-tight">
           Something went wrong
         </h1>
-        <p className="text-muted-foreground mb-8">
+        <p className="mb-8 text-muted-foreground">
           An unexpected error occurred. Please try again.
         </p>
+        {error.digest && (
+          <p className="mb-6 text-xs text-muted-foreground">Reference: {error.digest}</p>
+        )}
         <div className="flex items-center justify-center gap-4">
           <Button variant="outline" onClick={reset}>
             Try Again
           </Button>
           <Link href="/download">
             <Button>
-              <ArrowLeft weight="bold" className="w-4 h-4" />
+              <ArrowLeft weight="bold" className="h-4 w-4" />
               Go Home
             </Button>
           </Link>

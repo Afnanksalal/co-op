@@ -6,24 +6,46 @@ Current restoration target: local-first Co-Op Desktop with cloud licensing only.
 
 ## Restored Feature Families
 
-| Old feature family | Current local-first implementation |
-| --- | --- |
-| Startup workspace and onboarding | Stored locally in the desktop state file through `save_workspace_profile`. |
-| Agent chat window | Restored in `/desktop` with agent selection, session history, A2A review, RAG toggle, research toggle, and council mode. |
-| LLM council | Restored as bounded local orchestration: `off`, `review_only`, `high_risk_only`, and `full_council` modes using the customer-selected provider. |
-| A2A review | Restored in chat as a second-agent review pass when enabled. |
-| RAG and document intelligence | Restored as local chunking plus hashed vector embeddings and cosine search. Documents never leave the desktop unless a user routes prompts to an external provider. |
-| Web research | Restored through customer-configured Firecrawl or model-only research. Firecrawl credentials are stored locally. |
-| Personalized outreach | Restored with lead discovery, manual leads, campaigns, AI-personalized email generation, and send attempts. |
-| Email sending | Restored through local customer-configured Resend or SendGrid API keys. The cloud backend does not receive campaign content or email credentials. |
-| Investor database | Restored as a local seed database with searchable investor records. |
-| Competitor alerts | Restored as local alert records with manual research refresh. |
-| Pitch deck analyzer | Restored as local notes-based analysis through the configured model provider. |
-| Cap table simulator | Restored as local scenario storage and validation. |
-| Financial calculators | Restored for runway, burn rate, valuation, and unit economics. |
-| Bookmarks | Restored as local bookmark storage. |
-| MCP/webhook/Notion/custom integrations | Restored as local integration endpoint records. |
-| Workflow history | Restored as local run history with status, steps, output, and errors. |
+```mermaid
+mindmap
+  root((Co-Op Desktop))
+    Private workspace
+      Company profile
+      Business memory
+      Company files
+    Advisors
+      Chat
+      Second look
+      Review gate
+    Growth
+      Research
+      Outreach
+      Campaign email
+    Operations
+      Work plans
+      Pitch review
+      Cap table
+      Calculators
+```
+
+| Old feature family                     | Current local-first implementation                                                                                                                                                                      |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Startup workspace and onboarding       | Stored locally in the desktop state file through `save_workspace_profile`.                                                                                                                              |
+| Advisor chat window                    | Restored in `/desktop` with advisor selection, session history, second-look review, company file context, research toggle, and review level.                                                            |
+| Review gate                            | Restored as bounded local orchestration: no extra review, standard review, sensitive-work review, and full review using the customer-selected provider.                                                 |
+| Second-look review                     | Restored in chat as a second advisor review pass when enabled.                                                                                                                                          |
+| Company file intelligence              | Restored as local sectioning, SQLite-backed full-text candidate filtering, compact matching data, and local search. Files never leave the desktop unless a user routes prompts to an external provider. |
+| Web research                           | Restored through customer-configured Firecrawl or model-only research. Firecrawl credentials are stored locally.                                                                                        |
+| Personalized outreach                  | Restored with lead discovery, manual leads, campaigns, AI-personalized email generation, and send attempts.                                                                                             |
+| Email sending                          | Restored through local customer-configured Resend or SendGrid API keys. The cloud backend does not receive campaign content or email credentials.                                                       |
+| Investor database                      | Restored as a local seed database with searchable investor records.                                                                                                                                     |
+| Competitor alerts                      | Restored as local alert records with manual research refresh.                                                                                                                                           |
+| Pitch deck analyzer                    | Restored as local notes-based analysis through the configured model provider.                                                                                                                           |
+| Cap table simulator                    | Restored as local scenario storage and validation.                                                                                                                                                      |
+| Financial calculators                  | Restored for runway, burn rate, valuation, and unit economics.                                                                                                                                          |
+| Bookmarks                              | Restored as local bookmark storage.                                                                                                                                                                     |
+| MCP/webhook/Notion/custom integrations | Restored as local integration endpoint records.                                                                                                                                                         |
+| Work history                           | Restored as local work history with status, trace, output, and errors.                                                                                                                                  |
 
 ## Cloud Boundary
 
@@ -39,7 +61,7 @@ Cloud does not receive:
 
 - Business prompts
 - Chat messages
-- RAG documents
+- Company files
 - Outreach leads
 - Campaign emails
 - Provider API keys
@@ -55,6 +77,8 @@ Tauri runtime is split into focused modules:
 - `workspace.rs`
 - `chat.rs`
 - `rag.rs`
+- `knowledge_store.rs`
+- `graph.rs`
 - `research.rs`
 - `outreach.rs`
 - `tools.rs`

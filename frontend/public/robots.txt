@@ -1,5 +1,5 @@
 # Co-Op Local-First Business Orchestration
-# https://co-op.software
+# Configure NEXT_PUBLIC_APP_URL for the canonical sitemap host.
 
 User-agent: *
 Allow: /
@@ -8,7 +8,7 @@ Disallow: /auth/
 Disallow: /_next/
 
 # Sitemaps
-Sitemap: https://co-op.software/sitemap.xml
+Sitemap: /sitemap.xml
 
 # Crawl-delay for polite crawling
 Crawl-delay: 1

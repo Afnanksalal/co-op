@@ -1,6 +1,22 @@
 # Architecture
 
-Co-Op is split into a cloud license plane and a local desktop data plane.
+Co-Op is split into a cloud license plane and a local desktop business workspace.
+
+See `docs/DATA_PLANE.md` for the local storage and optional self-host data decisions.
+
+```mermaid
+flowchart LR
+  Owner["Business owner"] --> Web["Co-Op web account"]
+  Web --> License["Cloud license plane"]
+  License -->|"license key + entitlement"| Desktop["Co-Op Desktop"]
+  Desktop --> LocalState["Local app state"]
+  Desktop --> Knowledge["Local company files store"]
+  Desktop --> Secrets["OS credential store"]
+  Desktop --> Provider["Owner-selected AI provider"]
+  Desktop --> Optional["Optional research / email services"]
+
+  License -. "no prompts, files, provider keys, or outputs" .- Desktop
+```
 
 ## Planes
 
@@ -16,13 +32,32 @@ Local desktop data plane:
 
 - Stores activation metadata in the Tauri app data directory and activation/provider secrets in OS credential storage.
 - Stores model routing settings locally.
-- Stores the startup workspace, chat sessions, RAG documents, research runs, outreach data, campaigns, investor records, alerts, pitch analyses, cap tables, bookmarks, integrations, and workflow history locally.
-- Runs business workflows, chat agents, A2A review, council review, RAG search, research synthesis, pitch analysis, personalized outreach, and tools through Ollama or a customer-configured OpenAI-compatible provider.
+- Stores startup workspace, chat sessions, research runs, outreach data, campaigns, investor records, alerts, pitch analyses, cap tables, bookmarks, integrations, work history, and file summaries in local app state.
+- Stores company file content, sections, search rows, and compact matching data in a local SQLite knowledge store.
+- Runs business work plans, advisor chat, second-look review, company file search, business memory context, research synthesis, pitch analysis, personalized outreach, and tools through Ollama or a customer-configured OpenAI-compatible provider.
 - Uses customer-configured Firecrawl for live web research when enabled.
 - Uses customer-configured Resend or SendGrid keys for campaign email sending when enabled.
 - Sends the cloud backend only license and heartbeat data.
 
 ## Request Flow
+
+```mermaid
+sequenceDiagram
+  actor Owner as Business owner
+  participant Web as Co-Op account center
+  participant Cloud as License API
+  participant Desktop as Co-Op Desktop
+  participant Local as Local workspace
+
+  Owner->>Web: Signs in and creates activation key
+  Web->>Cloud: Requests license key
+  Cloud-->>Web: Shows key once
+  Owner->>Desktop: Enters license key
+  Desktop->>Cloud: Activates device
+  Cloud-->>Desktop: Entitlement + offline grace
+  Desktop->>Local: Stores entitlement snapshot and local data
+  Desktop-->>Owner: Unlocks private workspace
+```
 
 1. An admin creates a license from `/admin/licenses`.
 2. The backend stores only a keyed hash of the generated license key and returns the raw key once.
@@ -31,7 +66,7 @@ Local desktop data plane:
 5. The backend returns an activation token and entitlement payload.
 6. The desktop runtime stores entitlement metadata locally and stores the activation token in OS credential storage.
 7. Heartbeats call `POST /api/v1/licenses/heartbeat` to refresh entitlement and offline grace.
-8. Business workflows and product features run locally after entitlement is checked.
+8. Business work plans and product features run locally after entitlement is checked.
 
 ## Backend Components
 
@@ -69,6 +104,7 @@ Tauri commands:
 - `run_agent_chat`
 - `add_knowledge_document`
 - `search_knowledge`
+- `get_knowledge_graph`
 - `run_research_query`
 - `create_lead`
 - `discover_leads`
@@ -85,7 +121,7 @@ Tauri commands:
 - `run_business_workflow`
 - `get_machine_fingerprint`
 
-The runtime is modularized across license, settings, workspace, chat, RAG, research, outreach, tools, providers, storage, validation, security, secrets, types, and constants modules. It validates URLs, providers, model names, token budgets, workflow types, document sizes, email addresses, cap-table percentages, calculators, campaign email length, and objective length before persistence or network calls.
+The runtime is modularized across license, settings, workspace, chat, file memory, business memory, research, outreach, tools, providers, storage, validation, security, secrets, types, and constants modules. It validates URLs, providers, model names, answer budgets, work types, workspace profile fields, document sizes, email addresses, cap-table percentages, calculators, campaign email length, and objective length before persistence or network calls.
 
 ## Storage Boundaries
 
@@ -104,7 +140,9 @@ Desktop app data:
 - Provider settings
 - Startup workspace
 - Chat sessions
-- RAG documents and local vectors
+- Company file summaries in `state.json`
+- Company file content, sections, search rows, and binary matching data in `knowledge.sqlite3`
+- Derived local business memory snapshots
 - Research runs
 - Outreach leads, campaigns, generated emails, and send status
 - Investor records

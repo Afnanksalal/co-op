@@ -106,8 +106,8 @@ impl Default for ModelSettings {
             firecrawl_api_key: None,
             email_provider: "none".to_string(),
             email_api_key: None,
-            email_from: "founder@example.com".to_string(),
-            email_from_name: "Co-Op".to_string(),
+            email_from: String::new(),
+            email_from_name: String::new(),
         }
     }
 }
@@ -172,37 +172,72 @@ fn has_secret(value: &str) -> bool {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[serde(default)]
 pub struct StartupProfile {
+    pub founder_name: String,
+    pub founder_role: String,
     pub company_name: String,
+    pub tagline: String,
     pub website: String,
+    pub description: String,
     pub stage: String,
     pub industry: String,
+    pub sector: String,
     pub location: String,
+    pub country: String,
+    pub city: String,
+    pub operating_regions: String,
     pub team_size: String,
+    pub cofounder_count: Option<u32>,
     pub target_customers: String,
     pub problem: String,
     pub solution: String,
     pub business_model: String,
+    pub revenue_model: String,
+    pub is_revenue: String,
+    pub monthly_revenue: Option<f64>,
+    pub funding_stage: String,
+    pub total_raised: Option<f64>,
     pub traction: String,
+    pub competitive_advantage: String,
     pub goals: String,
+    pub founded_year: Option<u32>,
+    pub launch_date: String,
     pub updated_at: String,
 }
 
 impl Default for StartupProfile {
     fn default() -> Self {
         Self {
+            founder_name: String::new(),
+            founder_role: "founder".to_string(),
             company_name: String::new(),
+            tagline: String::new(),
             website: String::new(),
+            description: String::new(),
             stage: "idea".to_string(),
             industry: String::new(),
+            sector: "other".to_string(),
             location: String::new(),
+            country: String::new(),
+            city: String::new(),
+            operating_regions: String::new(),
             team_size: String::new(),
+            cofounder_count: None,
             target_customers: String::new(),
             problem: String::new(),
             solution: String::new(),
             business_model: String::new(),
+            revenue_model: "not_yet".to_string(),
+            is_revenue: "pre_revenue".to_string(),
+            monthly_revenue: None,
+            funding_stage: "bootstrapped".to_string(),
+            total_raised: None,
             traction: String::new(),
+            competitive_advantage: String::new(),
             goals: String::new(),
+            founded_year: None,
+            launch_date: String::new(),
             updated_at: Utc::now().to_rfc3339(),
         }
     }
@@ -235,13 +270,29 @@ pub struct ChatMessageRecord {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[serde(default)]
 pub struct KnowledgeDocument {
     pub id: String,
     pub title: String,
     pub source: String,
     pub content: String,
+    pub chunk_count: usize,
     pub chunks: Vec<KnowledgeChunk>,
     pub created_at: String,
+}
+
+impl Default for KnowledgeDocument {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            title: String::new(),
+            source: String::new(),
+            content: String::new(),
+            chunk_count: 0,
+            chunks: Vec::new(),
+            created_at: Utc::now().to_rfc3339(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -263,6 +314,33 @@ pub struct SearchResult {
     pub source: String,
     pub content: String,
     pub score: f32,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KnowledgeGraphNode {
+    pub id: String,
+    pub label: String,
+    pub node_type: String,
+    pub summary: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KnowledgeGraphEdge {
+    pub id: String,
+    pub source: String,
+    pub target: String,
+    pub relationship: String,
+    pub weight: f32,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KnowledgeGraphSnapshot {
+    pub generated_at: String,
+    pub nodes: Vec<KnowledgeGraphNode>,
+    pub edges: Vec<KnowledgeGraphEdge>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -363,13 +441,31 @@ pub struct Alert {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[serde(default)]
 pub struct PitchDeckAnalysis {
     pub id: String,
     pub title: String,
     pub deck_notes: String,
+    pub source_file_name: Option<String>,
+    pub slide_count: usize,
     pub score: u8,
     pub analysis: String,
     pub created_at: String,
+}
+
+impl Default for PitchDeckAnalysis {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            title: String::new(),
+            deck_notes: String::new(),
+            source_file_name: None,
+            slide_count: 0,
+            score: 0,
+            analysis: String::new(),
+            created_at: Utc::now().to_rfc3339(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -408,6 +504,32 @@ pub struct IntegrationEndpoint {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[serde(default)]
+pub struct WorkflowTraceEvent {
+    pub id: String,
+    pub stage: String,
+    pub label: String,
+    pub status: String,
+    pub detail: String,
+    pub created_at: String,
+}
+
+impl Default for WorkflowTraceEvent {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            stage: String::new(),
+            label: String::new(),
+            status: String::new(),
+            detail: String::new(),
+            created_at: Utc::now().to_rfc3339(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(default)]
 pub struct WorkflowRun {
     pub id: String,
     pub workflow_type: String,
@@ -415,10 +537,33 @@ pub struct WorkflowRun {
     pub provider: String,
     pub status: String,
     pub steps: Vec<String>,
+    pub trace: Vec<WorkflowTraceEvent>,
+    pub risk_level: String,
+    pub approval_required: bool,
     pub output: Option<String>,
     pub error: Option<String>,
     pub created_at: String,
     pub completed_at: Option<String>,
+}
+
+impl Default for WorkflowRun {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            workflow_type: String::new(),
+            objective: String::new(),
+            provider: String::new(),
+            status: String::new(),
+            steps: Vec::new(),
+            trace: Vec::new(),
+            risk_level: "normal".to_string(),
+            approval_required: false,
+            output: None,
+            error: None,
+            created_at: Utc::now().to_rfc3339(),
+            completed_at: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -615,11 +760,15 @@ pub struct AlertRequest {
     pub enabled: bool,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[serde(default)]
 pub struct PitchDeckRequest {
     pub title: String,
     pub deck_notes: String,
+    pub file_name: Option<String>,
+    pub file_mime_type: Option<String>,
+    pub file_data_base64: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -868,7 +1017,7 @@ mod tests {
             offline_grace_ends_at: Utc::now().to_rfc3339(),
             last_heartbeat_at: Utc::now().to_rfc3339(),
             machine_fingerprint: "fingerprint".to_string(),
-            cloud_base_url: "https://api.co-op.software".to_string(),
+            cloud_base_url: crate::constants::DEFAULT_CLOUD_URL.to_string(),
         });
 
         let serialized = serde_json::to_string(&state).expect("desktop state should serialize");

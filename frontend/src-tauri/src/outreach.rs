@@ -6,7 +6,7 @@ use uuid::Uuid;
 use crate::constants::{MAX_CAMPAIGN_SEND_BATCH, MAX_GENERATED_EMAILS_PER_CAMPAIGN};
 use crate::providers::{call_model, send_email};
 use crate::research::run_research_query;
-use crate::storage::{load_or_create_state, save_state, to_response};
+use crate::storage::{load_or_create_state, require_usable_activation, save_state, to_response};
 use crate::types::{
     Campaign, CampaignEmail, CampaignEmailRequest, CampaignRequest, DesktopStateResponse,
     DiscoverLeadsRequest, Lead, LeadRequest, ResearchRequest,
@@ -21,6 +21,7 @@ use crate::workflows::workspace_context;
 pub fn create_lead(app: AppHandle, request: LeadRequest) -> Result<DesktopStateResponse, String> {
     validate_lead_request(&request)?;
     let mut state = load_or_create_state(&app)?;
+    require_usable_activation(&state)?;
     state.leads.insert(0, lead_from_request(request));
     save_state(&app, &state)?;
     Ok(to_response(state))
@@ -44,6 +45,7 @@ pub async fn discover_leads(
     )
     .await?;
     let mut state = load_or_create_state(&app)?;
+    require_usable_activation(&state)?;
     let settings = state.model_settings.clone();
     let extraction_prompt = format!(
     "Startup workspace:\n{}\n\nLead type: {}\nMax leads: {}\nResearch summary:\n{}\n\nSources:\n{}\n\nExtract concrete leads. Return one lead per line in this exact pipe-delimited format:\nname | company | email | website | profile_url | platform | niche | location | description | score",
@@ -91,6 +93,7 @@ pub fn create_campaign(
 ) -> Result<DesktopStateResponse, String> {
     validate_campaign_request(&request)?;
     let mut state = load_or_create_state(&app)?;
+    require_usable_activation(&state)?;
     state.campaigns.insert(
         0,
         Campaign {
@@ -117,6 +120,7 @@ pub async fn generate_campaign_emails(
     request: CampaignEmailRequest,
 ) -> Result<DesktopStateResponse, String> {
     let mut state = load_or_create_state(&app)?;
+    require_usable_activation(&state)?;
     let campaign = state
         .campaigns
         .iter()
@@ -200,6 +204,7 @@ pub async fn send_campaign_emails(
     request: CampaignEmailRequest,
 ) -> Result<DesktopStateResponse, String> {
     let mut state = load_or_create_state(&app)?;
+    require_usable_activation(&state)?;
     let mut settings = state.model_settings.clone();
     validate_model_settings(&mut settings)?;
     let indexes: Vec<usize> = state

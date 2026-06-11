@@ -1,5 +1,7 @@
 mod chat;
 mod constants;
+mod graph;
+mod knowledge_store;
 mod license;
 mod outreach;
 mod providers;
@@ -16,6 +18,7 @@ mod workflows;
 mod workspace;
 
 pub use chat::run_agent_chat;
+pub use graph::get_knowledge_graph;
 pub use license::{
     activate_license, clear_activation, get_activation_state, get_machine_fingerprint,
     heartbeat_license,
@@ -44,6 +47,7 @@ pub fn run() {
             discover_leads,
             generate_campaign_emails,
             get_activation_state,
+            get_knowledge_graph,
             get_machine_fingerprint,
             heartbeat_license,
             run_agent_chat,

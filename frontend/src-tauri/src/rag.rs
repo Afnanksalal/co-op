@@ -5,7 +5,11 @@ use tauri::AppHandle;
 use uuid::Uuid;
 
 use crate::constants::RAG_VECTOR_DIMENSIONS;
-use crate::storage::{load_or_create_state, save_state, to_response};
+use crate::knowledge_store::{
+    document_context_for_app, list_document_summaries, search_store, store_document,
+    to_document_summary,
+};
+use crate::storage::{load_or_create_state, require_usable_activation, save_state, to_response};
 use crate::types::{
     DesktopStateResponse, DocumentRequest, KnowledgeChunk, KnowledgeDocument, SearchRequest,
     SearchResult,
@@ -19,9 +23,10 @@ pub fn add_knowledge_document(
 ) -> Result<DesktopStateResponse, String> {
     validate_document_request(&request)?;
     let mut state = load_or_create_state(&app)?;
+    require_usable_activation(&state)?;
     let document_id = Uuid::new_v4().to_string();
     let created_at = Utc::now().to_rfc3339();
-    let chunks = chunk_text(&request.content)
+    let chunks: Vec<KnowledgeChunk> = chunk_text(&request.content)
         .into_iter()
         .map(|content| KnowledgeChunk {
             id: Uuid::new_v4().to_string(),
@@ -31,17 +36,18 @@ pub fn add_knowledge_document(
             created_at: created_at.clone(),
         })
         .collect();
-    state.documents.insert(
-        0,
-        KnowledgeDocument {
-            id: document_id,
-            title: request.title.trim().to_string(),
-            source: request.source.trim().to_string(),
-            content: request.content.trim().to_string(),
-            chunks,
-            created_at,
-        },
-    );
+    let document = KnowledgeDocument {
+        id: document_id,
+        title: request.title.trim().to_string(),
+        source: request.source.trim().to_string(),
+        content: request.content.trim().to_string(),
+        chunk_count: chunks.len(),
+        chunks,
+        created_at,
+    };
+    store_document(&app, &document)?;
+    state.documents = list_document_summaries(&app, crate::constants::MAX_DOCUMENTS)
+        .unwrap_or_else(|_| vec![to_document_summary(&document)]);
     save_state(&app, &state)?;
     Ok(to_response(state))
 }
@@ -53,13 +59,11 @@ pub fn search_knowledge(
 ) -> Result<Vec<SearchResult>, String> {
     validate_objective("Search query", &request.query)?;
     let state = load_or_create_state(&app)?;
-    Ok(search_documents(
-        &state.documents,
-        &request.query,
-        request.limit.unwrap_or(5),
-    ))
+    require_usable_activation(&state)?;
+    search_store(&app, &request.query, request.limit.unwrap_or(5))
 }
 
+#[cfg(test)]
 pub fn search_documents(
     documents: &[KnowledgeDocument],
     query: &str,
@@ -91,19 +95,8 @@ pub fn search_documents(
     results
 }
 
-pub fn document_context(documents: &[KnowledgeDocument], query: &str) -> String {
-    let results = search_documents(documents, query, 5);
-    if results.is_empty() {
-        return String::new();
-    }
-    let mut context = String::from("\n\nLocal RAG context:\n");
-    for result in results {
-        context.push_str(&format!(
-            "- {} ({:.2}): {}\n",
-            result.title, result.score, result.content
-        ));
-    }
-    context
+pub fn document_context_from_store(app: &AppHandle, query: &str) -> Result<String, String> {
+    document_context_for_app(app, query)
 }
 
 pub fn chunk_text(content: &str) -> Vec<String> {
@@ -156,6 +149,7 @@ fn normalize(mut vector: Vec<f32>) -> Vec<f32> {
     vector
 }
 
+#[cfg(test)]
 fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
     a.iter()
         .zip(b.iter())
@@ -174,6 +168,7 @@ mod tests {
             title: "Finance".to_string(),
             source: "test".to_string(),
             content: "runway burn revenue".to_string(),
+            chunk_count: 1,
             chunks: vec![KnowledgeChunk {
                 id: "chunk".to_string(),
                 document_id: "doc".to_string(),
