@@ -324,3 +324,87 @@ fn is_private_http_host(host: &str) -> bool {
     }
     false
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn url_validation_allows_local_http_and_rejects_public_http() {
+        assert!(sanitize_http_base_url("http://localhost:11434", true, false, "Ollama").is_ok());
+        assert!(sanitize_http_base_url("http://127.0.0.1:11434/", true, false, "Ollama").is_ok());
+        assert!(sanitize_http_base_url("http://example.com", true, false, "Provider").is_err());
+    }
+
+    #[test]
+    fn url_validation_strips_cloud_api_prefix() {
+        let url =
+            sanitize_http_base_url("https://api.example.com/api/v1", true, true, "Cloud").unwrap();
+
+        assert_eq!(url, "https://api.example.com");
+    }
+
+    #[test]
+    fn default_model_settings_are_valid() {
+        let mut settings = ModelSettings::default();
+
+        assert!(validate_model_settings(&mut settings).is_ok());
+    }
+
+    #[test]
+    fn model_settings_require_keys_for_external_providers() {
+        let mut settings = ModelSettings {
+            provider: "openai_compatible".to_string(),
+            ..ModelSettings::default()
+        };
+        assert!(validate_model_settings(&mut settings).is_err());
+
+        let mut settings = ModelSettings {
+            research_provider: "firecrawl".to_string(),
+            ..ModelSettings::default()
+        };
+        assert!(validate_model_settings(&mut settings).is_err());
+    }
+
+    #[test]
+    fn workspace_requires_business_context() {
+        let profile = StartupProfile {
+            company_name: "Co-Op".to_string(),
+            problem: "Owners lack a local-first business control plane.".to_string(),
+            solution: "A desktop business operating system with cloud licensing.".to_string(),
+            ..StartupProfile::default()
+        };
+
+        assert!(validate_workspace(&profile).is_ok());
+    }
+
+    #[test]
+    fn campaign_validation_rejects_dead_end_modes() {
+        let request = CampaignRequest {
+            name: "Launch".to_string(),
+            mode: "sms".to_string(),
+            target_lead_type: "company".to_string(),
+            subject_template: "Hello".to_string(),
+            body_template: "Body".to_string(),
+            campaign_goal: "Book qualified calls".to_string(),
+            tone: "direct".to_string(),
+            call_to_action: "Book a call".to_string(),
+        };
+
+        assert!(validate_campaign_request(&request).is_err());
+    }
+
+    #[test]
+    fn cap_table_rejects_impossible_ownership() {
+        let request = CapTableRequest {
+            name: "Seed".to_string(),
+            founder_ownership_percent: 70.0,
+            investor_ownership_percent: 25.0,
+            option_pool_percent: 10.0,
+            post_money_valuation: 5_000_000.0,
+            notes: String::new(),
+        };
+
+        assert!(validate_cap_table(&request).is_err());
+    }
+}

@@ -6,6 +6,7 @@ use crate::constants::{DEFAULT_OLLAMA_URL, MAX_RUN_TOKENS, STATE_SCHEMA_VERSION}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[serde(default)]
 pub struct ActivationState {
     #[serde(default, skip_serializing)]
     pub activation_token: String,
@@ -18,6 +19,23 @@ pub struct ActivationState {
     pub last_heartbeat_at: String,
     pub machine_fingerprint: String,
     pub cloud_base_url: String,
+}
+
+impl Default for ActivationState {
+    fn default() -> Self {
+        Self {
+            activation_token: String::new(),
+            customer_email: String::new(),
+            plan: String::new(),
+            status: String::new(),
+            expires_at: None,
+            features: Vec::new(),
+            offline_grace_ends_at: String::new(),
+            last_heartbeat_at: String::new(),
+            machine_fingerprint: String::new(),
+            cloud_base_url: crate::constants::DEFAULT_CLOUD_URL.to_string(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -50,6 +68,7 @@ impl From<&ActivationState> for ActivationStateView {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[serde(default)]
 pub struct ModelSettings {
     pub provider: String,
     pub ollama_base_url: String,
@@ -858,5 +877,35 @@ mod tests {
         assert!(!serialized.contains("fc-firecrawl-secret"));
         assert!(!serialized.contains("email-provider-secret"));
         assert!(!serialized.contains("coop_act_secret"));
+    }
+
+    #[test]
+    fn old_partial_state_deserializes_with_model_defaults() {
+        let legacy = r#"{
+      "installId": "0598c23a-c67a-4378-928d-6b1a40c6ece6",
+      "activation": null,
+      "modelSettings": {
+        "provider": "ollama",
+        "ollamaBaseUrl": "http://localhost:11434",
+        "ollamaModel": "llama3.1",
+        "openaiBaseUrl": "https://api.openai.com/v1",
+        "openaiApiKey": null,
+        "openaiModel": "gpt-4.1-mini",
+        "councilMode": "review_only",
+        "maxRunTokens": 12000
+      },
+      "workflowRuns": []
+    }"#;
+
+        let state = serde_json::from_str::<DesktopState>(legacy)
+            .expect("legacy desktop state should migrate");
+
+        assert_eq!(state.install_id, "0598c23a-c67a-4378-928d-6b1a40c6ece6");
+        assert_eq!(state.model_settings.research_provider, "llm");
+        assert_eq!(state.model_settings.email_provider, "none");
+        assert_eq!(
+            state.model_settings.firecrawl_base_url,
+            "https://api.firecrawl.dev"
+        );
     }
 }

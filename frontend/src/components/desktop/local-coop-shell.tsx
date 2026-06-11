@@ -115,7 +115,7 @@ export function LocalCoOpShell() {
       setWorkspace(next.workspace);
       if (!next.activation && runtimeAvailable) setView('activation');
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to load Co-Op Desktop');
+      setError(errorMessage(error, 'Failed to load Co-Op Desktop'));
     }
   }
 
@@ -130,7 +130,7 @@ export function LocalCoOpShell() {
       setWorkspace(next.workspace);
       setMessage(success);
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Action failed');
+      setError(errorMessage(error, 'Action failed'));
     } finally {
       setBusyAction('');
     }
@@ -455,7 +455,7 @@ function ResearchPanel({ state, busyAction, refresh, setError, setMessage, setBu
             setMessage('Research completed.');
             setQuery('');
           } catch (error) {
-            setError(error instanceof Error ? error.message : 'Research failed');
+            setError(errorMessage(error, 'Research failed'));
           } finally {
             setBusyAction('');
           }
@@ -576,7 +576,7 @@ function ToolsPanel({ state, busyAction, runWithState, setError, setMessage, set
       setCalculatorResult(result);
       setMessage('Calculator completed.');
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Calculator failed');
+      setError(errorMessage(error, 'Calculator failed'));
     } finally {
       setBusyAction('');
     }
@@ -709,7 +709,7 @@ function HistoryPanel({ state, busyAction, refresh, setError, setMessage, setBus
             await refresh();
             setMessage(run.status === 'completed' ? 'Workflow completed.' : 'Workflow finished with errors.');
           } catch (error) {
-            setError(error instanceof Error ? error.message : 'Workflow failed');
+            setError(errorMessage(error, 'Workflow failed'));
           } finally {
             setBusyAction('');
           }
@@ -912,4 +912,10 @@ function titleForView(view: View): string {
   if (view === 'tools') return 'Business Tools';
   if (view === 'models') return 'Models And Connectors';
   return 'History';
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message.trim()) return error.message;
+  if (typeof error === 'string' && error.trim()) return error;
+  return fallback;
 }

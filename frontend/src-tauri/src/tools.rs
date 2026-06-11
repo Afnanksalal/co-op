@@ -198,3 +198,51 @@ fn derive_score(analysis: &str) -> u8 {
     }
     70
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn calculators_cover_core_finance_tools() {
+        assert!(
+            run_calculator("runway".to_string(), vec![100_000.0, 20_000.0])
+                .unwrap()
+                .output
+                .contains("5.0 months")
+        );
+        assert!(
+            run_calculator("burn_rate".to_string(), vec![100_000.0, 70_000.0])
+                .unwrap()
+                .output
+                .contains("30000.00")
+        );
+        assert!(
+            run_calculator("valuation".to_string(), vec![500_000.0, 8.0])
+                .unwrap()
+                .output
+                .contains("4000000.00")
+        );
+        assert!(
+            run_calculator("unit_economics".to_string(), vec![900.0, 300.0])
+                .unwrap()
+                .output
+                .contains("3.00")
+        );
+    }
+
+    #[test]
+    fn calculators_reject_invalid_numbers() {
+        assert!(run_calculator("runway".to_string(), vec![100_000.0, 0.0]).is_err());
+        assert!(run_calculator("unit_economics".to_string(), vec![900.0, 0.0]).is_err());
+        assert!(run_calculator("runway".to_string(), vec![f64::NAN, 1.0]).is_err());
+        assert!(run_calculator("unknown".to_string(), vec![1.0, 2.0]).is_err());
+    }
+
+    #[test]
+    fn pitch_score_parser_uses_first_valid_score() {
+        assert_eq!(derive_score("Score: 82 out of 100"), 82);
+        assert_eq!(derive_score("No numeric score"), 70);
+        assert_eq!(derive_score("Score: 140 then 64"), 64);
+    }
+}

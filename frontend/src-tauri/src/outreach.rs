@@ -371,3 +371,69 @@ fn lead_context(lead: &Lead) -> String {
     lead.name, lead.company_name, lead.email, lead.website, lead.profile_url, lead.platform, lead.niche, lead.location, lead.description
   )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn campaign_email(to: &str, status: &str) -> CampaignEmail {
+        CampaignEmail {
+            id: Uuid::new_v4().to_string(),
+            campaign_id: "campaign".to_string(),
+            lead_id: Uuid::new_v4().to_string(),
+            to: to.to_string(),
+            subject: "Hello".to_string(),
+            body: "Body".to_string(),
+            status: status.to_string(),
+            provider_message: None,
+            created_at: Utc::now().to_rfc3339(),
+            sent_at: None,
+        }
+    }
+
+    #[test]
+    fn sent_recipients_are_case_insensitive() {
+        let emails = vec![
+            campaign_email("Owner@Example.com", "sent"),
+            campaign_email("new@example.com", "generated"),
+        ];
+        let seen = sent_recipients_for_campaign(&emails, "campaign");
+
+        assert!(seen.contains("owner@example.com"));
+        assert!(!seen.contains("new@example.com"));
+    }
+
+    #[test]
+    fn subject_body_split_handles_subject_prefix() {
+        let (subject, body) = split_subject_body("Subject: Quick idea\nHi there\nSecond line");
+
+        assert_eq!(subject, "Quick idea");
+        assert_eq!(body, "Hi there\nSecond line");
+    }
+
+    #[test]
+    fn lead_vars_are_applied_to_templates() {
+        let lead = Lead {
+            id: Uuid::new_v4().to_string(),
+            lead_type: "company".to_string(),
+            name: "Asha".to_string(),
+            company_name: "ExampleCo".to_string(),
+            email: "asha@example.com".to_string(),
+            website: "https://example.com".to_string(),
+            profile_url: String::new(),
+            platform: "web".to_string(),
+            niche: "SaaS".to_string(),
+            location: "Bengaluru".to_string(),
+            description: String::new(),
+            lead_score: 80,
+            status: "new".to_string(),
+            source: "test".to_string(),
+            created_at: Utc::now().to_rfc3339(),
+        };
+
+        assert_eq!(
+            apply_lead_vars("Hi {{name}} at {{company}} in {{location}}", &lead),
+            "Hi Asha at ExampleCo in Bengaluru"
+        );
+    }
+}

@@ -472,11 +472,38 @@ fn sanitize_provider_error(value: &str) -> String {
         .split_whitespace()
         .collect::<Vec<&str>>()
         .join(" ");
-    let redacted = compact
-        .replace("Bearer ", "Bearer [redacted] ")
-        .replace("api_key", "api_[redacted]")
-        .replace("apiKey", "api[redacted]");
-    redacted.chars().take(280).collect()
+    redact_provider_error_tokens(&compact)
+        .chars()
+        .take(280)
+        .collect()
+}
+
+fn redact_provider_error_tokens(value: &str) -> String {
+    let mut redacted = Vec::new();
+    let mut skip_next = false;
+
+    for part in value.split_whitespace() {
+        if skip_next {
+            skip_next = false;
+            continue;
+        }
+
+        if part.eq_ignore_ascii_case("bearer") {
+            redacted.push("Bearer".to_string());
+            redacted.push("[redacted]".to_string());
+            skip_next = true;
+            continue;
+        }
+
+        let lower = part.to_ascii_lowercase();
+        if lower.starts_with("api_key=") || lower.starts_with("apikey=") {
+            redacted.push("[redacted-api-key]".to_string());
+        } else {
+            redacted.push(part.to_string());
+        }
+    }
+
+    redacted.join(" ")
 }
 
 fn markdownish_to_html(value: &str) -> String {
@@ -493,4 +520,27 @@ fn escape_html(value: &str) -> String {
         .replace('<', "&lt;")
         .replace('>', "&gt;")
         .replace('"', "&quot;")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn provider_error_sanitizer_redacts_common_secret_markers() {
+        let sanitized = sanitize_provider_error("Bearer sk-secret\napi_key=abc123");
+
+        assert!(!sanitized.contains("sk-secret"));
+        assert!(!sanitized.contains("api_key"));
+        assert!(sanitized.contains("[redacted]"));
+    }
+
+    #[test]
+    fn email_html_escapes_untrusted_body() {
+        let html = markdownish_to_html("Hi <script>alert(1)</script> & \"team\"");
+
+        assert!(html.contains("&lt;script&gt;"));
+        assert!(html.contains("&amp;"));
+        assert!(html.contains("&quot;team&quot;"));
+    }
 }

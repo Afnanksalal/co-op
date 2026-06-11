@@ -143,6 +143,7 @@ pub async fn heartbeat_license(app: AppHandle) -> Result<DesktopStateResponse, S
         .activation
         .clone()
         .ok_or_else(|| "No local license activation found".to_string())?;
+    validate_heartbeat_activation(&activation)?;
 
     let app_version = app.package_info().version.to_string();
     let payload = CloudHeartbeatRequest {
@@ -203,4 +204,56 @@ pub fn clear_activation(app: AppHandle) -> Result<DesktopStateResponse, String> 
     state.activation = None;
     save_state(&app, &state)?;
     Ok(to_response(state))
+}
+
+fn validate_heartbeat_activation(activation: &ActivationState) -> Result<(), String> {
+    if activation.activation_token.trim().is_empty() {
+        return Err(
+            "Activation token is missing from secure storage. Re-activate with your license key; local workspace data will stay intact."
+                .to_string(),
+        );
+    }
+    if activation.machine_fingerprint.trim().is_empty() {
+        return Err(
+            "Local activation is missing a device fingerprint. Re-activate with your license key."
+                .to_string(),
+        );
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn activation_with_token(token: &str) -> ActivationState {
+        ActivationState {
+            activation_token: token.to_string(),
+            customer_email: "owner@example.com".to_string(),
+            plan: "solo".to_string(),
+            status: "active".to_string(),
+            expires_at: None,
+            features: vec!["local_data".to_string()],
+            offline_grace_ends_at: Utc::now().to_rfc3339(),
+            last_heartbeat_at: Utc::now().to_rfc3339(),
+            machine_fingerprint: "fingerprint".to_string(),
+            cloud_base_url: DEFAULT_CLOUD_URL.to_string(),
+        }
+    }
+
+    #[test]
+    fn heartbeat_preflight_rejects_missing_activation_token() {
+        let activation = activation_with_token("");
+        let error = validate_heartbeat_activation(&activation)
+            .expect_err("missing token should fail locally");
+
+        assert!(error.contains("Re-activate with your license key"));
+    }
+
+    #[test]
+    fn heartbeat_preflight_accepts_complete_activation() {
+        let activation = activation_with_token("coop_act_test_token_value_long_enough");
+
+        assert!(validate_heartbeat_activation(&activation).is_ok());
+    }
 }
