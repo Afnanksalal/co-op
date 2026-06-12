@@ -33,13 +33,18 @@ function LoginContent() {
 
     const supabase = createClient();
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        router.replace(safeNext(searchParams.get('next'), '/account'));
-      }
-    }).catch(() => undefined);
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        if (session) {
+          router.replace(safeNext(searchParams.get('next'), '/account'));
+        }
+      })
+      .catch(() => undefined);
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session) {
         router.replace(safeNext(searchParams.get('next'), '/account'));
       }
@@ -51,7 +56,9 @@ function LoginContent() {
   async function handleGoogleSignIn() {
     setIsLoading(true);
     const supabase = createClient();
-    const isTauri = typeof window !== 'undefined' && Boolean((window as unknown as { __TAURI__?: unknown }).__TAURI__);
+    const isTauri =
+      typeof window !== 'undefined' &&
+      Boolean((window as unknown as { __TAURI__?: unknown }).__TAURI__);
     const next = safeNext(searchParams.get('next'), isTauri ? '/activate' : '/account');
 
     const { error } = await supabase.auth.signInWithOAuth({
@@ -121,15 +128,16 @@ function LoginContent() {
             Cloud account for local-first software.
           </h1>
           <p className="text-lg leading-8 text-muted-foreground">
-            Manage licenses, downloads, payments, and device activations in the cloud while company work runs inside Co-Op Desktop.
+            Manage licenses, downloads, payments, and device activations in the cloud while company
+            work runs inside Co-Op Desktop.
           </p>
           <div className="space-y-3 pt-6 text-sm text-muted-foreground">
             {[
               'License ownership and billing in the control plane',
               'Device-bound desktop activation',
-              'Ollama and OpenAI-compatible BYOK support',
+              'Local AI and private provider support',
               'Local data plane for business orchestration',
-            ].map(item => (
+            ].map((item) => (
               <div key={item} className="flex items-center gap-3">
                 <span className="h-1.5 w-1.5 rounded-full bg-foreground/50" />
                 <span>{item}</span>
@@ -140,9 +148,11 @@ function LoginContent() {
       </section>
 
       <section className="flex flex-1 items-center justify-center p-6 sm:p-8">
-        <div className="w-full max-w-sm animate-fade-in">
+        <div className="animate-fade-in w-full max-w-sm">
           <div className="mb-10 lg:hidden">
-            <Link href="/" className="font-serif text-2xl font-semibold tracking-normal">Co-Op</Link>
+            <Link href="/" className="font-serif text-2xl font-semibold tracking-normal">
+              Co-Op
+            </Link>
           </div>
 
           <div className="mb-8">
@@ -150,12 +160,19 @@ function LoginContent() {
               {isSignUp ? 'Create account' : 'Welcome back'}
             </h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              {isSignUp ? 'Create an account to manage licenses and downloads.' : 'Sign in to manage your license.'}
+              {isSignUp
+                ? 'Create an account to manage licenses and downloads.'
+                : 'Sign in to manage your license.'}
             </p>
           </div>
 
           <div className="space-y-6">
-            <Button variant="outline" className="h-11 w-full" onClick={() => void handleGoogleSignIn()} disabled={isLoading}>
+            <Button
+              variant="outline"
+              className="h-11 w-full"
+              onClick={() => void handleGoogleSignIn()}
+              disabled={isLoading}
+            >
               <GoogleLogo weight="bold" className="h-5 w-5" />
               Continue with Google
             </Button>
@@ -174,7 +191,14 @@ function LoginContent() {
                 <Label htmlFor="email">Email</Label>
                 <div className="relative">
                   <Envelope className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input id="email" type="email" className="pl-10" value={email} onChange={event => setEmail(event.target.value)} required />
+                  <Input
+                    id="email"
+                    type="email"
+                    className="pl-10"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    required
+                  />
                 </div>
               </div>
 
@@ -182,7 +206,15 @@ function LoginContent() {
                 <Label htmlFor="password">Password</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input id="password" type="password" className="pl-10" value={password} onChange={event => setPassword(event.target.value)} required minLength={6} />
+                  <Input
+                    id="password"
+                    type="password"
+                    className="pl-10"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    required
+                    minLength={6}
+                  />
                 </div>
               </div>
 
@@ -194,12 +226,20 @@ function LoginContent() {
 
             <p className="text-center text-sm text-muted-foreground">
               {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
-              <button type="button" onClick={() => setIsSignUp(!isSignUp)} className="text-foreground hover:underline">
+              <button
+                type="button"
+                onClick={() => setIsSignUp(!isSignUp)}
+                className="text-foreground hover:underline"
+              >
                 {isSignUp ? 'Sign in' : 'Sign up'}
               </button>
             </p>
 
-            <button type="button" onClick={() => void resetLocalAuth()} className="block w-full text-center text-xs text-muted-foreground hover:text-foreground">
+            <button
+              type="button"
+              onClick={() => void resetLocalAuth()}
+              className="block w-full text-center text-xs text-muted-foreground hover:text-foreground"
+            >
               Clear this browser session
             </button>
           </div>
@@ -211,7 +251,13 @@ function LoginContent() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-background">Loading...</div>}>
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-background">
+          Loading...
+        </div>
+      }
+    >
       <LoginContent />
     </Suspense>
   );

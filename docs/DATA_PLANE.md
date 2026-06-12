@@ -25,11 +25,12 @@ The default desktop build does not require Docker, Neo4j, Qdrant, LanceDB, or a 
 Runtime storage:
 
 - `state.json` in the Tauri app data directory stores lightweight application state: workspace profile, model settings, chat history, research, outreach, campaigns, alerts, pitch analyses, cap tables, integrations, work runs, and file summaries.
-- `knowledge.sqlite3` in the Tauri app data directory stores company files, saved sections, section counts, and compact binary matching data. It uses SQLite WAL mode and a full-text table to narrow search candidates before scoring.
+- `knowledge.sqlite3` in the Tauri app data directory stores company files, saved sections, section counts, content hashes, content sizes, section order, token counts, and compact binary matching data. It uses SQLite WAL mode, schema upgrades, full-text candidate search, deterministic local matching, duplicate-content protection, and hybrid scoring.
 - OS credential storage stores activation tokens and provider keys.
-- `rag.rs` sections documents locally and creates deterministic 128-dimension matching data for embedded search.
-- `knowledge_store.rs` owns the embedded file database, legacy JSON migration, full-text candidate filtering, compact data serialization, and local search.
+- `rag.rs` sections documents locally with overlap-aware chunking and creates deterministic 128-dimension matching data for embedded search.
+- `knowledge_store.rs` owns the embedded file database, legacy JSON migration, local schema upgrades, duplicate-content handling, full-text candidate filtering, compact data serialization, diversified context assembly, and hybrid local search.
 - `graph.rs` derives a local business memory snapshot from workspace profile, files, research runs, leads, campaigns, campaign emails, and work history.
+- Lead discovery uses the customer's locally configured web search provider to find source-backed leads, then saves lead records and the research source list locally.
 - Chat and work prompts receive startup workspace context, local business memory context, and optional company file context before calling the selected provider.
 
 This means a normal business owner can install Co-Op, activate with a license key, select Ollama or an OpenAI-compatible BYOK provider, and run the product without managing databases.
@@ -57,6 +58,14 @@ Recommended product shape:
 - Keep local embedded storage as the fallback path so business work still runs if an optional service is offline.
 - Treat external memory/search sync as derived data. `state.json` remains the source of truth for lightweight orchestration state; `knowledge.sqlite3` is the source of truth for local file retrieval.
 
-## Current Limits
+## Embedded Retrieval Bar
 
-The embedded matching implementation is intentionally private, deterministic, and low-ops. It avoids loading every saved file section into memory, but it is lexical rather than model-generated semantic matching. Before positioning Co-Op as heavy enterprise knowledge infrastructure, add a customer-selectable embedding provider and either an embedded matching extension or an optional self-host service while preserving the local-first default.
+The default file intelligence layer is designed for normal owner/operator use without Docker:
+
+- Exact duplicate content updates one remembered file instead of bloating the index.
+- Search combines file title/source matches, full-text candidate ranking, deterministic local matching, business-term expansion, section order, and result diversity.
+- Chat and work plans receive bounded evidence excerpts so a single large file cannot flood the prompt.
+- Existing local databases are upgraded in place when new metadata columns are added.
+- The cloud license plane never receives file content or matching data.
+
+For larger teams, add a customer-selectable embedding provider and an optional self-host service behind explicit settings and health checks. The embedded SQLite path must remain the default fallback so Co-Op still works without a database administrator.

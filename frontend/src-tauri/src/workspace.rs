@@ -28,7 +28,7 @@ fn normalize_workspace_profile(profile: &mut StartupProfile) {
     profile.founder_role = trim_or(&profile.founder_role, "founder");
     profile.company_name = trim(&profile.company_name);
     profile.tagline = trim(&profile.tagline);
-    profile.website = trim(&profile.website);
+    profile.website = normalize_website(&profile.website);
     profile.description = trim(&profile.description);
     profile.stage = trim_or(&profile.stage, "idea");
     profile.industry = trim(&profile.industry);
@@ -61,6 +61,15 @@ fn trim_or(value: &str, fallback: &str) -> String {
         fallback.to_string()
     } else {
         trimmed.to_string()
+    }
+}
+
+fn normalize_website(value: &str) -> String {
+    let trimmed = value.trim();
+    if trimmed.is_empty() || trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+        trimmed.to_string()
+    } else {
+        format!("https://{trimmed}")
     }
 }
 
@@ -120,4 +129,19 @@ pub fn save_integration(
     );
     save_state(&app, &state)?;
     Ok(to_response(state))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_website;
+
+    #[test]
+    fn website_normalization_accepts_owner_friendly_domains() {
+        assert_eq!(normalize_website("example.com"), "https://example.com");
+        assert_eq!(
+            normalize_website(" https://example.com "),
+            "https://example.com"
+        );
+        assert_eq!(normalize_website(""), "");
+    }
 }

@@ -6,18 +6,21 @@ import { ArrowLeft, CheckCircle, DownloadSimple, Key, ShieldCheck } from '@phosp
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
+const releaseDownloadsUrl =
+  process.env.NEXT_PUBLIC_DOWNLOAD_URL || 'https://github.com/Afnanksalal/co-op/releases';
+
 const downloads = [
   {
     name: 'Windows installer',
     description: 'Recommended for most business users.',
-    href: 'https://github.com/Afnanksalal/co-op/releases/latest',
-    cta: 'Download for Windows',
+    href: releaseDownloadsUrl,
+    cta: 'Open release downloads',
   },
   {
-    name: 'Enterprise package',
+    name: 'Managed deployment package',
     description: 'Use this for managed device deployment and internal software catalogs.',
-    href: 'https://github.com/Afnanksalal/co-op/releases/latest',
-    cta: 'Get package',
+    href: releaseDownloadsUrl,
+    cta: 'Open packages',
   },
 ];
 
@@ -43,29 +46,48 @@ export default function DownloadPage() {
   return (
     <main className="min-h-screen bg-background">
       <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-        <Link href="/" className="mb-10 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+        <Link
+          href="/"
+          className="mb-10 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+        >
           <ArrowLeft className="h-4 w-4" />
           Back to Co-Op
         </Link>
 
         <div className="mb-10 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <Badge variant="secondary" className="mb-4">Desktop software</Badge>
+            <Badge variant="secondary" className="mb-4">
+              Desktop software
+            </Badge>
             <h1 className="text-4xl font-semibold tracking-normal">Download Co-Op Desktop</h1>
             <p className="mt-3 max-w-2xl text-muted-foreground">
-              Install the local runtime, sign in to your cloud account, activate with your license key, then connect Ollama or a bring-your-own OpenAI-compatible provider.
+              Install the desktop app, activate with your license key, then choose local AI or a
+              private AI provider inside the app.
             </p>
           </div>
-          <Image src="/logo.png" alt="Co-Op" width={80} height={80} className="rounded-xl border border-border" />
+          <Image
+            src="/logo.png"
+            alt="Co-Op"
+            width={80}
+            height={80}
+            className="rounded-xl border border-border"
+          />
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
-          {downloads.map(download => (
+          {downloads.map((download) => (
             <section key={download.name} className="rounded-lg border border-border bg-card p-6">
               <DownloadSimple className="mb-8 h-7 w-7 text-muted-foreground" />
               <h2 className="text-xl font-semibold">{download.name}</h2>
-              <p className="mt-2 min-h-12 text-sm leading-6 text-muted-foreground">{download.description}</p>
-              <a href={download.href} target="_blank" rel="noopener noreferrer" className="mt-6 block">
+              <p className="mt-2 min-h-12 text-sm leading-6 text-muted-foreground">
+                {download.description}
+              </p>
+              <a
+                href={download.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-6 block"
+              >
                 <Button className="w-full">
                   {download.cta}
                   <DownloadSimple className="h-4 w-4" />

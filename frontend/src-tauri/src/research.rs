@@ -20,24 +20,34 @@ pub async fn run_research_query(
     let mut settings = state.model_settings.clone();
     validate_model_settings(&mut settings)?;
     state.model_settings = settings.clone();
+    let research_type = normalize_research_type(&request.research_type);
+    let depth = normalize_research_depth(&request.depth);
+    let source_limit = source_limit_for_depth(&depth);
+    let prompt_profile = research_prompt_profile(&research_type, &depth);
 
     let (provider, sources, summary) = if settings.research_provider == "firecrawl" {
-        let sources = search_firecrawl(&settings, &request.query, 5).await?;
+        let sources = search_firecrawl(&settings, &request.query, source_limit).await?;
         let source_context = format_sources(&sources);
         let summary = call_model(
-      &settings,
-      "You are Co-Op's local research analyst. Summarize cited web research for a business owner. Be specific and concise.",
-      &format!("Query: {}\n\nSources:\n{}", request.query, source_context),
-    )
-    .await?;
+            &settings,
+            &prompt_profile,
+            &format!(
+                "Research brief: {}\n\nSources:\n{}",
+                request.query, source_context
+            ),
+        )
+        .await?;
         ("firecrawl".to_string(), sources, summary)
     } else {
         let summary = call_model(
-      &settings,
-      "You are Co-Op's local research analyst. Use only your model knowledge unless external research is configured. Clearly mark uncertainty.",
-      &request.query,
-    )
-    .await?;
+            &settings,
+            &format!(
+                "{}\n\nNo live web source provider is configured. Use only model knowledge, clearly mark uncertainty, and do not invent citations.",
+                prompt_profile
+            ),
+            &format!("Research brief: {}", request.query),
+        )
+        .await?;
         ("llm".to_string(), Vec::<ResearchSource>::new(), summary)
     };
 
@@ -111,6 +121,61 @@ fn truncate(value: &str, max: usize) -> String {
     } else {
         format!("{}...", value.chars().take(max).collect::<String>())
     }
+}
+
+fn normalize_research_type(value: &str) -> String {
+    match value.trim() {
+        "market_scan" | "competitors" | "customer" | "pricing" | "investor" | "risk" => {
+            value.trim().to_string()
+        }
+        _ => "market_scan".to_string(),
+    }
+}
+
+fn normalize_research_depth(value: &str) -> String {
+    match value.trim() {
+        "quick" | "standard" | "deep" => value.trim().to_string(),
+        _ => "standard".to_string(),
+    }
+}
+
+fn source_limit_for_depth(depth: &str) -> usize {
+    match depth {
+        "quick" => 3,
+        "deep" => 8,
+        _ => 5,
+    }
+}
+
+fn research_prompt_profile(research_type: &str, depth: &str) -> String {
+    let job = match research_type {
+        "competitors" => {
+            "competitive research: identify alternatives, positioning, strengths, weaknesses, and gaps"
+        }
+        "customer" => {
+            "customer research: clarify buyer segments, pains, triggers, objections, and useful outreach angles"
+        }
+        "pricing" => {
+            "pricing research: compare pricing models, value metrics, packaging, and willingness-to-pay signals"
+        }
+        "investor" => {
+            "investor research: summarize market momentum, investor fit, funding signals, and diligence questions"
+        }
+        "risk" => "risk research: identify market, legal, operating, security, and execution risks",
+        _ => "market research: size the market, trends, competitors, buyers, and immediate opportunities",
+    };
+    let depth_instruction = match depth {
+        "quick" => "Keep it short: 5-7 sharp bullets and one next move.",
+        "deep" => {
+            "Go deeper: group evidence, compare tradeoffs, include uncertainties, and propose a practical action plan."
+        }
+        _ => "Be concise but useful: summarize key findings, evidence, risks, and next actions.",
+    };
+
+    format!(
+        "You are Co-Op's private research analyst for a business owner. Run {}. {} Write in plain business language. Structure the answer with: Quick answer, What matters, Evidence, Risks or unknowns, and Next moves. If sources are provided, cite source titles inline; if not, clearly say the answer is assistant-only.",
+        job, depth_instruction
+    )
 }
 
 #[cfg(test)]

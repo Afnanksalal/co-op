@@ -10,7 +10,9 @@ import type {
   LicenseSummary,
 } from './types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL?.trim().replace(/\/$/, '') ||
+  (process.env.NODE_ENV === 'development' ? 'http://localhost:3000/api/v1' : '');
 const REQUEST_TIMEOUT_MS = 15000;
 const TOKEN_REFRESH_WINDOW_SECONDS = 60;
 
@@ -18,7 +20,7 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
-    public requestId?: string,
+    public requestId?: string
   ) {
     super(message);
     this.name = 'ApiError';
@@ -50,7 +52,10 @@ class ApiClient {
       throw new ApiError('Sign in required', 401);
     }
 
-    if (session.expires_at && session.expires_at - Math.floor(Date.now() / 1000) <= TOKEN_REFRESH_WINDOW_SECONDS) {
+    if (
+      session.expires_at &&
+      session.expires_at - Math.floor(Date.now() / 1000) <= TOKEN_REFRESH_WINDOW_SECONDS
+    ) {
       return this.getAccessToken(true);
     }
 
@@ -69,7 +74,15 @@ class ApiClient {
     return headers;
   }
 
-  private async send<T>(endpoint: string, options: RequestInit & { authenticated?: boolean } = {}, forceRefresh = false): Promise<T> {
+  private async send<T>(
+    endpoint: string,
+    options: RequestInit & { authenticated?: boolean } = {},
+    forceRefresh = false
+  ): Promise<T> {
+    if (!API_URL) {
+      throw new ApiError('Co-Op API URL is not configured', 500);
+    }
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
@@ -87,7 +100,11 @@ class ApiClient {
       const payload = (await response.json().catch(() => null)) as ApiResponse<T> | null;
 
       if (!response.ok || !payload?.success) {
-        throw new ApiError(payload?.error || payload?.message || `Request failed with ${response.status}`, response.status, requestId);
+        throw new ApiError(
+          payload?.error || payload?.message || `Request failed with ${response.status}`,
+          response.status,
+          requestId
+        );
       }
 
       return payload.data as T;
@@ -102,11 +119,18 @@ class ApiClient {
     }
   }
 
-  private async request<T>(endpoint: string, options: RequestInit & { authenticated?: boolean } = {}): Promise<T> {
+  private async request<T>(
+    endpoint: string,
+    options: RequestInit & { authenticated?: boolean } = {}
+  ): Promise<T> {
     try {
       return await this.send<T>(endpoint, options);
     } catch (error) {
-      if (options.authenticated && error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+      if (
+        options.authenticated &&
+        error instanceof ApiError &&
+        (error.status === 401 || error.status === 403)
+      ) {
         return this.send<T>(endpoint, options, true);
       }
 

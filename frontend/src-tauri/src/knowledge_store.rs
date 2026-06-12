@@ -1,13 +1,23 @@
 use chrono::Utc;
-use rusqlite::{params, Connection};
-use tauri::{AppHandle, Manager};
+use rusqlite::{params, Connection, OptionalExtension};
+use sha2::{Digest, Sha256};
+use std::collections::{HashMap, HashSet};
+use tauri::AppHandle;
 
 use crate::constants::{MAX_DOCUMENTS, RAG_VECTOR_DIMENSIONS};
-use crate::rag::{chunk_text, embed_text};
+use crate::rag::{chunk_text, embed_text, tokenize};
 use crate::types::{DesktopState, KnowledgeChunk, KnowledgeDocument, SearchResult};
 
-const KNOWLEDGE_DB_FILE: &str = "knowledge.sqlite3";
-const MAX_SEARCH_CANDIDATES: usize = 256;
+mod schema;
+
+use schema::open_store;
+#[cfg(test)]
+use schema::{configure_connection, init_schema, table_has_column};
+
+const MAX_SEARCH_CANDIDATES: usize = 768;
+const MAX_CONTEXT_RESULTS: usize = 6;
+const MAX_CONTEXT_CHARS: usize = 12_000;
+const MAX_CONTEXT_RESULTS_PER_DOCUMENT: usize = 2;
 
 pub fn store_document(app: &AppHandle, document: &KnowledgeDocument) -> Result<(), String> {
     let mut conn = open_store(app)?;
@@ -89,118 +99,86 @@ pub fn to_document_summary(document: &KnowledgeDocument) -> KnowledgeDocument {
     }
 }
 
-fn open_store(app: &AppHandle) -> Result<Connection, String> {
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|error| format!("Failed to resolve app data directory: {error}"))?;
-    std::fs::create_dir_all(&dir)
-        .map_err(|error| format!("Failed to create app data directory: {error}"))?;
-    let conn = Connection::open(dir.join(KNOWLEDGE_DB_FILE))
-        .map_err(|error| format!("Failed to open local knowledge store: {error}"))?;
-    configure_connection(&conn)?;
-    init_schema(&conn)?;
-    Ok(conn)
-}
-
-fn configure_connection(conn: &Connection) -> Result<(), String> {
-    conn.execute_batch(
-        "
-        PRAGMA foreign_keys = ON;
-        PRAGMA journal_mode = WAL;
-        PRAGMA synchronous = NORMAL;
-        PRAGMA busy_timeout = 5000;
-        ",
-    )
-    .map_err(|error| format!("Failed to configure local knowledge store: {error}"))
-}
-
-fn init_schema(conn: &Connection) -> Result<(), String> {
-    conn.execute_batch(
-        "
-        CREATE TABLE IF NOT EXISTS knowledge_documents (
-          id TEXT PRIMARY KEY,
-          title TEXT NOT NULL,
-          source TEXT NOT NULL,
-          content TEXT NOT NULL,
-          chunk_count INTEGER NOT NULL DEFAULT 0,
-          created_at TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS knowledge_chunks (
-          id TEXT PRIMARY KEY,
-          document_id TEXT NOT NULL REFERENCES knowledge_documents(id) ON DELETE CASCADE,
-          content TEXT NOT NULL,
-          vector BLOB NOT NULL,
-          created_at TEXT NOT NULL
-        );
-
-        CREATE INDEX IF NOT EXISTS knowledge_chunks_document_idx
-          ON knowledge_chunks(document_id);
-
-        CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_chunks_fts USING fts5(
-          chunk_id UNINDEXED,
-          document_id UNINDEXED,
-          title,
-          source,
-          content,
-          tokenize = 'unicode61'
-        );
-        ",
-    )
-    .map_err(|error| format!("Failed to initialize local knowledge store: {error}"))
-}
-
 fn store_document_with_conn(
     conn: &mut Connection,
     document: &KnowledgeDocument,
 ) -> Result<(), String> {
+    let content = normalize_content_for_storage(&document.content);
+    let content_hash = content_hash(&content);
+    let existing = existing_document_for_hash(conn, &content_hash, &document.id)?;
+    let canonical_document_id = existing
+        .as_ref()
+        .map(|document| document.id.as_str())
+        .unwrap_or(document.id.as_str());
+    let created_at = existing
+        .as_ref()
+        .map(|document| document.created_at.as_str())
+        .unwrap_or(document.created_at.as_str());
+    let updated_at = Utc::now().to_rfc3339();
     let tx = conn
         .transaction()
         .map_err(|error| format!("Failed to start knowledge transaction: {error}"))?;
     tx.execute(
         "
-        INSERT INTO knowledge_documents (id, title, source, content, chunk_count, created_at)
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+        INSERT INTO knowledge_documents (
+          id, title, source, content, content_hash, content_length, chunk_count, created_at, updated_at
+        )
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
         ON CONFLICT(id) DO UPDATE SET
           title = excluded.title,
           source = excluded.source,
           content = excluded.content,
+          content_hash = excluded.content_hash,
+          content_length = excluded.content_length,
           chunk_count = excluded.chunk_count,
-          created_at = excluded.created_at
+          updated_at = excluded.updated_at
         ",
         params![
-            document.id,
+            canonical_document_id,
             document.title,
             document.source,
-            document.content,
+            content.as_str(),
+            content_hash.as_str(),
+            content.chars().count() as i64,
             document.chunks.len() as i64,
-            document.created_at,
+            created_at,
+            updated_at,
         ],
     )
     .map_err(|error| format!("Failed to store knowledge document: {error}"))?;
     tx.execute(
         "DELETE FROM knowledge_chunks_fts WHERE document_id = ?1",
-        params![document.id],
+        params![canonical_document_id],
     )
     .map_err(|error| format!("Failed to update knowledge search index: {error}"))?;
     tx.execute(
         "DELETE FROM knowledge_chunks WHERE document_id = ?1",
-        params![document.id],
+        params![canonical_document_id],
     )
     .map_err(|error| format!("Failed to replace knowledge chunks: {error}"))?;
 
-    for chunk in &document.chunks {
+    let mut token_cursor = 0usize;
+    for (section_index, chunk) in document.chunks.iter().enumerate() {
+        let token_count = token_count(&chunk.content);
+        let token_start = token_cursor.saturating_sub(if section_index == 0 { 0 } else { 32 });
+        let token_end = token_start + token_count;
+        token_cursor = token_end;
         tx.execute(
             "
-            INSERT INTO knowledge_chunks (id, document_id, content, vector, created_at)
-            VALUES (?1, ?2, ?3, ?4, ?5)
+            INSERT INTO knowledge_chunks (
+              id, document_id, section_index, content, vector, token_start, token_end, token_count, created_at
+            )
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
             ",
             params![
                 chunk.id,
-                chunk.document_id,
+                canonical_document_id,
+                section_index as i64,
                 chunk.content,
                 vector_to_blob(&chunk.vector),
+                token_start as i64,
+                token_end as i64,
+                token_count as i64,
                 chunk.created_at,
             ],
         )
@@ -234,7 +212,7 @@ fn list_document_summaries_with_conn(
             "
             SELECT id, title, source, chunk_count, created_at
             FROM knowledge_documents
-            ORDER BY created_at DESC
+            ORDER BY updated_at DESC, created_at DESC
             LIMIT ?1
             ",
         )
@@ -263,6 +241,7 @@ fn search_with_conn(
     query: &str,
     limit: usize,
 ) -> Result<Vec<SearchResult>, String> {
+    let query_terms = unique_tokens(query);
     let query_vector = embed_text(query);
     let mut candidates = if let Some(fts_query) = build_fts_query(query) {
         search_candidates_with_fts(conn, &fts_query)?
@@ -270,16 +249,28 @@ fn search_with_conn(
         Vec::new()
     };
 
-    if candidates.is_empty() {
-        candidates = recent_candidates(conn)?;
+    candidates = merge_candidates(candidates, recent_candidates(conn)?);
+
+    if candidates.is_empty() || query_terms.is_empty() {
+        return Ok(Vec::new());
     }
 
     let mut results = candidates
         .into_iter()
         .filter_map(|candidate| {
             let vector = blob_to_vector(&candidate.vector).ok()?;
-            let score = cosine_similarity(&query_vector, &vector);
-            if score > 0.0 {
+            let semantic_score = cosine_similarity(&query_vector, &vector).max(0.0);
+            let lexical_score = lexical_match_score(&query_terms, &candidate);
+            let metadata_score = metadata_match_score(&query_terms, &candidate);
+            let fts_score = candidate.fts_rank.map(fts_rank_score).unwrap_or(0.0);
+            let section_score = 1.0 / (1.0 + candidate.section_index as f32);
+            let score = ((lexical_score * 0.45)
+                + (semantic_score * 0.3)
+                + (metadata_score * 0.13)
+                + (fts_score * 0.08)
+                + (section_score * 0.04))
+                .clamp(0.0, 1.0);
+            if score >= 0.05 {
                 Some(SearchResult {
                     document_id: candidate.document_id,
                     chunk_id: candidate.chunk_id,
@@ -311,12 +302,20 @@ fn search_candidates_with_fts(
     let mut stmt = conn
         .prepare(
             "
-            SELECT c.id, c.document_id, d.title, d.source, c.content, c.vector
+            SELECT
+              c.id,
+              c.document_id,
+              d.title,
+              d.source,
+              c.content,
+              c.vector,
+              c.section_index,
+              bm25(knowledge_chunks_fts) AS fts_rank
             FROM knowledge_chunks_fts
             JOIN knowledge_chunks c ON c.id = knowledge_chunks_fts.chunk_id
             JOIN knowledge_documents d ON d.id = c.document_id
             WHERE knowledge_chunks_fts MATCH ?1
-            ORDER BY rank
+            ORDER BY fts_rank
             LIMIT ?2
             ",
         )
@@ -335,10 +334,18 @@ fn recent_candidates(conn: &Connection) -> Result<Vec<SearchCandidate>, String> 
     let mut stmt = conn
         .prepare(
             "
-            SELECT c.id, c.document_id, d.title, d.source, c.content, c.vector
+            SELECT
+              c.id,
+              c.document_id,
+              d.title,
+              d.source,
+              c.content,
+              c.vector,
+              c.section_index,
+              NULL AS fts_rank
             FROM knowledge_chunks c
             JOIN knowledge_documents d ON d.id = c.document_id
-            ORDER BY c.created_at DESC
+            ORDER BY d.updated_at DESC, c.section_index ASC
             LIMIT ?1
             ",
         )
@@ -358,10 +365,13 @@ fn map_candidate(row: &rusqlite::Row<'_>) -> rusqlite::Result<SearchCandidate> {
         source: row.get(3)?,
         content: row.get(4)?,
         vector: row.get(5)?,
+        section_index: row.get::<_, i64>(6)?.max(0) as usize,
+        fts_rank: row.get::<_, Option<f64>>(7)?.map(|rank| rank as f32),
     })
 }
 
 fn normalize_document_for_store(mut document: KnowledgeDocument) -> KnowledgeDocument {
+    document.content = normalize_content_for_storage(&document.content);
     if document.chunks.is_empty() && !document.content.trim().is_empty() {
         let created_at = if document.created_at.trim().is_empty() {
             Utc::now().to_rfc3339()
@@ -389,22 +399,39 @@ fn document_context_from_results(results: Vec<SearchResult>) -> String {
         return String::new();
     }
     let mut context = String::from("\n\nCompany file context:\n");
-    for result in results {
-        context.push_str(&format!(
-            "- {} ({:.2}): {}\n",
-            result.title, result.score, result.content
-        ));
+    let mut used_chars = context.len();
+    for result in diversify_results(
+        results,
+        MAX_CONTEXT_RESULTS,
+        MAX_CONTEXT_RESULTS_PER_DOCUMENT,
+    ) {
+        let source = if result.source.trim().is_empty() {
+            "local file".to_string()
+        } else {
+            result.source.trim().to_string()
+        };
+        let excerpt = truncate_chars(&result.content, 1_600);
+        let line = format!(
+            "- File: {} | Source: {} | Match: {:.0}%\n  Evidence: {}\n",
+            result.title,
+            source,
+            (result.score * 100.0).round(),
+            excerpt
+        );
+        if used_chars + line.len() > MAX_CONTEXT_CHARS {
+            break;
+        }
+        used_chars += line.len();
+        context.push_str(&line);
     }
     context
 }
 
 fn build_fts_query(query: &str) -> Option<String> {
-    let tokens = query
-        .to_lowercase()
-        .split(|character: char| !character.is_ascii_alphanumeric())
-        .filter(|token| token.len() > 2)
+    let tokens = unique_tokens(query)
+        .into_iter()
         .take(10)
-        .map(|token| format!("\"{token}\""))
+        .map(|token| format!("{token}*"))
         .collect::<Vec<_>>();
 
     if tokens.is_empty() {
@@ -412,6 +439,163 @@ fn build_fts_query(query: &str) -> Option<String> {
     } else {
         Some(tokens.join(" OR "))
     }
+}
+
+fn merge_candidates(
+    primary: Vec<SearchCandidate>,
+    secondary: Vec<SearchCandidate>,
+) -> Vec<SearchCandidate> {
+    let mut seen = HashSet::new();
+    let mut merged = Vec::with_capacity(primary.len() + secondary.len());
+    for candidate in primary.into_iter().chain(secondary) {
+        if seen.insert(candidate.chunk_id.clone()) {
+            merged.push(candidate);
+        }
+        if merged.len() >= MAX_SEARCH_CANDIDATES {
+            break;
+        }
+    }
+    merged
+}
+
+fn unique_tokens(content: &str) -> Vec<String> {
+    let mut seen = HashSet::new();
+    tokenize(content)
+        .into_iter()
+        .filter(|token| seen.insert(token.clone()))
+        .collect()
+}
+
+fn lexical_match_score(query_terms: &[String], candidate: &SearchCandidate) -> f32 {
+    if query_terms.is_empty() {
+        return 0.0;
+    }
+    let content_terms = unique_tokens(&candidate.content)
+        .into_iter()
+        .collect::<HashSet<_>>();
+    let matches = query_terms
+        .iter()
+        .filter(|term| {
+            content_terms.contains(*term)
+                || content_terms
+                    .iter()
+                    .any(|content_term| content_term.starts_with(term.as_str()))
+        })
+        .count();
+    matches as f32 / query_terms.len() as f32
+}
+
+fn metadata_match_score(query_terms: &[String], candidate: &SearchCandidate) -> f32 {
+    if query_terms.is_empty() {
+        return 0.0;
+    }
+    let metadata = unique_tokens(&format!("{} {}", candidate.title, candidate.source))
+        .into_iter()
+        .collect::<HashSet<_>>();
+    let matches = query_terms
+        .iter()
+        .filter(|term| metadata.contains(*term))
+        .count();
+    let exact_title_boost = if candidate
+        .title
+        .to_lowercase()
+        .contains(&query_terms.join(" "))
+    {
+        0.25
+    } else {
+        0.0
+    };
+    ((matches as f32 / query_terms.len() as f32) + exact_title_boost).clamp(0.0, 1.0)
+}
+
+fn fts_rank_score(rank: f32) -> f32 {
+    (1.0 / (1.0 + rank.abs())).clamp(0.0, 1.0)
+}
+
+fn diversify_results(
+    results: Vec<SearchResult>,
+    limit: usize,
+    max_per_document: usize,
+) -> Vec<SearchResult> {
+    let mut counts: HashMap<String, usize> = HashMap::new();
+    let mut selected = Vec::new();
+    for result in results {
+        let count = counts.entry(result.document_id.clone()).or_default();
+        if *count >= max_per_document {
+            continue;
+        }
+        *count += 1;
+        selected.push(result);
+        if selected.len() >= limit {
+            break;
+        }
+    }
+    selected
+}
+
+fn existing_document_for_hash(
+    conn: &Connection,
+    content_hash: &str,
+    preferred_id: &str,
+) -> Result<Option<ExistingDocument>, String> {
+    if content_hash.is_empty() || content_hash == legacy_hash_marker() {
+        return Ok(None);
+    }
+    conn.query_row(
+        "
+        SELECT id, created_at
+        FROM knowledge_documents
+        WHERE id = ?1 OR content_hash = ?2
+        ORDER BY CASE WHEN id = ?1 THEN 0 ELSE 1 END
+        LIMIT 1
+        ",
+        params![preferred_id, content_hash],
+        |row| {
+            Ok(ExistingDocument {
+                id: row.get(0)?,
+                created_at: row.get(1)?,
+            })
+        },
+    )
+    .optional()
+    .map_err(|error| format!("Failed to check existing company file: {error}"))
+}
+
+fn normalize_content_for_storage(content: &str) -> String {
+    content
+        .replace("\r\n", "\n")
+        .replace('\r', "\n")
+        .lines()
+        .map(str::trim_end)
+        .collect::<Vec<_>>()
+        .join("\n")
+        .trim()
+        .to_string()
+}
+
+fn content_hash(content: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(content.as_bytes());
+    hex::encode(hasher.finalize())
+}
+
+fn legacy_hash_marker() -> &'static str {
+    "legacy-unhashed"
+}
+
+fn token_count(content: &str) -> usize {
+    content.split_whitespace().count()
+}
+
+fn truncate_chars(content: &str, max_chars: usize) -> String {
+    let mut output = String::new();
+    for character in content.chars().take(max_chars) {
+        output.push(character);
+    }
+    if content.chars().count() > max_chars {
+        output.push_str("...");
+    }
+    output
 }
 
 fn vector_to_blob(vector: &[f32]) -> Vec<u8> {
@@ -450,59 +634,15 @@ struct SearchCandidate {
     source: String,
     content: String,
     vector: Vec<u8>,
+    section_index: usize,
+    fts_rank: Option<f32>,
+}
+
+#[derive(Debug)]
+struct ExistingDocument {
+    id: String,
+    created_at: String,
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use uuid::Uuid;
-
-    #[test]
-    fn vector_blob_round_trips_without_json_expansion() {
-        let vector = embed_text("runway revenue sales pipeline");
-        let blob = vector_to_blob(&vector);
-        let decoded = blob_to_vector(&blob).expect("valid vector blob");
-
-        assert_eq!(
-            blob.len(),
-            RAG_VECTOR_DIMENSIONS * std::mem::size_of::<f32>()
-        );
-        assert_eq!(decoded.len(), vector.len());
-        assert_eq!(decoded, vector);
-    }
-
-    #[test]
-    fn sqlite_store_uses_fts_candidates_and_vector_ranking() {
-        let mut conn = Connection::open_in_memory().expect("sqlite memory db");
-        configure_connection(&conn).expect("configure sqlite");
-        init_schema(&conn).expect("schema");
-        let created_at = Utc::now().to_rfc3339();
-        let document = KnowledgeDocument {
-            id: Uuid::new_v4().to_string(),
-            title: "Finance notes".to_string(),
-            source: "test".to_string(),
-            content: "Monthly burn and runway planning".to_string(),
-            chunk_count: 1,
-            chunks: vec![KnowledgeChunk {
-                id: Uuid::new_v4().to_string(),
-                document_id: "doc".to_string(),
-                content: "Monthly burn and runway planning".to_string(),
-                vector: embed_text("Monthly burn and runway planning"),
-                created_at: created_at.clone(),
-            }],
-            created_at,
-        };
-        let mut document = document;
-        document.chunks[0].document_id = document.id.clone();
-
-        store_document_with_conn(&mut conn, &document).expect("store document");
-        let summaries = list_document_summaries_with_conn(&conn, 10).expect("summaries");
-        let results = search_with_conn(&conn, "runway burn", 5).expect("search");
-
-        assert_eq!(summaries.len(), 1);
-        assert_eq!(summaries[0].chunk_count, 1);
-        assert!(summaries[0].chunks.is_empty());
-        assert_eq!(results.len(), 1);
-        assert!(results[0].score > 0.0);
-    }
-}
+mod tests;

@@ -28,7 +28,7 @@ export default function Error({
           <Button variant="outline" onClick={reset}>
             Try Again
           </Button>
-          <Link href="/download">
+          <Link href="/">
             <Button>
               <ArrowLeft weight="bold" className="h-4 w-4" />
               Go Home

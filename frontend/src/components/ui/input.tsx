@@ -20,20 +20,18 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         <input
           type={type}
           className={cn(
-            'flex h-11 w-full rounded-lg border border-input bg-card/50 px-4 py-2 text-sm text-foreground placeholder:text-muted-foreground transition-all duration-200',
-            'focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50',
+            'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground transition-all duration-200 placeholder:text-muted-foreground',
+            'focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20',
             'disabled:cursor-not-allowed disabled:opacity-50',
             'file:border-0 file:bg-transparent file:text-sm file:font-medium',
             icon && 'pl-10',
-            error && 'border-destructive focus:ring-destructive/20 focus:border-destructive/50',
+            error && 'border-destructive focus:border-destructive/50 focus:ring-destructive/20',
             className
           )}
           ref={ref}
           {...props}
         />
-        {error && (
-          <p className="mt-1.5 text-xs text-destructive">{error}</p>
-        )}
+        {error && <p className="mt-1.5 text-xs text-destructive">{error}</p>}
       </div>
     );
   }

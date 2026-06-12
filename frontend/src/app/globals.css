@@ -118,6 +118,16 @@
   }
 
   html.coop-desktop-shell,
+  html.coop-desktop-shell body {
+    position: fixed;
+    inset: 0;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  html.coop-desktop-shell,
   html.coop-desktop-shell body,
   html.coop-desktop-shell * {
     -ms-overflow-style: none;
@@ -130,6 +140,46 @@
     display: none;
     width: 0;
     height: 0;
+  }
+
+  .coop-scrollbar {
+    -ms-overflow-style: auto !important;
+    overscroll-behavior: contain;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.45) transparent;
+    scrollbar-width: thin !important;
+  }
+
+  .coop-scrollbar::-webkit-scrollbar,
+  html.coop-desktop-shell .coop-scrollbar::-webkit-scrollbar,
+  html.coop-desktop-shell .coop-scrollbar *::-webkit-scrollbar {
+    display: block;
+    width: 10px;
+    height: 10px;
+  }
+
+  .coop-scrollbar::-webkit-scrollbar-track,
+  html.coop-desktop-shell .coop-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .coop-scrollbar::-webkit-scrollbar-thumb,
+  html.coop-desktop-shell .coop-scrollbar::-webkit-scrollbar-thumb {
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-clip: padding-box;
+    background-color: hsl(var(--muted-foreground) / 0.35);
+  }
+
+  .coop-scrollbar::-webkit-scrollbar-thumb:hover,
+  html.coop-desktop-shell .coop-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.55);
+  }
+
+  .coop-page-scroll {
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
   }
 }
 
@@ -183,10 +233,5 @@
   select,
   textarea {
     font-size: 16px;
-  }
-
-  table {
-    display: block;
-    overflow-x: auto;
   }
 }

@@ -1,0 +1,185 @@
+use uuid::Uuid;
+
+use super::Investor;
+
+pub fn default_investors() -> Vec<Investor> {
+    [
+        (
+            "Sequoia Capital",
+            "Sequoia",
+            "seed-series-a",
+            "AI, SaaS, fintech",
+            "Global",
+            "$500K-$15M",
+        ),
+        (
+            "Andreessen Horowitz",
+            "a16z",
+            "seed-growth",
+            "AI, infrastructure, consumer, crypto",
+            "US/Global",
+            "$1M-$50M",
+        ),
+        (
+            "Accel",
+            "Accel",
+            "seed-series-b",
+            "SaaS, enterprise, consumer",
+            "US/EU/India",
+            "$500K-$25M",
+        ),
+        (
+            "Lightspeed Venture Partners",
+            "Lightspeed",
+            "seed-growth",
+            "enterprise, consumer, fintech",
+            "Global",
+            "$500K-$30M",
+        ),
+        (
+            "Index Ventures",
+            "Index",
+            "seed-growth",
+            "SaaS, fintech, AI",
+            "US/EU",
+            "$500K-$40M",
+        ),
+        (
+            "Bessemer Venture Partners",
+            "Bessemer",
+            "seed-growth",
+            "cloud, cybersecurity, health",
+            "US/India/Israel",
+            "$500K-$30M",
+        ),
+        (
+            "First Round Capital",
+            "First Round",
+            "pre-seed-seed",
+            "B2B, consumer, marketplaces",
+            "US",
+            "$250K-$3M",
+        ),
+        (
+            "Khosla Ventures",
+            "Khosla",
+            "seed-growth",
+            "deeptech, AI, climate, health",
+            "US/Global",
+            "$500K-$25M",
+        ),
+        (
+            "General Catalyst",
+            "General Catalyst",
+            "seed-growth",
+            "healthcare, fintech, enterprise",
+            "Global",
+            "$500K-$50M",
+        ),
+        (
+            "Greylock",
+            "Greylock",
+            "seed-series-b",
+            "enterprise, AI, consumer",
+            "US",
+            "$500K-$25M",
+        ),
+        (
+            "Founders Fund",
+            "Founders Fund",
+            "seed-growth",
+            "frontier tech, aerospace, fintech",
+            "US/Global",
+            "$1M-$50M",
+        ),
+        (
+            "NEA",
+            "NEA",
+            "seed-growth",
+            "health, enterprise, consumer",
+            "US/Global",
+            "$500K-$50M",
+        ),
+        (
+            "Battery Ventures",
+            "Battery",
+            "seed-growth",
+            "software, industrial tech",
+            "US/EU/Israel",
+            "$500K-$30M",
+        ),
+        (
+            "GV",
+            "GV",
+            "seed-growth",
+            "life sciences, AI, enterprise",
+            "US/EU",
+            "$500K-$30M",
+        ),
+        (
+            "Tiger Global",
+            "Tiger Global",
+            "growth",
+            "internet, software, fintech",
+            "Global",
+            "$10M-$100M",
+        ),
+        (
+            "Insight Partners",
+            "Insight",
+            "series-a-growth",
+            "software, scaleups",
+            "Global",
+            "$5M-$100M",
+        ),
+        (
+            "Y Combinator",
+            "YC",
+            "pre-seed-seed",
+            "all sectors",
+            "Global",
+            "$125K-$500K",
+        ),
+        (
+            "Antler",
+            "Antler",
+            "pre-seed",
+            "all sectors",
+            "Global",
+            "$100K-$500K",
+        ),
+        (
+            "Blume Ventures",
+            "Blume",
+            "seed-series-a",
+            "India, SaaS, consumer, fintech",
+            "India",
+            "$250K-$5M",
+        ),
+        (
+            "Elevation Capital",
+            "Elevation",
+            "seed-growth",
+            "India, consumer, SaaS, fintech",
+            "India",
+            "$500K-$25M",
+        ),
+    ]
+    .into_iter()
+    .map(
+        |(name, firm, stage, sectors, geography, ticket_size)| Investor {
+            id: Uuid::new_v4().to_string(),
+            name: name.to_string(),
+            firm: firm.to_string(),
+            stage: stage.to_string(),
+            sectors: sectors
+                .split(',')
+                .map(|item| item.trim().to_string())
+                .collect(),
+            geography: geography.to_string(),
+            ticket_size: ticket_size.to_string(),
+            notes: "Seeded local investor record for offline matching.".to_string(),
+        },
+    )
+    .collect()
+}

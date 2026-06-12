@@ -21,13 +21,13 @@ export const metadata: Metadata = {
     template: '%s | Co-Op',
   },
   description:
-    'Co-Op is local-first business management software with a cloud license plane, desktop activation, Ollama support, and OpenAI-compatible bring-your-own-key routing.',
+    'Co-Op is local-first business management software with cloud licensing, desktop activation, local AI, and private provider support.',
   keywords: [
     'local-first business software',
     'business orchestration',
     'desktop AI software',
     'Ollama business app',
-    'bring your own key AI',
+    'private AI provider',
     'license management software',
     'self hosted business AI',
   ],
@@ -45,7 +45,7 @@ export const metadata: Metadata = {
     siteName: 'Co-Op',
     title: 'Co-Op | Local-First Business Orchestration',
     description:
-      'Desktop business orchestration with local data, cloud licensing, Ollama, and OpenAI-compatible BYOK routing.',
+      'Desktop business orchestration with local data, cloud licensing, local AI, and private provider support.',
     images: [
       {
         url: '/logo.png',
@@ -60,7 +60,7 @@ export const metadata: Metadata = {
     card: 'summary',
     title: 'Co-Op | Local-First Business Orchestration',
     description:
-      'Desktop business orchestration with local data, cloud licensing, Ollama, and BYOK routing.',
+      'Desktop business orchestration with local data, cloud licensing, local AI, and private provider support.',
     images: ['/logo.png'],
     creator: '@coop_ai',
     site: '@coop_ai',
@@ -142,7 +142,7 @@ const jsonLd = {
   applicationCategory: 'BusinessApplication',
   operatingSystem: 'Windows, macOS, Linux',
   description:
-    'Local-first business management desktop software with cloud license control and local/BYOK model routing.',
+    'Local-first business management desktop software with cloud license control, local AI, and private provider support.',
   url: siteUrl,
   offers: {
     '@type': 'Offer',
@@ -152,8 +152,8 @@ const jsonLd = {
   featureList: [
     'Cloud license activation',
     'Local desktop runtime',
-    'Ollama provider routing',
-    'OpenAI-compatible bring-your-own-key support',
+    'Local AI support',
+    'Private AI provider support',
     'Local workflow orchestration',
   ],
 };

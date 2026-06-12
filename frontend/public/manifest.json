@@ -1,7 +1,7 @@
 {
-  "name": "Co-Op - Local-First Business Orchestration",
+  "name": "Co-Op - Private Business Workspace",
   "short_name": "Co-Op",
-  "description": "Local-first business management software with cloud licensing, desktop activation, Ollama, and bring-your-own-key model routing.",
+  "description": "Private business management software with cloud licensing, desktop activation, local AI, and private provider support.",
   "start_url": "/download",
   "display": "standalone",
   "background_color": "#101216",

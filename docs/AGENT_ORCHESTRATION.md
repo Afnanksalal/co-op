@@ -2,6 +2,8 @@
 
 Co-Op is a business operations harness, not a token-burning model debate product. The runtime uses one selected provider for the primary work plan and only adds review when the configured risk policy requires it.
 
+The user-facing product should call these areas "advisors" and "review" instead of exposing implementation terms. Internal DTO names may stay stable for migration compatibility, but the interface should stay business-owner friendly.
+
 ```mermaid
 flowchart TD
   Request["Owner asks Co-Op"] --> Validate["Validate request"]
@@ -50,6 +52,25 @@ Supported research modes:
 
 - `llm`: model-only research synthesis using the configured local/BYOK provider.
 - `firecrawl`: live web research using the customer's locally stored Firecrawl key.
+
+The desktop Research tab exposes owner-friendly research jobs that map to the same local runtime:
+
+- Market scan: trends, categories, demand signals, competitors, buyers, and openings.
+- Competitors: alternatives, positioning, strengths, weaknesses, and gaps.
+- Customers: buyer segments, pains, triggers, objections, and outreach angles.
+- Pricing: packaging, value metrics, pricing models, and willingness-to-pay signals.
+- Investor brief: market momentum, investor fit, funding signals, and diligence questions.
+- Risk check: market, legal, operating, security, and execution risks.
+
+Research depth controls source volume and output length:
+
+- Quick: 3 live sources when web research is enabled; short bullets and one next move.
+- Standard: 5 live sources; key findings, evidence, risks, and next actions.
+- Deep: 8 live sources; grouped evidence, tradeoffs, uncertainties, and a practical action plan.
+
+Research outputs must be written for business owners, not analysts or developers. Reports should use plain language and stable sections: quick answer, what matters, evidence, risks or unknowns, and next moves. If live sources are unavailable, the output must clearly state that it is assistant-only and avoid invented citations.
+
+Lead discovery is a web-search workflow. It must use `firecrawl` research, build the search from the owner's brief plus company profile context, extract only source-backed people or companies, dedupe against locally saved leads, and store the resulting leads locally. Do not fall back to model-only lead invention.
 
 Supported campaign email modes:
 

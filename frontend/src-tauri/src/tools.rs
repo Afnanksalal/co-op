@@ -67,6 +67,8 @@ pub async fn run_alert_now(
         app.clone(),
         ResearchRequest {
             query: alert.query.clone(),
+            research_type: "market_scan".to_string(),
+            depth: "standard".to_string(),
             save_to_rag: true,
         },
     )

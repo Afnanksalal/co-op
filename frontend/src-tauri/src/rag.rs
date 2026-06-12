@@ -100,22 +100,63 @@ pub fn document_context_from_store(app: &AppHandle, query: &str) -> Result<Strin
 }
 
 pub fn chunk_text(content: &str) -> Vec<String> {
-    let words: Vec<&str> = content.split_whitespace().collect();
-    if words.is_empty() {
+    const TARGET_WORDS: usize = 180;
+    const MAX_WORDS: usize = 260;
+    const OVERLAP_WORDS: usize = 32;
+
+    let normalized = normalize_text(content);
+    if normalized.is_empty() {
         return Vec::new();
     }
-    let mut chunks = Vec::new();
-    let mut start = 0usize;
-    let chunk_size = 220usize;
-    let overlap = 40usize;
-    while start < words.len() {
-        let end = (start + chunk_size).min(words.len());
-        chunks.push(words[start..end].join(" "));
-        if end == words.len() {
-            break;
+
+    let mut segments = Vec::new();
+    for sentence in split_sentences(&normalized) {
+        let words = sentence.split_whitespace().collect::<Vec<_>>();
+        if words.len() > MAX_WORDS {
+            segments.extend(
+                words
+                    .chunks(TARGET_WORDS)
+                    .map(|chunk| chunk.join(" "))
+                    .collect::<Vec<_>>(),
+            );
+        } else if !sentence.is_empty() {
+            segments.push(sentence);
         }
-        start = end.saturating_sub(overlap);
     }
+
+    let mut chunks = Vec::new();
+    let mut current = String::new();
+    let mut current_words = 0usize;
+
+    for segment in segments {
+        let segment_words = word_count(&segment);
+        if current_words > 0 && current_words + segment_words > MAX_WORDS {
+            chunks.push(current.trim().to_string());
+            let overlap = trailing_words(&current, OVERLAP_WORDS);
+            current = overlap;
+            current_words = word_count(&current);
+        }
+        if !current.is_empty() {
+            current.push(' ');
+        }
+        current.push_str(&segment);
+        current_words += segment_words;
+
+        if current_words >= TARGET_WORDS {
+            chunks.push(current.trim().to_string());
+            let overlap = trailing_words(&current, OVERLAP_WORDS);
+            current = overlap;
+            current_words = word_count(&current);
+        }
+    }
+
+    if current_words > 0 {
+        let last = current.trim().to_string();
+        if chunks.last().map(|chunk| chunk != &last).unwrap_or(true) {
+            chunks.push(last);
+        }
+    }
+
     chunks
 }
 
@@ -130,13 +171,120 @@ pub fn embed_text(content: &str) -> Vec<f32> {
     normalize(vector)
 }
 
-fn tokenize(content: &str) -> Vec<String> {
-    content
+pub(crate) fn tokenize(content: &str) -> Vec<String> {
+    let base_tokens = content
         .to_lowercase()
         .split(|char: char| !char.is_ascii_alphanumeric())
-        .filter(|token| token.len() > 2)
+        .filter(|token| token.len() > 2 && !is_stop_word(token))
         .map(ToString::to_string)
-        .collect()
+        .collect::<Vec<_>>();
+
+    let mut tokens = Vec::with_capacity(base_tokens.len() * 2);
+    for token in base_tokens {
+        tokens.push(token.clone());
+        tokens.extend(
+            business_synonyms(&token)
+                .iter()
+                .map(|value| value.to_string()),
+        );
+    }
+    tokens
+}
+
+fn normalize_text(content: &str) -> String {
+    content
+        .replace("\r\n", "\n")
+        .replace('\r', "\n")
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn split_sentences(content: &str) -> Vec<String> {
+    let mut sentences = Vec::new();
+    let mut buffer = String::new();
+    for character in content.chars() {
+        buffer.push(character);
+        if matches!(character, '.' | '!' | '?' | '\n') {
+            let sentence = buffer.trim();
+            if !sentence.is_empty() {
+                sentences.push(sentence.to_string());
+            }
+            buffer.clear();
+        }
+    }
+    let remaining = buffer.trim();
+    if !remaining.is_empty() {
+        sentences.push(remaining.to_string());
+    }
+    sentences
+}
+
+fn trailing_words(content: &str, count: usize) -> String {
+    let words = content.split_whitespace().collect::<Vec<_>>();
+    let start = words.len().saturating_sub(count);
+    words[start..].join(" ")
+}
+
+fn word_count(content: &str) -> usize {
+    content.split_whitespace().count()
+}
+
+fn is_stop_word(token: &str) -> bool {
+    matches!(
+        token,
+        "the"
+            | "and"
+            | "for"
+            | "with"
+            | "from"
+            | "this"
+            | "that"
+            | "are"
+            | "was"
+            | "were"
+            | "have"
+            | "has"
+            | "had"
+            | "not"
+            | "but"
+            | "you"
+            | "your"
+            | "our"
+            | "their"
+            | "into"
+            | "about"
+            | "after"
+            | "before"
+            | "over"
+            | "under"
+            | "between"
+            | "within"
+            | "without"
+    )
+}
+
+fn business_synonyms(token: &str) -> &'static [&'static str] {
+    match token {
+        "cash" => &["runway", "burn", "finance"],
+        "runway" => &["cash", "burn", "finance"],
+        "burn" => &["runway", "cash", "spend"],
+        "sales" => &["pipeline", "revenue", "customers"],
+        "pipeline" => &["sales", "leads", "deals"],
+        "customer" | "customers" => &["buyer", "buyers", "client", "clients"],
+        "client" | "clients" => &["customer", "customers", "buyer"],
+        "pricing" => &["price", "revenue", "monetization"],
+        "legal" => &["contract", "compliance", "risk"],
+        "contract" | "contracts" => &["legal", "agreement", "compliance"],
+        "investor" | "investors" => &["fundraising", "capital", "diligence"],
+        "fundraising" => &["investor", "capital", "raise"],
+        "marketing" => &["positioning", "campaign", "growth"],
+        "outreach" => &["email", "campaign", "prospecting"],
+        "operations" => &["process", "workflow", "sop"],
+        _ => &[],
+    }
 }
 
 fn normalize(mut vector: Vec<f32>) -> Vec<f32> {
@@ -182,5 +330,30 @@ mod tests {
         let results = search_documents(&[document], "runway burn", 5);
         assert_eq!(results.len(), 1);
         assert!(results[0].score > 0.0);
+    }
+
+    #[test]
+    fn chunking_keeps_overlap_and_splits_large_documents() {
+        let content = (0..520)
+            .map(|index| format!("word{index}"))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let chunks = chunk_text(&content);
+
+        assert!(chunks.len() >= 3);
+        assert!(chunks
+            .iter()
+            .all(|chunk| chunk.split_whitespace().count() <= 260));
+        assert!(chunks[1].contains("word"));
+    }
+
+    #[test]
+    fn tokenizer_adds_business_synonyms_and_removes_noise() {
+        let tokens = tokenize("The cash plan for customers");
+
+        assert!(tokens.contains(&"cash".to_string()));
+        assert!(tokens.contains(&"runway".to_string()));
+        assert!(tokens.contains(&"buyer".to_string()));
+        assert!(!tokens.contains(&"the".to_string()));
     }
 }

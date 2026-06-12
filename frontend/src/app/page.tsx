@@ -22,32 +22,36 @@ const productPillars = [
   {
     icon: HardDrives,
     title: 'Local-first workspace',
-    description: 'Company memory, provider settings, model routing, and operations state live on the installed machine by default.',
+    description:
+      'Company files, private settings, decisions, and work history live on the installed machine by default.',
   },
   {
     icon: CloudCheck,
     title: 'Cloud license plane',
-    description: 'Accounts, payments, license keys, device activations, and revocation stay in the managed cloud control plane.',
+    description:
+      'Accounts, payments, license keys, device activations, and revocation stay in the managed cloud control plane.',
   },
   {
     icon: FlowArrow,
     title: 'Business orchestration',
-    description: 'Run legal, finance, sales, operations, and strategy workflows with traceable tasks, approvals, and review gates.',
+    description:
+      'Run legal, finance, sales, operations, and strategy workflows with traceable tasks, approvals, and review gates.',
   },
   {
     icon: ShieldCheck,
-    title: 'Governed AI execution',
-    description: 'Use Ollama locally or bring an OpenAI-compatible key under explicit policy and budget limits.',
+    title: 'Controlled AI setup',
+    description:
+      'Use local AI or connect a private AI provider under clear review and spending controls.',
   },
 ];
 
 const operatingSystem = [
-  'Private business knowledge graph',
-  'Local vector memory and document context',
-  'Ollama and OpenAI-compatible BYOK routing',
-  'Council review only for high-impact decisions',
+  'Private business memory',
+  'Local company files and evidence',
+  'Local AI or private provider setup',
+  'Extra review only for important decisions',
   'Human approvals before sensitive actions',
-  'Audit-ready workflow history',
+  'Traceable work history',
 ];
 
 export default function HomePage() {
@@ -60,13 +64,21 @@ export default function HomePage() {
             <span className="font-serif text-xl font-semibold">Co-Op</span>
           </Link>
           <nav className="hidden items-center gap-8 text-sm text-muted-foreground md:flex">
-            <a href="#platform" className="hover:text-foreground">Platform</a>
-            <a href="#security" className="hover:text-foreground">Security</a>
-            <Link href="/download" className="hover:text-foreground">Download</Link>
+            <a href="#platform" className="hover:text-foreground">
+              Platform
+            </a>
+            <a href="#security" className="hover:text-foreground">
+              Security
+            </a>
+            <Link href="/download" className="hover:text-foreground">
+              Download
+            </Link>
           </nav>
           <div className="flex items-center gap-2">
             <Link href="/account" className="hidden sm:block">
-              <Button variant="ghost" size="sm">Account</Button>
+              <Button variant="ghost" size="sm">
+                Account
+              </Button>
             </Link>
             <Link href="/download">
               <Button size="sm">
@@ -85,10 +97,12 @@ export default function HomePage() {
               Local-first business operating system
             </Badge>
             <h1 className="max-w-4xl text-4xl font-semibold leading-tight tracking-normal sm:text-5xl lg:text-6xl">
-              Co-Op runs your business AI locally, licensed from the cloud.
+              Co-Op gives your business a private operating workspace.
             </h1>
             <p className="mt-6 max-w-2xl text-base leading-8 text-muted-foreground sm:text-lg">
-              Install the desktop app, activate it with a cloud license key, connect Ollama or your own OpenAI-compatible provider, and orchestrate business workflows without turning every company decision into hosted chat data.
+              Install the desktop app, activate with a cloud license key, choose local AI or a
+              private provider, and run business work without turning every company decision into
+              hosted chat data.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href="/download">
@@ -108,7 +122,13 @@ export default function HomePage() {
           <div className="rounded-lg border border-border bg-card p-4 shadow-soft">
             <div className="mb-4 flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-3">
-                <Image src="/logo.png" alt="Co-Op desktop" width={36} height={36} className="rounded-md" />
+                <Image
+                  src="/logo.png"
+                  alt="Co-Op desktop"
+                  width={36}
+                  height={36}
+                  className="rounded-md"
+                />
                 <div>
                   <p className="text-sm font-medium">Co-Op Desktop</p>
                   <p className="text-xs text-muted-foreground">Licensed local runtime</p>
@@ -120,9 +140,9 @@ export default function HomePage() {
             <div className="grid gap-3 sm:grid-cols-2">
               {[
                 { label: 'License', value: 'Team plan', icon: Key },
-                { label: 'Data plane', value: 'Local storage', icon: Database },
-                { label: 'Model router', value: 'Ollama primary', icon: HardDrives },
-                { label: 'Review gate', value: 'Council on demand', icon: LockKey },
+                { label: 'Company data', value: 'Stored locally', icon: Database },
+                { label: 'AI setup', value: 'Owner controlled', icon: HardDrives },
+                { label: 'Review', value: 'On demand', icon: LockKey },
               ].map(({ label, value, icon: Icon }) => (
                 <div key={label} className="rounded-md border border-border bg-background p-4">
                   <Icon className="mb-4 h-5 w-5 text-muted-foreground" />
@@ -138,7 +158,12 @@ export default function HomePage() {
                 Operations run
               </div>
               <div className="space-y-3">
-                {['Retrieve local company context', 'Route to configured model', 'Require approval for external action', 'Record audit trail'].map(item => (
+                {[
+                  'Use local company context',
+                  'Send only through the chosen AI setup',
+                  'Require approval for sensitive actions',
+                  'Save traceable work history',
+                ].map((item) => (
                   <div key={item} className="flex items-center gap-3 text-sm text-muted-foreground">
                     <CheckCircle weight="fill" className="h-4 w-4 text-green-500" />
                     <span>{item}</span>
@@ -152,9 +177,12 @@ export default function HomePage() {
 
       <section id="platform" className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <div className="mb-10 max-w-2xl">
-          <h2 className="text-3xl font-semibold tracking-normal">Built like serious business software</h2>
+          <h2 className="text-3xl font-semibold tracking-normal">
+            Built like serious business software
+          </h2>
           <p className="mt-3 text-muted-foreground">
-            Co-Op separates the paid cloud control plane from the private local work plane, closer to desktop CAD/accounting products than a hosted chatbot.
+            Co-Op separates the paid cloud control plane from the private local work plane, closer
+            to desktop CAD/accounting products than a hosted chatbot.
           </p>
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -171,9 +199,13 @@ export default function HomePage() {
       <section id="security" className="border-y border-border/60 bg-muted/30">
         <div className="mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:px-8">
           <div>
-            <h2 className="text-3xl font-semibold tracking-normal">License in the cloud. Work stays local.</h2>
+            <h2 className="text-3xl font-semibold tracking-normal">
+              License in the cloud. Work stays local.
+            </h2>
             <p className="mt-4 text-muted-foreground">
-              The desktop app sends a hashed machine fingerprint to activate and refresh entitlement. Business data, provider keys, local memory, and orchestration state are designed to stay on the customer machine unless configured otherwise.
+              The desktop app sends a hashed machine fingerprint to activate and refresh
+              entitlement. Business data, provider keys, local memory, and orchestration state are
+              designed to stay on the customer machine unless configured otherwise.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <Link href="/activate">
@@ -191,8 +223,11 @@ export default function HomePage() {
             </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            {operatingSystem.map(item => (
-              <div key={item} className="flex items-start gap-3 rounded-md border border-border bg-background p-4 text-sm">
+            {operatingSystem.map((item) => (
+              <div
+                key={item}
+                className="flex items-start gap-3 rounded-md border border-border bg-background p-4 text-sm"
+              >
                 <CheckCircle weight="fill" className="mt-0.5 h-4 w-4 text-green-500" />
                 <span>{item}</span>
               </div>
@@ -204,9 +239,15 @@ export default function HomePage() {
       <footer className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-8 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
         <span>&copy; {new Date().getFullYear()} Co-Op Software</span>
         <div className="flex gap-5">
-          <Link href="/privacy" className="hover:text-foreground">Privacy</Link>
-          <Link href="/terms" className="hover:text-foreground">Terms</Link>
-          <Link href="/download" className="hover:text-foreground">Download</Link>
+          <Link href="/privacy" className="hover:text-foreground">
+            Privacy
+          </Link>
+          <Link href="/terms" className="hover:text-foreground">
+            Terms
+          </Link>
+          <Link href="/download" className="hover:text-foreground">
+            Download
+          </Link>
         </div>
       </footer>
     </main>

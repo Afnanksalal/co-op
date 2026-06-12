@@ -3,13 +3,15 @@ use std::collections::HashSet;
 use tauri::AppHandle;
 use uuid::Uuid;
 
-use crate::constants::{MAX_CAMPAIGN_SEND_BATCH, MAX_GENERATED_EMAILS_PER_CAMPAIGN};
-use crate::providers::{call_model, send_email};
-use crate::research::run_research_query;
+use crate::constants::{
+    MAX_CAMPAIGN_SEND_BATCH, MAX_GENERATED_EMAILS_PER_CAMPAIGN, MAX_LEADS, MAX_RESEARCH_RUNS,
+};
+use crate::providers::{call_model, search_firecrawl, send_email};
+use crate::research::format_sources;
 use crate::storage::{load_or_create_state, require_usable_activation, save_state, to_response};
 use crate::types::{
-    Campaign, CampaignEmail, CampaignEmailRequest, CampaignRequest, DesktopStateResponse,
-    DiscoverLeadsRequest, Lead, LeadRequest, ResearchRequest,
+    Campaign, CampaignEmail, CampaignEmailRequest, CampaignRequest, DesktopState,
+    DesktopStateResponse, DiscoverLeadsRequest, Lead, LeadRequest, ResearchRun, ResearchSource,
 };
 use crate::validation::{
     looks_like_email, validate_campaign_request, validate_lead_request, validate_model_settings,
@@ -36,52 +38,99 @@ pub async fn discover_leads(
     if !matches!(request.lead_type.as_str(), "person" | "company") {
         return Err("Lead type must be person or company".to_string());
     }
-    let research = run_research_query(
-        app.clone(),
-        ResearchRequest {
-            query: request.query.clone(),
-            save_to_rag: false,
-        },
-    )
-    .await?;
     let mut state = load_or_create_state(&app)?;
     require_usable_activation(&state)?;
-    let settings = state.model_settings.clone();
-    let extraction_prompt = format!(
-    "Startup workspace:\n{}\n\nLead type: {}\nMax leads: {}\nResearch summary:\n{}\n\nSources:\n{}\n\nExtract concrete leads. Return one lead per line in this exact pipe-delimited format:\nname | company | email | website | profile_url | platform | niche | location | description | score",
-    workspace_context(&state.workspace),
-    request.lead_type,
-    request.max_leads.clamp(1, 25),
-    research.summary,
-    research
-      .sources
-      .iter()
-      .map(|source| format!("{} {} {}", source.title, source.url, source.description))
-      .collect::<Vec<String>>()
-      .join("\n")
-  );
-    let generated = call_model(
-    &settings,
-    "You are Co-Op's lead discovery extractor. Only output pipe-delimited lead rows. Use empty fields when unknown.",
-    &extraction_prompt,
-  )
-  .await?;
-
-    let mut leads = parse_generated_leads(
-        &generated,
-        &request.lead_type,
-        request.max_leads.clamp(1, 25),
-    );
-    if leads.is_empty() {
-        leads = fallback_leads_from_research(
-            &research,
-            &request.lead_type,
-            request.max_leads.clamp(1, 25),
+    let mut settings = state.model_settings.clone();
+    validate_model_settings(&mut settings)?;
+    if settings.research_provider != "firecrawl" {
+        return Err(
+            "Lead discovery uses web search. Open Setup > Research and choose Web search before discovering leads."
+                .to_string(),
         );
     }
-    for lead in leads.into_iter().rev() {
-        state.leads.insert(0, lead);
+    if settings
+        .firecrawl_api_key
+        .as_deref()
+        .map(str::trim)
+        .unwrap_or("")
+        .is_empty()
+    {
+        return Err(
+            "Lead discovery needs a saved web search key. Open Setup > Research and save your Firecrawl key."
+                .to_string(),
+        );
     }
+
+    let available_slots = MAX_LEADS.saturating_sub(state.leads.len());
+    if available_slots == 0 {
+        return Err("Lead list is full. Delete old leads before discovering more.".to_string());
+    }
+    let max_leads = request.max_leads.clamp(1, 25).min(available_slots);
+    let search_query = build_lead_search_query(&request, &state);
+    let sources = search_firecrawl(&settings, &search_query, max_leads.saturating_mul(2)).await?;
+    if sources.is_empty() {
+        return Err("No web results found for that lead search.".to_string());
+    }
+
+    let source_context = format_sources(&sources);
+    let extraction_prompt = format!(
+    "Company profile:\n{}\n\nLead type: {}\nOwner search brief: {}\nWeb search query: {}\nMax leads: {}\n\nWeb sources:\n{}\n\nExtract concrete leads only from the web sources. Do not invent names, emails, websites, locations, or follower counts. Leave unknown fields empty. Score fit from 0-100 based on relevance to the company profile. Return one lead per line in this exact pipe-delimited format:\nname | company | email | website | profile_url | platform | niche | location | description | score",
+    workspace_context(&state.workspace),
+    request.lead_type,
+    request.query.trim(),
+    search_query,
+    max_leads,
+    source_context
+  );
+    let generated = call_model(
+        &settings,
+        "You are Co-Op's lead discovery extractor. Use only supplied web evidence. Only output pipe-delimited lead rows.",
+        &extraction_prompt,
+    )
+    .await?;
+
+    let mut leads = parse_generated_leads(&generated, &request.lead_type, max_leads);
+    if leads.is_empty() {
+        leads = fallback_leads_from_sources(&sources, &request.lead_type, max_leads);
+    }
+
+    let mut seen = state
+        .leads
+        .iter()
+        .map(lead_fingerprint)
+        .collect::<HashSet<_>>();
+    let mut saved_count = 0usize;
+    for lead in leads.into_iter().rev() {
+        if saved_count >= max_leads {
+            break;
+        }
+        let fingerprint = lead_fingerprint(&lead);
+        if fingerprint.is_empty() || !seen.insert(fingerprint) {
+            continue;
+        }
+        state.leads.insert(0, lead);
+        saved_count += 1;
+    }
+    if saved_count == 0 {
+        return Err("Web search finished, but no new leads were found.".to_string());
+    }
+
+    state.model_settings = settings;
+    state.research_runs.insert(
+        0,
+        ResearchRun {
+            id: Uuid::new_v4().to_string(),
+            query: search_query,
+            provider: "firecrawl".to_string(),
+            summary: format!(
+                "Lead discovery web search saved {saved_count} new {}.",
+                if saved_count == 1 { "lead" } else { "leads" }
+            ),
+            sources,
+            created_at: Utc::now().to_rfc3339(),
+        },
+    );
+    state.research_runs.truncate(MAX_RESEARCH_RUNS);
     save_state(&app, &state)?;
     Ok(to_response(state))
 }
@@ -289,7 +338,7 @@ fn parse_generated_leads(output: &str, lead_type: &str, max: usize) -> Vec<Lead>
                 return None;
             }
             let score = parts[9].parse::<u8>().unwrap_or(50).min(100);
-            Some(Lead {
+            let lead = Lead {
                 id: Uuid::new_v4().to_string(),
                 lead_type: lead_type.to_string(),
                 name: parts[0].to_string(),
@@ -303,21 +352,25 @@ fn parse_generated_leads(output: &str, lead_type: &str, max: usize) -> Vec<Lead>
                 description: parts[8].to_string(),
                 lead_score: score,
                 status: "new".to_string(),
-                source: "discovery".to_string(),
+                source: "web discovery".to_string(),
                 created_at: Utc::now().to_rfc3339(),
-            })
+            };
+            if lead_fingerprint(&lead).is_empty() {
+                None
+            } else {
+                Some(lead)
+            }
         })
         .take(max)
         .collect()
 }
 
-fn fallback_leads_from_research(
-    research: &crate::types::ResearchRun,
+fn fallback_leads_from_sources(
+    sources: &[ResearchSource],
     lead_type: &str,
     max: usize,
 ) -> Vec<Lead> {
-    research
-        .sources
+    sources
         .iter()
         .take(max)
         .map(|source| Lead {
@@ -342,10 +395,80 @@ fn fallback_leads_from_research(
             description: source.description.clone(),
             lead_score: 50,
             status: "new".to_string(),
-            source: "research".to_string(),
+            source: "web search".to_string(),
             created_at: Utc::now().to_rfc3339(),
         })
         .collect()
+}
+
+fn build_lead_search_query(request: &DiscoverLeadsRequest, state: &DesktopState) -> String {
+    let workspace = &state.workspace;
+    let mut parts = Vec::new();
+    push_search_part(&mut parts, &request.query);
+    if request.lead_type == "person" {
+        push_search_part(
+            &mut parts,
+            "founder OR operator OR creator OR expert OR consultant",
+        );
+        push_search_part(&mut parts, "email OR contact OR LinkedIn");
+    } else {
+        push_search_part(&mut parts, "company OR business OR startup");
+        push_search_part(&mut parts, "contact OR email OR website");
+    }
+    push_search_part(&mut parts, &workspace.target_customers);
+    push_search_part(&mut parts, &workspace.industry);
+    push_search_part(&mut parts, &workspace.sector);
+    push_search_part(&mut parts, &workspace.operating_regions);
+    push_search_part(&mut parts, &workspace.country);
+    push_search_part(&mut parts, &workspace.location);
+    push_search_part(&mut parts, &workspace.problem);
+    push_search_part(&mut parts, &workspace.solution);
+    dedupe_search_parts(parts).join(" ")
+}
+
+fn push_search_part(parts: &mut Vec<String>, value: &str) {
+    let trimmed = value.trim();
+    if !trimmed.is_empty() && trimmed != "other" {
+        parts.push(trimmed.to_string());
+    }
+}
+
+fn dedupe_search_parts(parts: Vec<String>) -> Vec<String> {
+    let mut seen = HashSet::new();
+    parts
+        .into_iter()
+        .filter(|part| seen.insert(part.to_lowercase()))
+        .collect()
+}
+
+fn lead_fingerprint(lead: &Lead) -> String {
+    let identity = [
+        lead.email.as_str(),
+        lead.profile_url.as_str(),
+        lead.website.as_str(),
+        lead.company_name.as_str(),
+        lead.name.as_str(),
+    ]
+    .into_iter()
+    .find(|value| !value.trim().is_empty())
+    .map(normalized_identity)
+    .unwrap_or_default();
+
+    if identity.is_empty() {
+        String::new()
+    } else {
+        format!("{}:{identity}", lead.lead_type.trim().to_lowercase())
+    }
+}
+
+fn normalized_identity(value: &str) -> String {
+    value
+        .trim()
+        .trim_end_matches('/')
+        .trim_start_matches("https://")
+        .trim_start_matches("http://")
+        .trim_start_matches("www.")
+        .to_lowercase()
 }
 
 fn split_subject_body(output: &str) -> (String, String) {
@@ -440,5 +563,67 @@ mod tests {
             apply_lead_vars("Hi {{name}} at {{company}} in {{location}}", &lead),
             "Hi Asha at ExampleCo in Bengaluru"
         );
+    }
+
+    #[test]
+    fn lead_discovery_query_uses_search_brief_and_workspace_context() {
+        let mut state = DesktopState::default();
+        state.workspace.industry = "Fintech".to_string();
+        state.workspace.target_customers = "Finance teams at B2B SaaS companies".to_string();
+        state.workspace.operating_regions = "United States".to_string();
+        state.workspace.problem = "Manual revenue reporting".to_string();
+        let request = DiscoverLeadsRequest {
+            query: "series A companies hiring finance leaders".to_string(),
+            lead_type: "company".to_string(),
+            max_leads: 10,
+        };
+
+        let query = build_lead_search_query(&request, &state);
+
+        assert!(query.contains("series A companies hiring finance leaders"));
+        assert!(query.contains("company OR business OR startup"));
+        assert!(query.contains("Finance teams at B2B SaaS companies"));
+        assert!(query.contains("Fintech"));
+        assert!(query.contains("United States"));
+        assert!(query.contains("Manual revenue reporting"));
+    }
+
+    #[test]
+    fn lead_fingerprint_dedupes_common_identity_variants() {
+        let mut first = test_lead("company");
+        first.website = "https://www.example.com/".to_string();
+        first.company_name = "Example".to_string();
+        let mut second = test_lead("company");
+        second.website = "http://example.com".to_string();
+        second.company_name = "Different label".to_string();
+
+        assert_eq!(lead_fingerprint(&first), lead_fingerprint(&second));
+    }
+
+    #[test]
+    fn generated_leads_without_identity_are_rejected() {
+        let output = " | | | | | web | finance | | interesting but anonymous | 70";
+
+        assert!(parse_generated_leads(output, "company", 5).is_empty());
+    }
+
+    fn test_lead(lead_type: &str) -> Lead {
+        Lead {
+            id: Uuid::new_v4().to_string(),
+            lead_type: lead_type.to_string(),
+            name: String::new(),
+            company_name: String::new(),
+            email: String::new(),
+            website: String::new(),
+            profile_url: String::new(),
+            platform: String::new(),
+            niche: String::new(),
+            location: String::new(),
+            description: String::new(),
+            lead_score: 50,
+            status: "new".to_string(),
+            source: "test".to_string(),
+            created_at: Utc::now().to_rfc3339(),
+        }
     }
 }

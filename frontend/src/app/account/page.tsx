@@ -150,7 +150,7 @@ export default function AccountPage() {
                 <p className="text-sm font-medium text-green-700 dark:text-green-300">
                   Activation key generated
                 </p>
-                <code className="mt-2 block overflow-x-auto rounded-md border border-border bg-background px-3 py-2 text-sm">
+                <code className="coop-scrollbar mt-2 block overflow-x-auto rounded-md border border-border bg-background px-3 py-2 text-sm">
                   {createdLicense.licenseKey}
                 </code>
                 <p className="mt-2 text-xs text-muted-foreground">
@@ -232,7 +232,7 @@ export default function AccountPage() {
                 'Download and install Co-Op Desktop.',
                 'Open the Activation tab in the desktop app.',
                 'Paste the activation key from this account center.',
-                'Configure Ollama or an OpenAI-compatible BYOK provider locally.',
+                'Choose local AI or a private AI provider in desktop setup.',
               ].map((step, index) => (
                 <div
                   key={step}
@@ -252,8 +252,8 @@ export default function AccountPage() {
           <div className="border-b border-border p-5">
             <h2 className="text-xl font-semibold tracking-normal">Your licenses</h2>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="coop-scrollbar overflow-x-auto">
+            <table className="w-full min-w-[42rem] text-sm">
               <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3">Key prefix</th>
@@ -267,7 +267,7 @@ export default function AccountPage() {
                 {licenses.map((license) => (
                   <tr key={license.id} className="border-t border-border">
                     <td className="px-4 py-3 font-mono text-xs">{license.licensePrefix}</td>
-                    <td className="px-4 py-3">{license.plan}</td>
+                    <td className="break-words px-4 py-3">{license.plan}</td>
                     <td className="px-4 py-3">
                       {license.activeDevices}/{license.maxDevices}
                     </td>
@@ -310,9 +310,9 @@ export default function AccountPage() {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex min-w-0 items-center justify-between gap-4 border-b border-border pb-2 last:border-0">
+    <div className="grid min-w-0 gap-1 border-b border-border pb-2 last:border-0 sm:grid-cols-[minmax(7rem,0.8fr)_minmax(0,1.2fr)] sm:gap-4">
       <span className="text-muted-foreground">{label}</span>
-      <span className="min-w-0 truncate text-right font-medium">{value}</span>
+      <span className="min-w-0 break-words font-medium sm:text-right">{value}</span>
     </div>
   );
 }

@@ -1,0 +1,178 @@
+export const blankLead = {
+  leadType: 'company',
+  name: '',
+  companyName: '',
+  email: '',
+  website: '',
+  profileUrl: '',
+  platform: '',
+  niche: '',
+  location: '',
+  description: '',
+  leadScore: 50,
+  status: 'new',
+  source: 'manual',
+};
+
+export const blankCampaign = {
+  name: '',
+  mode: 'ai_personalized',
+  targetLeadType: 'company',
+  subjectTemplate: 'Quick idea for {{company}}',
+  bodyTemplate:
+    'Hi {{name}},\n\nI noticed {{company}} and wanted to share a specific idea.\n\nBest,',
+  campaignGoal: '',
+  tone: 'professional',
+  callToAction: 'Book a short call',
+};
+
+export const founderRoles = ['founder', 'cofounder', 'ceo', 'cto', 'coo', 'cfo', 'cpo'];
+export const startupStages = ['idea', 'prototype', 'mvp', 'beta', 'launched', 'growth', 'scale'];
+export const teamSizes = ['1-5', '6-20', '21-50', '51-200', '200+'];
+export const businessModels = [
+  'b2b',
+  'b2c',
+  'b2b2c',
+  'marketplace',
+  'd2c',
+  'enterprise',
+  'smb',
+  'consumer',
+  'platform',
+  'api',
+  'other',
+];
+export const revenueModels = [
+  'subscription',
+  'transaction_fee',
+  'freemium',
+  'usage_based',
+  'licensing',
+  'advertising',
+  'commission',
+  'one_time',
+  'hybrid',
+  'not_yet',
+];
+export const fundingStages = [
+  'bootstrapped',
+  'pre_seed',
+  'seed',
+  'series_a',
+  'series_b',
+  'series_c_plus',
+  'profitable',
+];
+export const revenueStatuses = ['pre_revenue', 'no', 'yes'];
+export const sectors = [
+  'saas',
+  'ai_ml',
+  'developer_tools',
+  'cybersecurity',
+  'cloud_infrastructure',
+  'data_analytics',
+  'fintech',
+  'payments',
+  'healthtech',
+  'ecommerce',
+  'marketplace',
+  'climate_tech',
+  'edtech',
+  'hrtech',
+  'legaltech',
+  'logistics',
+  'hardware',
+  'other',
+];
+export const optionLabels: Record<string, string> = {
+  founder: 'Founder',
+  cofounder: 'Co-founder',
+  ceo: 'CEO',
+  cto: 'CTO',
+  coo: 'COO',
+  cfo: 'CFO',
+  cpo: 'CPO',
+  idea: 'Idea',
+  prototype: 'Prototype',
+  mvp: 'MVP',
+  beta: 'Beta',
+  launched: 'Launched',
+  growth: 'Growth',
+  scale: 'Scale',
+  other: 'Other',
+  ai_ml: 'AI / ML',
+  b2b: 'B2B',
+  b2c: 'B2C',
+  b2b2c: 'B2B2C',
+  d2c: 'D2C',
+  pre_seed: 'Pre-seed',
+  series_a: 'Series A',
+  series_b: 'Series B',
+  series_c_plus: 'Series C+',
+  pre_revenue: 'Pre-revenue',
+  not_yet: 'Not yet',
+  transaction_fee: 'Transaction fee',
+  usage_based: 'Usage based',
+  one_time: 'One-time',
+  developer_tools: 'Developer tools',
+  cloud_infrastructure: 'Cloud infrastructure',
+  data_analytics: 'Data analytics',
+  climate_tech: 'Climate tech',
+  company: 'Companies',
+  person: 'People',
+  ai_personalized: 'Personalized drafts',
+  single_template: 'One template',
+  llm: 'Assistant only',
+  firecrawl: 'Web search',
+  mcp: 'Local connector',
+  webhook: 'Webhook',
+  crm: 'CRM',
+};
+
+export const roleLabels: Record<string, string> = {
+  operations: 'Operations',
+  legal: 'Legal',
+  finance: 'Finance',
+  investor: 'Investor',
+  competitor: 'Market',
+  sales: 'Sales',
+  strategy: 'Strategy',
+};
+
+export const reviewModeLabels: Record<string, string> = {
+  off: 'Fast answer',
+  review_only: 'Standard check',
+  high_risk_only: 'Check sensitive work',
+  full_council: 'Deep review',
+};
+
+export const providerLabels: Record<string, string> = {
+  ollama: 'On this computer',
+  openai_compatible: 'Private key',
+};
+
+export const runStatusLabels: Record<string, string> = {
+  completed: 'Done',
+  running: 'Running',
+  failed: 'Needs attention',
+};
+
+export const memoryTypeLabels: Record<string, string> = {
+  company: 'Company',
+  founder: 'Founder',
+  stage: 'Stage',
+  sector: 'Market',
+  business_model: 'Business model',
+  revenue_model: 'Revenue model',
+  funding: 'Funding',
+  customer: 'Customer',
+  problem: 'Problem',
+  solution: 'Solution',
+  advantage: 'Advantage',
+  region: 'Region',
+  document: 'File',
+  research: 'Research',
+  lead: 'Prospect',
+  campaign: 'Outreach',
+  workflow: 'Plan',
+};

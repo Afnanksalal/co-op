@@ -56,7 +56,10 @@ sequenceDiagram
   Desktop->>Cloud: Activates device
   Cloud-->>Desktop: Entitlement + offline grace
   Desktop->>Local: Stores entitlement snapshot and local data
-  Desktop-->>Owner: Unlocks private workspace
+  Desktop-->>Owner: Starts three-step local onboarding
+  Owner->>Desktop: Adds business basics and first priority
+  Desktop->>Local: Saves local company profile
+  Desktop-->>Owner: Opens private workspace
 ```
 
 1. An admin creates a license from `/admin/licenses`.
@@ -66,7 +69,8 @@ sequenceDiagram
 5. The backend returns an activation token and entitlement payload.
 6. The desktop runtime stores entitlement metadata locally and stores the activation token in OS credential storage.
 7. Heartbeats call `POST /api/v1/licenses/heartbeat` to refresh entitlement and offline grace.
-8. Business work plans and product features run locally after entitlement is checked.
+8. The desktop app asks only for minimum business context before the dashboard: business name, stage, customer, problem, offer, and first priority.
+9. Business work plans and product features run locally after entitlement is checked.
 
 ## Backend Components
 
@@ -86,6 +90,7 @@ sequenceDiagram
 - `/account` is the authenticated customer center for activation-key generation.
 - `/activate` is a narrow desktop activation fallback route.
 - `/desktop` is the installed Tauri software shell.
+- The installed shell gates first run through a short local onboarding flow before the dashboard.
 - `/admin/licenses` lets admins generate and inspect licenses.
 - `src/lib/api/client.ts` talks to the cloud license API.
 - `src/lib/desktop/runtime.ts` wraps Tauri command calls.

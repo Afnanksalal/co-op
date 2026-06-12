@@ -89,6 +89,7 @@ Desktop build:
 - Confirm frontend typecheck, web build, Tauri export, npm audit, and Rust audit pass.
 - Confirm Rust tests and clippy pass.
 - Smoke test `/`, `/login`, `/download`, `/activate`, `/desktop`, and `/admin/licenses`.
+- Smoke test desktop first run: activate, complete three-step onboarding, open overview, and start one local work plan.
 - Verify production CORS origins before deployment.
 - Verify `LICENSE_KEY_PEPPER` is set and not reused from development.
 - Remove generated folders after local verification: `backend/dist`, `frontend/.next`, `frontend/out`, `frontend/out-tauri`, and `frontend/src-tauri/target`.
