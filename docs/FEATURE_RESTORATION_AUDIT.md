@@ -2,7 +2,7 @@
 
 Baseline compared: old Co-Op at `c2c6994`.
 
-Current restoration target: local-first Co-Op Desktop with cloud licensing only.
+Current target: local-first Co-Op Desktop with cloud licensing only.
 
 ## Restored Feature Families
 
@@ -10,74 +10,89 @@ Current restoration target: local-first Co-Op Desktop with cloud licensing only.
 mindmap
   root((Co-Op Desktop))
     Private workspace
+      Company onboarding
       Company profile
       Business memory
       Company files
-    Advisors
-      Chat
+    Ask
+      Advisor chat
+      Sessions
       Second look
-      Review gate
+      Review levels
+    Plans
+      Work plans
+      Decision records
+      Risks
+      Next steps
     Growth
       Research
+      Leads
       Outreach
       Campaign email
-    Operations
-      Work plans
+    Money and tools
+      Runway
       Pitch review
-      Cap table
+      Ownership
+      Investors
       Calculators
 ```
 
-| Old feature family                     | Current local-first implementation                                                                                                                                                                      |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Startup workspace and onboarding       | Stored locally in the desktop state file through `save_workspace_profile`.                                                                                                                              |
-| Advisor chat window                    | Restored in `/desktop` with advisor selection, session history, second-look review, company file context, research toggle, and review level.                                                            |
-| Review gate                            | Restored as bounded local orchestration: no extra review, standard review, sensitive-work review, and full review using the customer-selected provider.                                                 |
-| Second-look review                     | Restored in chat as a second advisor review pass when enabled.                                                                                                                                          |
-| Company file intelligence              | Restored as local sectioning, SQLite-backed full-text candidate filtering, compact matching data, and local search. Files never leave the desktop unless a user routes prompts to an external provider. |
-| Web research                           | Restored through customer-configured Firecrawl or model-only research. Firecrawl credentials are stored locally.                                                                                        |
-| Personalized outreach                  | Restored with lead discovery, manual leads, campaigns, AI-personalized email generation, and send attempts.                                                                                             |
-| Email sending                          | Restored through local customer-configured Resend or SendGrid API keys. The cloud backend does not receive campaign content or email credentials.                                                       |
-| Investor database                      | Restored as a local seed database with searchable investor records.                                                                                                                                     |
-| Competitor alerts                      | Restored as local alert records with manual research refresh.                                                                                                                                           |
-| Pitch deck analyzer                    | Restored as local notes-based analysis through the configured model provider.                                                                                                                           |
-| Cap table simulator                    | Restored as local scenario storage and validation.                                                                                                                                                      |
-| Financial calculators                  | Restored for runway, burn rate, valuation, and unit economics.                                                                                                                                          |
-| Bookmarks                              | Restored as local bookmark storage.                                                                                                                                                                     |
-| MCP/webhook/Notion/custom integrations | Restored as local integration endpoint records.                                                                                                                                                         |
-| Work history                           | Restored as local work history with status, trace, output, and errors.                                                                                                                                  |
+## Feature Mapping
+
+| Old feature family | Current local-first implementation |
+| --- | --- |
+| Startup workspace and onboarding | Stored locally through the desktop workspace profile and first-run onboarding. |
+| Advisor chat window | Restored with session history, advisor area selection, second-look review, company files, live research option, and review level. |
+| Review gate | Restored as bounded local orchestration with no extra review, standard review, sensitive-work review, and full review. |
+| Company file intelligence | Restored as local sectioning, SQLite-backed search, compact matching data, and bounded context assembly. |
+| Business memory | Restored as a local derived snapshot from profile, files, research, customers, campaigns, and work history. |
+| Web research | Restored through customer-configured Firecrawl or model-only synthesis, with assistant-only disclosure when live sources are unavailable. |
+| Lead discovery | Restored as a live-research workflow that requires source-backed extraction and local deduplication. |
+| Personalized outreach | Restored with local leads, campaigns, AI-personalized draft generation, and send status. |
+| Email sending | Restored through locally stored Resend or SendGrid keys. |
+| Investor database | Restored as a local searchable investor surface. |
+| Competitor alerts | Restored as local alert records with manual refresh. |
+| Pitch deck analyzer | Restored as local file/notes analysis through the configured provider. |
+| Cap table simulator | Restored as local scenario storage and validation. |
+| Financial calculators | Restored for runway, burn rate, valuation, and unit economics. |
+| Bookmarks | Restored as local bookmark storage. |
+| Integrations | Restored as local endpoint records for configured services. |
+| Work history | Restored with status, trace, output, errors, and timestamps. |
 
 ## Cloud Boundary
 
-The cloud backend remains intentionally narrow:
+The cloud backend is intentionally narrow:
 
-- Supabase-backed account verification
-- License generation and customer self-service keys
-- Device activation, heartbeat, deactivation
-- License event audit records
-- Health checks
+- Supabase-backed account verification.
+- License generation and customer self-service keys.
+- Device activation.
+- Heartbeat.
+- Deactivation.
+- License event audit records.
+- Health checks.
 
 Cloud does not receive:
 
-- Business prompts
-- Chat messages
-- Company files
-- Outreach leads
-- Campaign emails
-- Provider API keys
-- Firecrawl keys
-- Email-provider keys
+- Business prompts.
+- Chat messages.
+- Company files.
+- Research outputs.
+- Outreach leads.
+- Campaign email bodies.
+- Provider API keys.
+- Firecrawl keys.
+- Email-provider keys.
 
 ## Runtime Modules
 
-Tauri runtime is split into focused modules:
+Tauri runtime modules:
 
 - `license.rs`
 - `settings.rs`
 - `workspace.rs`
 - `chat.rs`
 - `rag.rs`
-- `knowledge_store.rs`
+- `knowledge_store/`
 - `graph.rs`
 - `research.rs`
 - `outreach.rs`
@@ -86,31 +101,69 @@ Tauri runtime is split into focused modules:
 - `storage.rs`
 - `validation.rs`
 - `security.rs`
-- `types.rs`
-- `constants.rs`
 - `secrets.rs`
+- `types/`
+- `constants.rs`
+
+Frontend desktop modules:
+
+- `local-coop-shell.tsx`
+- `panels/`
+- `tools/`
+- `shared.tsx`
+- `markdown.tsx`
 
 ## Production Hardening
 
-- Provider keys and activation tokens are excluded from `state.json` and stored in OS credential storage.
-- Desktop state writes use a temporary file and replacement write path to reduce corrupt partial writes.
-- Local collections are capped before persistence to prevent unbounded app-data growth.
+- Provider keys and activation tokens are excluded from `state.json`.
+- Secrets are stored in OS credential storage.
+- Desktop state writes use a temporary file and replacement path to reduce corrupt partial writes.
+- Local collections are capped before persistence.
 - Campaign generation and sending are bounded per run and skip duplicate sent recipients.
 - Provider HTTP errors are surfaced with sanitized response bodies.
-- Backend rate limiting is installed globally through `ThrottlerGuard`.
-- Production backend startup requires explicit `CORS_ORIGINS`, a database URL, Supabase auth config, and a strong `LICENSE_KEY_PEPPER`.
+- Backend rate limiting is installed globally.
+- Production backend startup requires explicit `CORS_ORIGINS`, database URL, Supabase auth config, and a strong `LICENSE_KEY_PEPPER`.
+- Hosted production web builds block `/desktop` and `/local`.
+- Desktop activation asks business users only for an activation key.
+
+## Remaining Product Bar
+
+Every feature should meet these standards before release:
+
+- Real user action, not a placeholder.
+- Plain business wording.
+- Clear setup recovery when a provider is missing.
+- Local persistence where expected.
+- Sanitized errors.
+- Bounded scroll regions.
+- No raw secret logging.
+- Tests for validation, persistence, license, provider, or security-sensitive logic when touched.
 
 ## Verification
 
 Required checks for this restoration:
 
-- `cargo test` in `frontend/src-tauri`
-- `cargo check` in `frontend/src-tauri`
-- `cargo clippy --all-targets -- -D warnings` in `frontend/src-tauri`
-- `npm run typecheck` in `frontend`
-- `npm run build` in `frontend`
-- `npm audit --audit-level=moderate` in `frontend`
-- `npm run audit:rust` in `frontend`
-- `npm test` in `backend`
-- `npm run build` in `backend`
-- `npm audit --audit-level=moderate` in `backend`
+```bash
+cd backend
+npm test
+npm run build
+npm audit --audit-level=low
+
+cd ../frontend
+npm run typecheck
+npm run build
+npm run build:tauri
+npm audit --audit-level=low
+npm run audit:rust
+
+cd src-tauri
+cargo test
+cargo clippy --all-targets -- -D warnings
+```
+
+When shipping desktop software, also run:
+
+```bash
+cd frontend
+npm run tauri:build
+```

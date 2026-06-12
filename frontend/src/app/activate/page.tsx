@@ -66,7 +66,7 @@ export default function ActivatePage() {
           <div className="mb-6 flex gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-300">
             <Warning weight="fill" className="mt-0.5 h-5 w-5 shrink-0" />
             <p>
-              This page is open in a browser. License activation writes local entitlement state and
+              This page is open in a browser. License activation stores access on this computer and
               must be completed inside Co-Op Desktop.
             </p>
           </div>

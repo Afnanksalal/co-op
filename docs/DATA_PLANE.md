@@ -1,71 +1,160 @@
 # Local Data Plane
 
-Co-Op ships as local-first desktop software. The cloud backend is the license and account control plane; customer business memory lives on the installed machine unless the customer explicitly configures an external model, research, email, or integration provider.
+Co-Op ships as local-first desktop software. The cloud backend is the account and license control plane. Customer business memory lives on the installed machine unless the customer explicitly configures an external AI, research, email, or integration provider.
+
+## Default Storage Model
 
 ```mermaid
 flowchart TD
   Desktop["Co-Op Desktop"]
-  State["state.json<br/>profile, work, chats, leads, settings summaries"]
-  Files["knowledge.sqlite3<br/>company files and searchable sections"]
-  Secrets["OS credential store<br/>license token and private keys"]
-  AI["Owner-selected AI"]
-  Cloud["Cloud license plane"]
+  State["state.json<br/>profile, settings summaries, chats, plans, customers, history"]
+  Files["knowledge.sqlite3<br/>company files, sections, search rows, matching data"]
+  Secrets["OS credential store<br/>activation token and private keys"]
+  Cloud["Cloud license API"]
+  Provider["Customer-selected providers"]
 
   Desktop --> State
   Desktop --> Files
   Desktop --> Secrets
-  Desktop --> AI
-  Desktop -->|"activation + heartbeat only"| Cloud
+  Desktop -->|"activation, heartbeat, deactivation"| Cloud
+  Desktop -->|"only when configured"| Provider
 ```
+
+The default build does not require Docker, Neo4j, Qdrant, LanceDB, Turbopuffer, or a hosted matching service.
 
 ## What Ships In The Desktop Build
 
-The default desktop build does not require Docker, Neo4j, Qdrant, LanceDB, or a hosted matching service.
+`state.json` stores lightweight local application state:
 
-Runtime storage:
+- Entitlement snapshot.
+- Company profile and onboarding state.
+- Provider setting summaries.
+- Chat sessions.
+- Work plan history.
+- Research runs.
+- Leads, campaigns, generated email status, and send status.
+- Alerts.
+- Pitch deck analyses.
+- Cap table scenarios.
+- Bookmarks.
+- Integrations.
+- Saved file summaries.
 
-- `state.json` in the Tauri app data directory stores lightweight application state: workspace profile, model settings, chat history, research, outreach, campaigns, alerts, pitch analyses, cap tables, integrations, work runs, and file summaries.
-- `knowledge.sqlite3` in the Tauri app data directory stores company files, saved sections, section counts, content hashes, content sizes, section order, token counts, and compact binary matching data. It uses SQLite WAL mode, schema upgrades, full-text candidate search, deterministic local matching, duplicate-content protection, and hybrid scoring.
-- OS credential storage stores activation tokens and provider keys.
-- `rag.rs` sections documents locally with overlap-aware chunking and creates deterministic 128-dimension matching data for embedded search.
-- `knowledge_store.rs` owns the embedded file database, legacy JSON migration, local schema upgrades, duplicate-content handling, full-text candidate filtering, compact data serialization, diversified context assembly, and hybrid local search.
-- `graph.rs` derives a local business memory snapshot from workspace profile, files, research runs, leads, campaigns, campaign emails, and work history.
-- Lead discovery uses the customer's locally configured web search provider to find source-backed leads, then saves lead records and the research source list locally.
-- Chat and work prompts receive startup workspace context, local business memory context, and optional company file context before calling the selected provider.
+`knowledge.sqlite3` stores company file intelligence:
 
-This means a normal business owner can install Co-Op, activate with a license key, select Ollama or an OpenAI-compatible BYOK provider, and run the product without managing databases.
+- Documents.
+- Sections.
+- Content hashes.
+- Content sizes.
+- Section order.
+- Token counts.
+- Full-text search rows.
+- Compact deterministic matching data.
+- Schema version and migrations.
 
-## Self-Host Data Plane Option
+OS credential storage stores:
 
-For larger teams, a separate self-host bundle can be added later without changing the cloud license boundary:
+- Activation token.
+- Customer AI provider key.
+- Firecrawl key.
+- Resend or SendGrid key.
+- Integration secrets when supported.
 
-- Neo4j for durable relationship memory, relationship queries, and hybrid relationship/file search.
-- Qdrant for a Docker-friendly matching database when teams want a managed local service.
-- LanceDB for embedded, file-backed matching storage when Co-Op needs more scalable local retrieval without a separate daemon.
-- Turbopuffer only when a customer accepts a managed cloud/search dependency; it is not a local-first self-host default.
+## File Intelligence
 
-Recommended product shape:
+The embedded file store uses SQLite because it gives a stable local database without making business owners run infrastructure.
 
-- Default: embedded local state plus derived business memory, zero Docker.
-- Team self-host: optional Docker Compose profile with Neo4j and a matching service.
-- Enterprise: customer-managed relationship/search endpoints configured as local integrations.
+It provides:
+
+- In-place schema upgrades.
+- WAL mode for safer local writes.
+- Duplicate-content handling through content hashes.
+- Full-text candidate search.
+- Deterministic compact matching data.
+- Hybrid scoring across title, source, content, business terms, section order, and local matching.
+- Bounded excerpts for chat and work plans.
+
+This is not a cloud vector database. It is an embedded local search layer designed to be reliable on ordinary business laptops.
+
+## Local Business Memory
+
+`graph.rs` derives a local business memory snapshot from:
+
+- Company profile.
+- Company files.
+- Research runs.
+- Leads and campaigns.
+- Campaign emails.
+- Work history.
+
+The UI should call this "what Co-Op remembers" or "business memory." It should not expose graph terminology to normal owners.
+
+## Performance Rules
+
+- Keep local collections capped before persistence.
+- Bound file size and section count before indexing.
+- Deduplicate repeated content.
+- Limit context excerpts sent to providers.
+- Prefer local embedded storage as the default path.
+- Treat external memory/search services as optional derived indexes.
+- Keep the app usable on normal laptops without Docker.
+
+## Optional Self-Host Data Plane
+
+Larger teams may eventually need a self-host profile. That should be optional and explicit.
+
+Recommended direction:
+
+```mermaid
+flowchart LR
+  Desktop["Desktop app"]
+  Embedded["Embedded SQLite fallback"]
+  Neo4j["Optional Neo4j<br/>relationship memory"]
+  Vector["Optional local matching service<br/>Qdrant or LanceDB"]
+  Cloud["Cloud license API"]
+
+  Desktop --> Embedded
+  Desktop -. "team profile" .-> Neo4j
+  Desktop -. "team profile" .-> Vector
+  Desktop -->|"license only"| Cloud
+```
+
+Default:
+
+- Embedded local state.
+- Embedded local company file search.
+- Derived business memory.
+- No Docker.
+
+Team self-host:
+
+- Optional Docker Compose profile.
+- Neo4j for durable relationship queries.
+- Qdrant or LanceDB for larger local matching workloads.
+- Health checks and fallback to embedded storage.
+
+Enterprise:
+
+- Customer-managed relationship/search endpoints.
+- Explicit admin settings.
+- Local embedded fallback.
+
+Turbopuffer or other managed cloud search should only be used when a customer intentionally accepts that external dependency. It is not the local-first default.
 
 ## Migration Rules
 
-- Do not move workspace, prompts, outputs, documents, or matching data into the cloud license plane.
-- Do not require Docker for the normal desktop install.
-- Add external memory/search services behind explicit settings and health checks.
-- Keep local embedded storage as the fallback path so business work still runs if an optional service is offline.
-- Treat external memory/search sync as derived data. `state.json` remains the source of truth for lightweight orchestration state; `knowledge.sqlite3` is the source of truth for local file retrieval.
+- Do not move workspace data, prompts, outputs, files, or matching data into the cloud license plane.
+- Do not require Docker for a normal desktop install.
+- Add optional memory/search services behind explicit settings and health checks.
+- Keep embedded storage as the fallback path.
+- Treat external indexes as derived data.
+- Keep `state.json` and `knowledge.sqlite3` as local sources of truth for the default product.
 
-## Embedded Retrieval Bar
+## Failure Behavior
 
-The default file intelligence layer is designed for normal owner/operator use without Docker:
+If optional research, email, AI, or memory services are not configured:
 
-- Exact duplicate content updates one remembered file instead of bloating the index.
-- Search combines file title/source matches, full-text candidate ranking, deterministic local matching, business-term expansion, section order, and result diversity.
-- Chat and work plans receive bounded evidence excerpts so a single large file cannot flood the prompt.
-- Existing local databases are upgraded in place when new metadata columns are added.
-- The cloud license plane never receives file content or matching data.
-
-For larger teams, add a customer-selectable embedding provider and an optional self-host service behind explicit settings and health checks. The embedded SQLite path must remain the default fallback so Co-Op still works without a database administrator.
+- The feature should explain the missing setup in plain language.
+- The app should not pretend work succeeded.
+- Local features that do not need that service should continue working.
+- No placeholder or fake result should be saved.

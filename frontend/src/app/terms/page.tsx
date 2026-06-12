@@ -1,76 +1,52 @@
-'use client';
+import type { Metadata } from 'next';
+import { LegalShell } from '@/components/legal/legal-shell';
 
-import Link from 'next/link';
-import { ArrowLeft } from '@phosphor-icons/react';
-import { Button } from '@/components/ui/button';
+export const metadata: Metadata = {
+  title: 'Terms of Service',
+  description: 'Terms for Co-Op accounts, license activation, desktop software, and local-first workflows.',
+};
 
 export default function TermsPage() {
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border/50">
-        <div className="mx-auto flex h-16 max-w-4xl items-center justify-between px-6">
-          <Link href="/" className="font-serif text-xl font-semibold tracking-normal">Co-Op</Link>
-          <Link href="/">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft weight="bold" className="h-4 w-4" />
-              Back
-            </Button>
-          </Link>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-4xl px-6 py-16">
-        <h1 className="mb-4 font-serif text-4xl font-medium tracking-normal">Terms of Service</h1>
-        <p className="mb-12 text-muted-foreground">Last updated: June 11, 2026</p>
-
-        <div className="space-y-8">
-          <section>
-            <h2 className="mb-4 font-serif text-2xl font-medium tracking-normal">1. Product Scope</h2>
-            <p className="leading-8 text-muted-foreground">
-              Co-Op provides local-first business management software. The cloud service manages accounts, downloads, payments, licenses, and device entitlement. Business workflows, local model settings, provider keys, and local state are handled in the installed desktop software unless you configure an external provider.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="mb-4 font-serif text-2xl font-medium tracking-normal">2. Accounts And Licenses</h2>
-            <p className="leading-8 text-muted-foreground">
-              You are responsible for keeping account credentials and license keys secure. Licenses may be bound to devices, seats, plans, expiration dates, and usage rules. We may suspend or revoke licenses for fraud, payment failure, abuse, or breach of these terms.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="mb-4 font-serif text-2xl font-medium tracking-normal">3. Local Data And Providers</h2>
-            <p className="leading-8 text-muted-foreground">
-              Co-Op Desktop is designed to keep business data local. If you connect Ollama, OpenAI-compatible endpoints, or other providers, your use of those services is governed by their terms and your configuration choices.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="mb-4 font-serif text-2xl font-medium tracking-normal">4. Acceptable Use</h2>
-            <ul className="list-inside list-disc space-y-2 text-muted-foreground">
-              <li>Do not reverse engineer license checks or bypass entitlement controls.</li>
-              <li>Do not use Co-Op for unlawful, abusive, or deceptive activity.</li>
-              <li>Do not share accounts, activation tokens, or license keys outside your licensed organization.</li>
-              <li>Review AI output before acting on it, especially for legal, financial, HR, or regulated decisions.</li>
-            </ul>
-          </section>
-
-          <section>
-            <h2 className="mb-4 font-serif text-2xl font-medium tracking-normal">5. Disclaimer</h2>
-            <p className="leading-8 text-muted-foreground">
-              Co-Op is business software, not a substitute for qualified professional advice. AI-generated output can be incomplete or incorrect. You are responsible for decisions made using the software.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="mb-4 font-serif text-2xl font-medium tracking-normal">6. Contact</h2>
-            <p className="leading-8 text-muted-foreground">
-              For legal questions, contact{' '}
-              <a href="mailto:legal@co-op.software" className="text-foreground underline">legal@co-op.software</a>.
-            </p>
-          </section>
-        </div>
-      </main>
-    </div>
+    <LegalShell
+      title="Terms of Service"
+      updated="June 12, 2026"
+      intro="These terms describe the intended commercial relationship for Co-Op: a cloud account and license service paired with installed local-first desktop business software."
+      sections={[
+        {
+          title: 'Product scope',
+          body: 'Co-Op provides local-first business management software. The cloud service manages accounts, downloads, payment and license status, licenses, activation, heartbeat, and revocation. The installed desktop app handles business workflows, local files, assistant/provider settings, local history, and company data.',
+        },
+        {
+          title: 'Accounts and licenses',
+          body: 'Customers are responsible for keeping account credentials and license keys secure. Licenses may be limited by plan, seats, devices, expiration, payment status, and permitted use. Co-Op may suspend or revoke access for fraud, payment failure, abuse, or breach of these terms.',
+        },
+        {
+          title: 'Customer data and providers',
+          body: 'The customer controls what data is placed into the desktop app and what providers are connected. Use of local assistant runtimes, private assistant providers, Firecrawl, email providers, or other integrations is governed by the customer configuration and the terms of those providers.',
+        },
+        {
+          title: 'Acceptable use',
+          items: [
+            'Do not bypass, reverse engineer, or tamper with license enforcement.',
+            'Do not use Co-Op for unlawful, deceptive, abusive, or rights-infringing activity.',
+            'Do not share activation tokens, license keys, or account access outside the licensed organization.',
+            'Review AI output before using it for legal, financial, HR, regulated, or high-impact decisions.',
+          ],
+        },
+        {
+          title: 'Software updates',
+          body: 'Co-Op may publish updates to improve security, compatibility, licensing behavior, and product functionality. Customers are responsible for installing updates needed for security and continued compatibility.',
+        },
+        {
+          title: 'Disclaimer',
+          body: 'Co-Op is business software and is not a substitute for qualified professional advice. AI-generated output can be incomplete, stale, or incorrect. Customers remain responsible for decisions made using the software.',
+        },
+        {
+          title: 'Contact',
+          body: 'For legal questions, contact contact@co-op.software.',
+        },
+      ]}
+    />
   );
 }

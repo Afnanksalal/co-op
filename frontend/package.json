@@ -39,6 +39,7 @@
     "@tauri-apps/api": "^2.11.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
+    "framer-motion": "^12.40.0",
     "next": "^16.2.9",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",

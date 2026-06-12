@@ -2,7 +2,16 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 const USER_ID_COOKIE = 'coop-user-id';
-const PUBLIC_ROUTES = ['/', '/login', '/privacy', '/terms', '/download', '/activate', '/desktop'];
+const PUBLIC_ROUTES = ['/', '/login', '/privacy', '/terms', '/download', '/activate'];
+
+function isHostedDesktopRoute(pathname: string): boolean {
+  return (
+    pathname === '/desktop' ||
+    pathname.startsWith('/desktop/') ||
+    pathname === '/local' ||
+    pathname.startsWith('/local/')
+  );
+}
 
 function isPublicRoute(pathname: string): boolean {
   return PUBLIC_ROUTES.includes(pathname) || pathname.startsWith('/auth/');
@@ -33,6 +42,15 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
+
+  if (isHostedDesktopRoute(pathname) && process.env.NODE_ENV === 'production') {
+    return new NextResponse(null, {
+      status: 404,
+      headers: {
+        'x-robots-tag': 'noindex, nofollow',
+      },
+    });
+  }
 
   if (!user && !isPublicRoute(pathname)) {
     const url = request.nextUrl.clone();

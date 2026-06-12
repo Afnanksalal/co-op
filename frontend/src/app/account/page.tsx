@@ -232,7 +232,7 @@ export default function AccountPage() {
                 'Download and install Co-Op Desktop.',
                 'Open the Activation tab in the desktop app.',
                 'Paste the activation key from this account center.',
-                'Choose local AI or a private AI provider in desktop setup.',
+                'Choose the assistant setup your business wants to use.',
               ].map((step, index) => (
                 <div
                   key={step}

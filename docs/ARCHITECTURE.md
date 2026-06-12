@@ -1,181 +1,174 @@
 # Architecture
 
-Co-Op is split into a cloud license plane and a local desktop business workspace.
+Co-Op is split into a hosted account and license service plus an installed desktop workspace. The hosted service proves entitlement. The installed app does the business work.
 
-See `docs/DATA_PLANE.md` for the local storage and optional self-host data decisions.
+## System Overview
 
 ```mermaid
 flowchart LR
-  Owner["Business owner"] --> Web["Co-Op web account"]
-  Web --> License["Cloud license plane"]
-  License -->|"license key + entitlement"| Desktop["Co-Op Desktop"]
-  Desktop --> LocalState["Local app state"]
-  Desktop --> Knowledge["Local company files store"]
-  Desktop --> Secrets["OS credential store"]
-  Desktop --> Provider["Owner-selected AI provider"]
-  Desktop --> Optional["Optional research / email services"]
+  Owner["Business owner"]
+  Browser["Hosted web app<br/>site, auth, account, admin"]
+  Supabase["Supabase Auth<br/>cloud users and sessions"]
+  API["NestJS license API<br/>licenses, activation, heartbeat"]
+  DB["PostgreSQL<br/>license tables"]
+  Desktop["Tauri desktop app<br/>local business workspace"]
+  AppData["Local app data<br/>state and file index"]
+  Keychain["OS credential store<br/>activation token and provider keys"]
+  AI["Customer-selected AI<br/>Ollama or BYOK endpoint"]
+  Services["Optional customer services<br/>Firecrawl, email, integrations"]
 
-  License -. "no prompts, files, provider keys, or outputs" .- Desktop
+  Owner --> Browser
+  Browser --> Supabase
+  Browser --> API
+  API --> Supabase
+  API --> DB
+  Owner --> Desktop
+  Desktop -->|"activate, heartbeat, deactivate"| API
+  Desktop --> AppData
+  Desktop --> Keychain
+  Desktop --> AI
+  Desktop --> Services
 ```
 
-## Planes
+The cloud license API does not store workflow prompts, model outputs, company files, outreach content, provider keys, or local run history.
 
-Cloud license plane:
+## Runtime Responsibilities
 
-- Authenticates cloud users through Supabase sessions.
-- Protects admin license generation and listing.
-- Stores license, activation, and license event records.
-- Accepts desktop activation, heartbeat, and deactivation calls.
-- Enforces license status, expiry, device limits, and offline grace windows.
+| Runtime | Owns | Must not own |
+| --- | --- | --- |
+| Hosted web app | Landing page, login, account center, software download, legal pages, admin license console | Customer business workflow execution |
+| Cloud backend | Health checks, license creation, self-service license lookup, activation, heartbeat, deactivation, revocation hooks, payment entitlement hooks | Business prompts, files, outputs, provider keys, campaign content |
+| Desktop app | Company onboarding, profile, files, local search, advisor chat, plans, research, customers, outreach, tools, settings, local run history | Account identity or license generation authority |
+| Local storage | Entitlement snapshot, company state, file index, local business memory, provider settings summaries | Raw secrets in plaintext state files |
+| OS credential store | Activation token and customer provider keys | Searchable business data |
 
-Local desktop data plane:
+## Hosted Web Route Boundary
 
-- Stores activation metadata in the Tauri app data directory and activation/provider secrets in OS credential storage.
-- Stores model routing settings locally.
-- Stores startup workspace, chat sessions, research runs, outreach data, campaigns, investor records, alerts, pitch analyses, cap tables, bookmarks, integrations, work history, and file summaries in local app state.
-- Stores company file content, sections, search rows, and compact matching data in a local SQLite knowledge store.
-- Runs business work plans, advisor chat, second-look review, company file search, business memory context, research synthesis, pitch analysis, personalized outreach, and tools through Ollama or a customer-configured OpenAI-compatible provider.
-- Uses customer-configured Firecrawl for live web research when enabled.
-- Uses customer-configured Resend or SendGrid keys for campaign email sending when enabled.
-- Sends the cloud backend only license and heartbeat data.
+`/desktop` and `/local` are not public production web products. They exist so the same Next.js code can render inside the Tauri bundle and during local development.
 
-## Request Flow
+```mermaid
+flowchart TD
+  Request["Request for /desktop or /local"] --> Mode{"Production hosted web?"}
+  Mode -- "Yes" --> NotFound["Return 404 and noindex headers"]
+  Mode -- "No" --> Render["Render local desktop shell"]
+  Tauri["Tauri static export<br/>NEXT_PUBLIC_TAURI=1"] --> Render
+```
+
+Production protection is implemented at both the route and proxy layers:
+
+- `frontend/src/app/desktop/page.tsx` returns `notFound()` for hosted production builds.
+- `frontend/src/proxy.ts` blocks `/desktop`, `/desktop/*`, `/local`, and `/local/*` in hosted production mode.
+- Desktop export/build scripts set the Tauri environment so the installed bundle can render the shell.
+
+## License Flow
 
 ```mermaid
 sequenceDiagram
   actor Owner as Business owner
-  participant Web as Co-Op account center
-  participant Cloud as License API
-  participant Desktop as Co-Op Desktop
-  participant Local as Local workspace
+  participant Web as Account center
+  participant API as License API
+  participant Desktop as Desktop app
+  participant Keychain as OS credential store
+  participant Local as Local app data
 
-  Owner->>Web: Signs in and creates activation key
-  Web->>Cloud: Requests license key
-  Cloud-->>Web: Shows key once
-  Owner->>Desktop: Enters license key
-  Desktop->>Cloud: Activates device
-  Cloud-->>Desktop: Entitlement + offline grace
-  Desktop->>Local: Stores entitlement snapshot and local data
-  Desktop-->>Owner: Starts three-step local onboarding
-  Owner->>Desktop: Adds business basics and first priority
-  Desktop->>Local: Saves local company profile
-  Desktop-->>Owner: Opens private workspace
+  Owner->>Web: Sign in
+  Web->>API: Request self-service license
+  API-->>Web: Show activation key once
+  Owner->>Desktop: Enter activation key
+  Desktop->>API: Activate with key and machine fingerprint hash
+  API-->>Desktop: Return activation token and entitlement
+  Desktop->>Keychain: Store activation token
+  Desktop->>Local: Store entitlement snapshot
+  Desktop-->>Owner: Open local onboarding
+  Desktop->>API: Periodic heartbeat
+  API-->>Desktop: Refreshed entitlement
 ```
 
-1. An admin creates a license from `/admin/licenses`.
-2. The backend stores only a keyed hash of the generated license key and returns the raw key once.
-3. The customer installs Co-Op Desktop and activates with the license key only.
-4. The desktop runtime sends the key, hashed machine fingerprint, generated device label, and install ID to `POST /api/v1/licenses/activate`.
-5. The backend returns an activation token and entitlement payload.
-6. The desktop runtime stores entitlement metadata locally and stores the activation token in OS credential storage.
-7. Heartbeats call `POST /api/v1/licenses/heartbeat` to refresh entitlement and offline grace.
-8. The desktop app asks only for minimum business context before the dashboard: business name, stage, customer, problem, offer, and first priority.
-9. Business work plans and product features run locally after entitlement is checked.
+The desktop activation UI asks for the activation key only. The backend URL is embedded at build time through `COOP_CLOUD_URL` or `NEXT_PUBLIC_API_URL`.
 
 ## Backend Components
 
-- `main.ts` configures HTTP security, explicit production CORS, request IDs, validation, and the `/api/v1` prefix.
-- `ThrottlerGuard` is installed globally so all endpoints share the configured rate-limit policy.
-- `HealthModule` exposes health checks.
-- `LicensesModule` exposes admin and desktop license endpoints.
-- `AdminGuard` requires a Supabase user with `app_metadata.role = "admin"`.
-- `license-crypto.ts` generates license keys and hashes license keys and activation tokens.
-- Drizzle schema files define `licenses`, `license_activations`, and `license_events`.
+- `main.ts` configures helmet, validation, request IDs, the `/api/v1` prefix, rate limiting, CORS, and production safety checks.
+- `HealthModule` exposes the service health endpoint.
+- `LicensesModule` exposes admin, self-service, activation, heartbeat, and deactivation flows.
+- `AdminGuard` requires a verified Supabase user with `app_metadata.role = "admin"`.
+- `AuthGuard` verifies Supabase sessions for account self-service routes.
+- `license-crypto.ts` generates display-safe license keys and keyed hashes.
+- `database/schema/licenses.schema.ts` defines `licenses`, `license_activations`, and `license_events`.
+- `scripts/migrate.mjs` applies schema migrations.
+- `scripts/backfill-supabase-users.mjs` creates initial licenses for existing Supabase users that do not already have one.
 
 ## Frontend Components
 
-- `/` presents the local-first desktop product.
-- `/login` handles cloud account sign-in.
-- `/download` gives customers the software download entry point.
-- `/account` is the authenticated customer center for activation-key generation.
-- `/activate` is a narrow desktop activation fallback route.
-- `/desktop` is the installed Tauri software shell.
-- The installed shell gates first run through a short local onboarding flow before the dashboard.
-- `/admin/licenses` lets admins generate and inspect licenses.
-- `src/lib/api/client.ts` talks to the cloud license API.
-- `src/lib/desktop/runtime.ts` wraps Tauri command calls.
-- `src-tauri/build.rs` embeds `COOP_CLOUD_URL` or `NEXT_PUBLIC_API_URL` into the desktop binary so activation asks business users only for the license key.
+- `/` presents the product in owner-facing language.
+- `/login` and `/signup` handle cloud account access.
+- `/account` is the customer account center for license status, activation key generation, and software download.
+- `/download` gives the installer entry point.
+- `/activate` is a narrow browser fallback for license activation guidance.
+- `/admin/licenses` is the admin license console.
+- `/privacy`, `/terms`, `/security`, and `/cookies` provide public legal and trust pages.
+- `/desktop` is for local development and Tauri rendering only, not hosted production access.
 
-## Desktop Runtime Components
+Desktop UI modules are under `frontend/src/components/desktop/`:
 
-Tauri commands:
+- `local-coop-shell.tsx` is the thin shell and route/state coordinator.
+- `panels/` contains feature panels such as Today, Ask, Plans, Company, Files, Research, Customers, Settings, and License.
+- `tools/` contains Money & Tools surfaces.
+- `shared.tsx` contains reusable desktop UI primitives.
+- `markdown.tsx` renders owner-facing assistant output safely and consistently.
 
-- `get_activation_state`
-- `activate_license`
-- `heartbeat_license`
-- `clear_activation`
-- `save_model_settings`
-- `save_workspace_profile`
-- `run_agent_chat`
-- `add_knowledge_document`
-- `search_knowledge`
-- `get_knowledge_graph`
-- `run_research_query`
-- `create_lead`
-- `discover_leads`
-- `create_campaign`
-- `generate_campaign_emails`
-- `send_campaign_emails`
-- `save_alert`
-- `run_alert_now`
-- `analyze_pitch_deck`
-- `save_cap_table`
-- `run_calculator`
-- `save_bookmark`
-- `save_integration`
-- `run_business_workflow`
-- `get_machine_fingerprint`
+## Tauri Runtime Components
 
-The runtime is modularized across license, settings, workspace, chat, file memory, business memory, research, outreach, tools, providers, storage, validation, security, secrets, types, and constants modules. It validates URLs, providers, model names, answer budgets, work types, workspace profile fields, document sizes, email addresses, cap-table percentages, calculators, campaign email length, and objective length before persistence or network calls.
+Tauri commands are registered in `frontend/src-tauri/src/lib.rs` and delegated to focused modules:
 
-## Storage Boundaries
+| Module | Responsibility |
+| --- | --- |
+| `license.rs` | Activation, heartbeat, deactivation, entitlement checks. |
+| `settings.rs` | Provider, research, email, and integration settings. |
+| `workspace.rs` | Company profile and onboarding state. |
+| `chat.rs` | Advisor chat, sessions, review gates, and prompt assembly. |
+| `rag.rs` | Local document sectioning and compact matching data. |
+| `knowledge_store/` | SQLite schema, migrations, document storage, search, and tests. |
+| `graph.rs` | Derived local business memory from profile, files, research, customers, and work. |
+| `research.rs` | Research jobs and source-backed summaries. |
+| `outreach.rs` | Leads, campaigns, personalization, and email sending. |
+| `tools.rs` | Calculators, pitch review, cap table, bookmarks, and local tools. |
+| `providers.rs` | Ollama, OpenAI-compatible, Firecrawl, Resend, and SendGrid adapters. |
+| `storage.rs` | Local state read/write and retention caps. |
+| `validation.rs` | Input, URL, provider, objective, email, and data validation. |
+| `security.rs` | Fingerprinting and safe serialization helpers. |
+| `secrets.rs` | OS credential storage. |
+| `types/` | Typed command payloads and state DTOs split by domain. |
 
-Cloud database:
+## Local Data Stores
 
-- License metadata
-- License hashes
-- Activation token hashes
-- Device activation rows
-- License event audit rows
+```mermaid
+flowchart TD
+  State["state.json"]
+  SQLite["knowledge.sqlite3"]
+  Secrets["OS credential store"]
+  State -->|"profile, settings summaries, chats, runs, leads, campaigns"| Desktop["Desktop runtime"]
+  SQLite -->|"documents, sections, search rows, matching data"| Desktop
+  Secrets -->|"activation token, provider keys"| Desktop
+```
 
-Desktop app data:
-
-- Entitlement snapshot
-- Machine fingerprint hash
-- Provider settings
-- Startup workspace
-- Chat sessions
-- Company file summaries in `state.json`
-- Company file content, sections, search rows, and binary matching data in `knowledge.sqlite3`
-- Derived local business memory snapshots
-- Research runs
-- Outreach leads, campaigns, generated emails, and send status
-- Investor records
-- Alerts
-- Pitch deck analyses
-- Cap table scenarios
-- Bookmarks
-- Integrations
-- Workflow run history
-
-OS credential storage:
-
-- Activation token
-- Bring-your-own-key provider API key
-- Firecrawl key
-- Email-provider key
+- `state.json` stores lightweight local app state and excludes raw secrets.
+- `knowledge.sqlite3` stores local company documents, sections, search rows, and compact matching data.
+- OS credential storage keeps activation and provider secrets out of plaintext state.
 
 ## Scaling Model
 
-The cloud API scales horizontally because it is stateless outside PostgreSQL/Supabase and request validation. License activation depends on database uniqueness constraints for active device binding. Workflow load scales with the customer's desktop machine or selected provider, not with the Co-Op cloud backend.
+The backend scales horizontally because it is stateless outside PostgreSQL/Supabase and validation. License activation uses database constraints and status checks for device binding. Business workflow load scales with the customer's machine or chosen provider rather than the Co-Op cloud backend.
+
+The desktop storage path is embedded by default so normal customers do not need Docker or database administration. Optional team self-host memory/search services can be added later without changing the cloud license boundary.
 
 ## Security Boundaries
 
 - License keys are shown once and stored only as keyed hashes.
-- Activation tokens are stored only as hashes in the backend.
+- Activation tokens are stored only as keyed hashes in the backend.
 - Machine fingerprints are hashed before leaving the desktop runtime.
-- Public HTTP provider URLs are rejected outside localhost and private networks.
-- Production backend startup fails without a strong `LICENSE_KEY_PEPPER` and explicit `CORS_ORIGINS`.
-- Desktop state serialization excludes raw activation tokens and provider keys.
-- Local state collections are capped before persistence to prevent unbounded state growth.
-- Customer business prompts and outputs do not enter the cloud license plane.
+- Provider API keys are stored locally in OS credential storage.
+- Public insecure provider URLs are rejected outside localhost and private networks.
+- Production backend startup requires a strong `LICENSE_KEY_PEPPER` and explicit `CORS_ORIGINS`.
+- Hosted production web builds block desktop routes.
+- Customer business prompts, files, and outputs do not enter the cloud license plane.

@@ -37,7 +37,7 @@ const activationSteps = [
   },
   {
     title: 'Activate locally',
-    description: 'The desktop app stores entitlement and works through offline grace.',
+    description: 'The desktop app keeps license access available during short connection gaps.',
     icon: CheckCircle,
   },
 ];
@@ -61,8 +61,8 @@ export default function DownloadPage() {
             </Badge>
             <h1 className="text-4xl font-semibold tracking-normal">Download Co-Op Desktop</h1>
             <p className="mt-3 max-w-2xl text-muted-foreground">
-              Install the desktop app, activate with your license key, then choose local AI or a
-              private AI provider inside the app.
+              Install the desktop app, activate with your license key, then choose the assistant
+              setup your business wants to use.
             </p>
           </div>
           <Image

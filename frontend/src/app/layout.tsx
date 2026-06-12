@@ -13,27 +13,38 @@ const playfair = Playfair_Display({
   variable: '--font-serif',
 });
 
-const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+const configuredSiteUrl = process.env.NEXT_PUBLIC_APP_URL;
+const isLocalSiteUrl =
+  configuredSiteUrl?.includes('localhost') || configuredSiteUrl?.includes('127.0.0.1');
+const siteUrl =
+  process.env.NODE_ENV === 'production' && isLocalSiteUrl
+    ? 'https://co-op.software'
+    : configuredSiteUrl || 'https://co-op.software';
+const productName = 'Co-Op';
+const productTitle = 'Co-Op | Local-First Business Management Software';
+const productDescription =
+  'Co-Op is local-first desktop software for managing company context, plans, research, customer follow-up, and business decisions with cloud license access.';
 
 export const metadata: Metadata = {
   title: {
-    default: 'Co-Op | Local-First Business Orchestration',
+    default: productTitle,
     template: '%s | Co-Op',
   },
-  description:
-    'Co-Op is local-first business management software with cloud licensing, desktop activation, local AI, and private provider support.',
+  description: productDescription,
   keywords: [
     'local-first business software',
-    'business orchestration',
-    'desktop AI software',
-    'Ollama business app',
-    'private AI provider',
+    'business management software',
+    'desktop business software',
+    'private company workspace',
+    'business planning software',
+    'customer follow-up software',
+    'private assistant business software',
+    'bring your own key business software',
     'license management software',
-    'self hosted business AI',
   ],
-  authors: [{ name: 'Co-Op', url: siteUrl }],
-  creator: 'Co-Op',
-  publisher: 'Co-Op',
+  authors: [{ name: productName, url: siteUrl }],
+  creator: productName,
+  publisher: productName,
   metadataBase: new URL(siteUrl),
   alternates: {
     canonical: '/',
@@ -42,26 +53,24 @@ export const metadata: Metadata = {
     type: 'website',
     locale: 'en_US',
     url: siteUrl,
-    siteName: 'Co-Op',
-    title: 'Co-Op | Local-First Business Orchestration',
-    description:
-      'Desktop business orchestration with local data, cloud licensing, local AI, and private provider support.',
+    siteName: productName,
+    title: productTitle,
+    description: productDescription,
     images: [
       {
-        url: '/logo.png',
-        width: 512,
-        height: 512,
-        alt: 'Co-Op local-first business orchestration',
+        url: '/software-dashboard.png',
+        width: 1280,
+        height: 720,
+        alt: 'Co-Op desktop dashboard showing company context, files, plans, customers, and research',
         type: 'image/png',
       },
     ],
   },
   twitter: {
-    card: 'summary',
-    title: 'Co-Op | Local-First Business Orchestration',
-    description:
-      'Desktop business orchestration with local data, cloud licensing, local AI, and private provider support.',
-    images: ['/logo.png'],
+    card: 'summary_large_image',
+    title: productTitle,
+    description: productDescription,
+    images: ['/software-dashboard.png'],
     creator: '@coop_ai',
     site: '@coop_ai',
   },
@@ -102,6 +111,7 @@ export const metadata: Metadata = {
   other: {
     'msapplication-TileColor': '#0f1012',
     'msapplication-config': '/browserconfig.xml',
+    'application-name': productName,
   },
 };
 
@@ -134,29 +144,63 @@ const themeScript = `
   })();
 `;
 
-// JSON-LD structured data for rich search results
-const jsonLd = {
-  '@context': 'https://schema.org',
-  '@type': 'SoftwareApplication',
-  name: 'Co-Op',
-  applicationCategory: 'BusinessApplication',
-  operatingSystem: 'Windows, macOS, Linux',
-  description:
-    'Local-first business management desktop software with cloud license control, local AI, and private provider support.',
-  url: siteUrl,
-  offers: {
-    '@type': 'Offer',
-    price: '0',
-    priceCurrency: 'USD',
+const jsonLd = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: productName,
+    url: siteUrl,
+    logo: `${siteUrl}/logo.png`,
   },
-  featureList: [
-    'Cloud license activation',
-    'Local desktop runtime',
-    'Local AI support',
-    'Private AI provider support',
-    'Local workflow orchestration',
-  ],
-};
+  {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: productName,
+    url: siteUrl,
+    description: productDescription,
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: productName,
+    applicationCategory: 'BusinessApplication',
+    operatingSystem: 'Windows, macOS, Linux',
+    description: productDescription,
+    url: siteUrl,
+    image: `${siteUrl}/software-dashboard.png`,
+    softwareVersion: '1.0.0',
+    featureList: [
+      'Local desktop workspace',
+      'Cloud license activation',
+      'Company file context',
+      'Business planning and research',
+      'Customer follow-up workflows',
+      'Private assistant and provider settings',
+    ],
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: [
+      {
+        '@type': 'Question',
+        name: 'Where does company work happen in Co-Op?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'Company work happens in the desktop app. The cloud account manages identity, downloads, license access, activation, and license status checks.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'Can Co-Op use local or private AI providers?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'Yes. Co-Op can use a local assistant or a private provider configured by the customer.',
+        },
+      },
+    ],
+  },
+];
 
 const apiOrigin = (() => {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL;
@@ -176,8 +220,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }}
         />
+        <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         {apiOrigin && <link rel="dns-prefetch" href={apiOrigin} />}

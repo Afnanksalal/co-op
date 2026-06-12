@@ -1,130 +1,179 @@
-# Advisor Orchestration
+# Local Advisor Orchestration
 
-Co-Op is a business operations harness, not a token-burning model debate product. The runtime uses one selected provider for the primary work plan and only adds review when the configured risk policy requires it.
+Co-Op runs business work through a local workflow harness. It should feel like a private workspace for owners, not a model debate console. The app uses one selected provider for the primary answer and adds review only when the configured risk policy requires it.
 
-The user-facing product should call these areas "advisors" and "review" instead of exposing implementation terms. Internal DTO names may stay stable for migration compatibility, but the interface should stay business-owner friendly.
+## Owner-Facing Language
+
+| Internal concept | Owner-facing wording |
+| --- | --- |
+| Agent | Advisor or Co-Op |
+| LLM | AI provider |
+| LLM council | Second look or review |
+| RAG | Company files |
+| Vector search | File search |
+| Knowledge graph | Business memory |
+| Model routing | AI setup |
+| Prompt harness | Work plan |
+
+Normal product screens should use the owner-facing wording. Internal names may remain in DTOs and modules where changing them would create migration risk.
+
+## Request Flow
 
 ```mermaid
 flowchart TD
-  Request["Owner asks Co-Op"] --> Validate["Validate request"]
-  Validate --> Context["Attach company profile, files, and memory"]
-  Context --> Primary["Run selected AI provider"]
-  Primary --> Risk{"Extra review needed?"}
-  Risk -- "No" --> Save["Save local work record"]
-  Risk -- "Yes" --> Review["Run review pass"]
-  Review --> Save
-  Save --> Result["Return answer to owner"]
+  Ask["Owner asks a question or starts a plan"]
+  License["Check local license entitlement"]
+  Validate["Validate request and settings"]
+  Context["Attach company profile, files, memory, and optional research"]
+  Provider["Run selected AI provider"]
+  Review{"Review required?"}
+  Save["Save local history"]
+  Result["Show clear answer and next actions"]
+  Error["Show recoverable error"]
+
+  Ask --> License
+  License --> Validate
+  Validate --> Context
+  Context --> Provider
+  Provider --> Review
+  Review -- "No" --> Save
+  Review -- "Yes" --> Provider
+  Save --> Result
+  License -. "invalid" .-> Error
+  Validate -. "invalid" .-> Error
+  Provider -. "failed" .-> Error
 ```
 
-## Work Surface
+Every workflow is local-first. The cloud backend is contacted only for license activation, heartbeat, and entitlement state.
 
-The desktop runtime accepts these work areas:
+## Work Areas
 
-- `operations`
-- `finance`
-- `legal`
-- `sales`
-- `strategy`
+Desktop work plans support:
 
-Each work plan has a clear objective, a selected provider, a bounded answer budget, a local audit entry, and a concrete result or error. Objectives are validated before execution so empty or oversized requests never reach a provider.
+- Operations.
+- Finance.
+- Legal.
+- Sales.
+- Strategy.
 
-The desktop chat surface supports these advisor areas:
+Advisor chat supports:
 
-- `operations`
-- `legal`
-- `finance`
-- `investor`
-- `competitor`
-- `sales`
+- Operations.
+- Legal.
+- Finance.
+- Investor.
+- Competitor.
+- Sales.
 
-Each chat session can independently enable second-look review, company file context, live research context, and final review.
+Each run has:
+
+- A clear objective.
+- A selected provider.
+- A bounded answer budget.
+- Local context selection.
+- Review settings.
+- A local run record with status, steps, output, error, and timestamps.
 
 ## Provider Routing
 
-Supported provider modes:
+Supported AI providers:
 
-- `ollama`: default local execution through `http://localhost:11434`.
-- `openai_compatible`: customer-supplied API key and base URL for OpenAI-compatible chat completions.
-
-Provider settings are stored by the desktop runtime. Provider API keys are written to OS credential storage, and the cloud backend does not receive provider API keys, work prompts, or work outputs.
+- `ollama`: local execution through the configured local Ollama URL.
+- `openai_compatible`: customer-provided API key and base URL for OpenAI-compatible chat completions.
 
 Supported research modes:
 
-- `llm`: model-only research synthesis using the configured local/BYOK provider.
+- `llm`: synthesis using the configured AI provider without live web sources.
 - `firecrawl`: live web research using the customer's locally stored Firecrawl key.
 
-The desktop Research tab exposes owner-friendly research jobs that map to the same local runtime:
+Supported email sending modes:
 
-- Market scan: trends, categories, demand signals, competitors, buyers, and openings.
+- `none`: generate drafts locally without sending.
+- `resend`: send through the customer's locally stored Resend key.
+- `sendgrid`: send through the customer's locally stored SendGrid key.
+
+Provider keys are stored in OS credential storage. The cloud license backend never receives provider keys, prompts, outputs, files, campaign content, or local run history.
+
+## Review Policy
+
+Review should reduce risk without wasting tokens or slowing every answer.
+
+| Review level | Behavior |
+| --- | --- |
+| No extra review | Run one primary answer only. |
+| Standard review | Run one concise review pass after the primary answer. |
+| Sensitive work only | Review only finance, legal, strategy, or high-risk objectives. |
+| Full review | Review every chat or plan and include the configured second-look behavior. |
+
+High-risk triggers include contracts, compliance, payroll, payments, banking, investors, board decisions, acquisitions, terminations, security, privacy, legal commitments, and major customer promises.
+
+Co-Op must not fan out the same prompt to several providers by default.
+
+## Company Context
+
+The harness may attach:
+
+- Company profile from onboarding and Company settings.
+- Saved company files from the local file store.
+- Local business memory derived from profile, files, research, customers, campaigns, and work history.
+- Current customer list and campaigns when relevant.
+- Recent work history when it helps continuity.
+- Live research only when the customer enables it and configures a research provider.
+
+All context is bounded before it reaches the selected provider so one large file or old run cannot flood the request.
+
+## Research Jobs
+
+Research should return useful business material, not generic essays. The desktop Research tab maps simple owner choices to local runtime jobs:
+
+- Market scan: categories, demand signals, competitors, buyers, and openings.
 - Competitors: alternatives, positioning, strengths, weaknesses, and gaps.
 - Customers: buyer segments, pains, triggers, objections, and outreach angles.
 - Pricing: packaging, value metrics, pricing models, and willingness-to-pay signals.
 - Investor brief: market momentum, investor fit, funding signals, and diligence questions.
 - Risk check: market, legal, operating, security, and execution risks.
 
-Research depth controls source volume and output length:
+Depth controls the work:
 
-- Quick: 3 live sources when web research is enabled; short bullets and one next move.
-- Standard: 5 live sources; key findings, evidence, risks, and next actions.
-- Deep: 8 live sources; grouped evidence, tradeoffs, uncertainties, and a practical action plan.
+- Quick: small source set and short action-oriented answer.
+- Standard: balanced source set, evidence, risks, and next actions.
+- Deep: broader evidence, tradeoffs, unknowns, and practical action plan.
 
-Research outputs must be written for business owners, not analysts or developers. Reports should use plain language and stable sections: quick answer, what matters, evidence, risks or unknowns, and next moves. If live sources are unavailable, the output must clearly state that it is assistant-only and avoid invented citations.
+If live web sources are unavailable, the output must clearly state that it is based on the configured assistant only and must not invent citations.
 
-Lead discovery is a web-search workflow. It must use `firecrawl` research, build the search from the owner's brief plus company profile context, extract only source-backed people or companies, dedupe against locally saved leads, and store the resulting leads locally. Do not fall back to model-only lead invention.
+## Lead Discovery
 
-Supported campaign email modes:
+Lead discovery is a source-backed research workflow:
 
-- `none`: campaign emails can be generated locally but not sent.
-- `resend`: sends through the customer's locally stored Resend key.
-- `sendgrid`: sends through the customer's locally stored SendGrid key.
+1. Build the search from the owner's brief plus company profile context.
+2. Require live research configuration.
+3. Extract only source-backed people or companies.
+4. Deduplicate against locally saved leads.
+5. Save resulting leads locally.
+6. Preserve source URLs and reasoning in local history.
 
-## Review Policy
-
-Review level is a guardrail:
-
-- No extra review: run only the primary response.
-- Standard review: run one concise review pass after the primary response.
-- Sensitive work only: run the review pass only for sensitive work areas or risky objectives.
-- Full review: run the review gate for every chat/work request and include second-look review when enabled in chat.
-
-High-risk review currently applies to `finance`, `legal`, and `strategy`, plus operational or sales objectives involving contracts, compliance, payroll, payments, banking, investors, board decisions, acquisitions, terminations, security, or privacy.
-
-This keeps cost and latency reasonable. Co-Op must not fan out the same prompt to several models by default.
-
-## Runtime Contract
-
-Every work run should:
-
-- Check the local license state before work starts.
-- Validate the work type and objective length.
-- Load the configured provider policy.
-- Attach local business memory so decisions can reference company entities and relationships.
-- Build a business-focused system prompt with privacy and human-approval guidance.
-- Run through the selected provider.
-- Apply the review gate only when policy requires it.
-- Store the latest run history locally, including status, steps, output, error, and timestamps.
-
-Every chat run should:
-
-- Load startup workspace context.
-- Attach local business memory derived from workspace, files, research, outreach, campaigns, and work history.
-- Attach local company file context when enabled.
-- Attach live Firecrawl research context when enabled and configured.
-- Run the selected advisor prompt.
-- Run second-look review when enabled.
-- Run final review when configured.
-- Store the entire session locally.
-- Respect local retention caps so chat and research history cannot grow without bound.
+Do not fall back to invented model-only leads.
 
 ## Output Standard
 
-Workflow output should be actionable business material:
+Every answer should be written for an owner who needs to make progress:
 
-- Decisions, assumptions, risks, and next actions should be explicit.
-- Legal, finance, security, privacy, hiring, termination, payment, and compliance actions should be marked for human approval.
-- Missing facts should be requested instead of invented.
-- Sensitive business data should stay local unless the customer intentionally routes it to a configured external provider.
+- Start with the practical answer.
+- State assumptions and missing facts.
+- Include risks and approvals where needed.
+- Give concrete next actions.
+- Avoid technical terms unless the user is in Settings or documentation.
+- Mark legal, finance, security, privacy, hiring, termination, payment, and compliance actions for human review.
 
 ## Extending The Harness
 
-Add a new work type only when it has distinct validation needs, prompt behavior, UI affordances, or audit semantics. Keep provider adapters behind the existing routing contract so the local app remains the execution boundary.
+Add a new work type only when it has distinct validation needs, prompt behavior, UI affordances, or audit semantics.
+
+Before adding a provider:
+
+- Add validation.
+- Add secret storage behavior.
+- Add sanitized error handling.
+- Add tests for routing and missing-key behavior.
+- Update owner-facing settings UI.
+- Update this document and `docs/DATA_PLANE.md` if data boundaries change.

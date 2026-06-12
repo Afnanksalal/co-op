@@ -1,14 +1,24 @@
-# Co-Op Local-First Business Orchestration
-# Configure NEXT_PUBLIC_APP_URL for the canonical sitemap host.
+# Co-Op local-first business management software.
+# Public marketing and legal pages are crawlable. Account, auth, admin,
+# and app-preview surfaces are intentionally not crawler targets.
 
 User-agent: *
 Allow: /
+Allow: /download
+Allow: /privacy
+Allow: /terms
+Allow: /security
+Allow: /cookies
+Allow: /llms.txt
+Allow: /software-dashboard.png
 Disallow: /api/
+Disallow: /account/
+Disallow: /activate/
+Disallow: /admin/
 Disallow: /auth/
+Disallow: /desktop
+Disallow: /login
 Disallow: /_next/
 
-# Sitemaps
-Sitemap: /sitemap.xml
-
-# Crawl-delay for polite crawling
-Crawl-delay: 1
+# Sitemap
+Sitemap: https://co-op.software/sitemap.xml

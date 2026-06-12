@@ -1,79 +1,194 @@
 # Licensing
 
-Co-Op uses a cloud license plane with local desktop activation state. This matches the Autodesk-style model: customers sign in and pay in the cloud, then run installed software locally while the app periodically checks entitlement.
+Co-Op uses cloud license entitlement with local desktop activation state. Customers sign in on the web to manage their account and activation key, then run the installed desktop app locally.
 
-## License Records
+## Goals
 
-The backend stores:
+- Let business users activate the desktop app with one key.
+- Keep the cloud backend responsible for entitlement, device limits, revocation, and payment hooks.
+- Keep business workflows, prompts, files, and outputs out of the cloud license plane.
+- Store no raw license keys or activation tokens in the database.
+- Allow offline work for a controlled grace window after a successful heartbeat.
 
-- `customer_email`
-- keyed `license_hash`
-- display-safe `license_prefix`
-- `plan`
-- `status`
-- `seats`
-- `max_devices`
-- optional `expires_at`
-- metadata
+## License Tables
 
-The raw license key is returned only at creation time. It is never persisted by the backend.
+```mermaid
+erDiagram
+  licenses ||--o{ license_activations : has
+  licenses ||--o{ license_events : records
 
-## Activation Records
+  licenses {
+    uuid id
+    text customer_email
+    text license_hash
+    text license_prefix
+    text plan
+    text status
+    int seats
+    int max_devices
+    timestamptz expires_at
+    jsonb metadata
+    timestamptz created_at
+    timestamptz updated_at
+  }
 
-Each activation stores:
+  license_activations {
+    uuid id
+    uuid license_id
+    text install_id
+    text machine_fingerprint_hash
+    text activation_token_hash
+    text device_label
+    text app_version
+    text status
+    timestamptz activated_at
+    timestamptz last_seen_at
+  }
 
-- license ID
-- install ID
-- machine fingerprint hash
-- activation token hash
-- generated device label
-- app version
-- status
-- activation and heartbeat timestamps
+  license_events {
+    uuid id
+    uuid license_id
+    uuid activation_id
+    text event_type
+    jsonb metadata
+    timestamptz created_at
+  }
+```
 
-A unique partial index allows one active activation per license and machine fingerprint. Device limits are enforced by counting active activations for the license.
+## Stored Fields
 
-## License Lifecycle
+License records store:
 
-1. Admin creates a license with email, plan, seat count, device limit, expiry, and metadata.
+- Customer email.
+- Keyed `license_hash`.
+- Display-safe `license_prefix`.
+- Plan, status, seats, and maximum devices.
+- Optional expiry.
+- Operator metadata.
+- Creation and update timestamps.
+
+Activation records store:
+
+- License ID.
+- Install ID.
+- Machine fingerprint hash.
+- Activation token hash.
+- Generated device label.
+- App version.
+- Status.
+- Activation and heartbeat timestamps.
+
+The raw activation key is returned only at creation time and is not persisted.
+
+## Lifecycle
+
+```mermaid
+stateDiagram-v2
+  [*] --> Created
+  Created --> Active: issued to customer
+  Active --> Activated: desktop activation
+  Activated --> Heartbeat: periodic check
+  Heartbeat --> Activated: entitlement refreshed
+  Activated --> OfflineGrace: heartbeat missed
+  OfflineGrace --> Activated: heartbeat succeeds
+  OfflineGrace --> Blocked: grace elapsed
+  Active --> Revoked: admin/payment revocation
+  Activated --> Revoked: admin/payment revocation
+  Revoked --> [*]
+  Blocked --> [*]
+```
+
+1. Admin or self-service flow creates or retrieves an active license for the signed-in account.
 2. Backend generates a license key and stores a keyed hash.
-3. Desktop asks the customer only for the license key, then sends the key with install ID, generated device label, app version, and machine fingerprint hash.
-4. Backend validates license status, expiry, and device capacity.
-5. Backend returns an activation token and entitlement.
-6. Desktop stores the activation token and entitlement locally.
-7. Desktop sends heartbeats with activation token and machine fingerprint hash.
-8. Backend updates `last_seen_at` and returns a refreshed entitlement.
-9. Desktop can clear local activation, and the backend deactivation endpoint can mark the activation inactive.
+3. Account center shows the raw key once.
+4. Desktop asks the user only for the activation key.
+5. Desktop sends the key, install ID, app version, generated device label, and machine fingerprint hash to the backend.
+6. Backend validates license status, expiry, and device capacity.
+7. Backend returns an activation token and entitlement payload.
+8. Desktop stores the activation token in OS credential storage and stores entitlement metadata locally.
+9. Desktop sends heartbeat calls with the activation token and machine fingerprint hash.
+10. Backend updates `last_seen_at` and returns refreshed entitlement.
+11. Desktop can deactivate locally and ask the backend to mark the activation inactive.
+
+## Endpoints
+
+| Endpoint | Caller | Purpose |
+| --- | --- | --- |
+| `GET /api/v1/licenses` | Admin web user | List license records. |
+| `POST /api/v1/licenses` | Admin web user | Generate an admin-issued license. |
+| `GET /api/v1/licenses/mine` | Signed-in account user | Read account licenses. |
+| `POST /api/v1/licenses/self-service` | Signed-in account user | Create or retrieve an account activation key. |
+| `POST /api/v1/licenses/activate` | Desktop app | Activate one installed device. |
+| `POST /api/v1/licenses/heartbeat` | Desktop app | Refresh entitlement and last-seen state. |
+| `POST /api/v1/licenses/deactivate` | Desktop app | Deactivate the current install. |
+
+Admin endpoints require a Supabase user whose `app_metadata.role` is `admin`. Account self-service endpoints require a valid signed-in Supabase user.
 
 ## Offline Grace
 
-`LICENSE_OFFLINE_GRACE_DAYS` controls how long an active desktop entitlement remains usable after the latest successful heartbeat. The desktop runtime refuses workflow execution when status is not active, the license is expired, or offline grace has elapsed.
+`LICENSE_OFFLINE_GRACE_DAYS` controls how long an active desktop entitlement remains usable after the latest successful heartbeat.
 
-## Admin Access
+The desktop runtime refuses protected workflow execution when:
 
-Admin license endpoints require a valid Supabase session whose user metadata includes `app_metadata.role = "admin"`.
+- License status is not active.
+- License is expired.
+- Activation is missing.
+- Offline grace has elapsed.
+- Local activation state fails validation.
 
-Admin endpoints:
+The UI should explain the issue in plain language and offer a refresh or reactivation path.
 
-- `GET /api/v1/licenses`
-- `POST /api/v1/licenses`
+## Payment Entitlement Boundary
 
-Desktop endpoints:
+Payment providers should update license status, expiry, plan, seats, max devices, and metadata through trusted server-side code. Payment webhooks must never expose raw activation keys or activation tokens.
 
-- `POST /api/v1/licenses/activate`
-- `POST /api/v1/licenses/heartbeat`
-- `POST /api/v1/licenses/deactivate`
+Recommended payment events:
 
-## Payment Integration Boundary
+- Payment succeeded: activate or extend entitlement.
+- Subscription changed: update plan, seats, max devices, or expiry.
+- Payment failed: mark at risk or set a short grace period.
+- Subscription canceled: set expiry or revoke at the configured business point.
+- Chargeback or abuse: revoke license and record an event.
 
-Payment providers should update license status, expiry, plan, seats, max devices, and metadata through a trusted server-side path. Payment webhooks must not expose raw license keys or activation tokens.
+## Backfill Existing Users
 
-## Rotation And Recovery
+If Supabase users existed before the license tables were deployed, run:
 
-`LICENSE_KEY_PEPPER` is part of the keyed license hash. Rotating it invalidates existing hashes unless a migration supports dual verification. Treat rotation as a planned security event with customer support coverage.
+```bash
+cd backend
+SUPABASE_SERVICE_KEY=... npm run licenses:backfill-users
+```
 
-Lost license keys should be handled by issuing a replacement license and revoking the old one. Do not build a raw-key recovery path.
+The script:
 
-## Existing Account Backfill
+- Reads Supabase users with the service role key.
+- Skips users that already have an active unexpired license.
+- Creates one active solo license per missing user.
+- Writes raw one-time activation keys to `license-backfill-*.csv`.
 
-The first production deploy must run `npm run db:migrate` before the account center reads license data. If Supabase users already existed before licensing was introduced, run `npm run licenses:backfill-users` from `backend/` with `SUPABASE_SERVICE_KEY` set. The backfill creates one active solo license for users that do not already have an active unexpired license and writes the raw one-time keys to a private CSV.
+Treat the CSV as a secret distribution artifact. Delete it after delivery or rotate the generated keys.
+
+## Pepper Rotation
+
+`LICENSE_KEY_PEPPER` is part of the keyed license and activation-token hash. Rotating it invalidates existing hashes unless the backend supports dual verification during a migration window.
+
+Do not rotate casually. Plan rotation as a security event with:
+
+- New pepper deployment.
+- Dual-read migration or license reissue strategy.
+- Customer support plan.
+- Audit of affected activations.
+
+Lost activation keys should be handled by issuing a replacement key and revoking the old license. Do not build raw-key recovery.
+
+## Logging Rules
+
+Never log:
+
+- Raw activation keys.
+- Activation tokens.
+- Machine fingerprint source values.
+- Provider keys.
+- Customer prompts or workflow outputs.
+
+Log only safe identifiers such as request IDs, license prefixes, event types, and sanitized errors.

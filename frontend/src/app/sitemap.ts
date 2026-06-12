@@ -1,6 +1,12 @@
 import { MetadataRoute } from 'next';
 
-const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+const configuredSiteUrl = process.env.NEXT_PUBLIC_APP_URL;
+const isLocalSiteUrl =
+  configuredSiteUrl?.includes('localhost') || configuredSiteUrl?.includes('127.0.0.1');
+const siteUrl =
+  process.env.NODE_ENV === 'production' && isLocalSiteUrl
+    ? 'https://co-op.software'
+    : configuredSiteUrl || 'https://co-op.software';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
@@ -11,7 +17,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 1,
     },
     {
-      url: `${siteUrl}/login`,
+      url: `${siteUrl}/download`,
       lastModified: new Date(),
       changeFrequency: 'monthly',
       priority: 0.8,
@@ -27,6 +33,18 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: new Date(),
       changeFrequency: 'yearly',
       priority: 0.3,
+    },
+    {
+      url: `${siteUrl}/security`,
+      lastModified: new Date(),
+      changeFrequency: 'yearly',
+      priority: 0.3,
+    },
+    {
+      url: `${siteUrl}/cookies`,
+      lastModified: new Date(),
+      changeFrequency: 'yearly',
+      priority: 0.2,
     },
   ];
 }

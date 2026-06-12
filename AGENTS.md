@@ -21,6 +21,7 @@ Co-Op is local-first business management software with a cloud license control p
 - `frontend/` is the Next.js public site, account UI, admin license UI, and desktop UI shell.
 - `frontend/src-tauri/` is the Rust Tauri runtime that stores local activation state, model routing settings, and workflow run history.
 - `docs/` contains durable architecture, licensing, orchestration, and operations references.
+- Hosted production web builds must not expose the installed desktop shell. `/desktop` and `/local` routes are for Tauri/static desktop builds and local development only.
 
 ## Required Checks
 
@@ -46,7 +47,7 @@ cargo clippy --all-targets -- -D warnings
 
 ## Engineering Rules
 
-- Keep generated output out of the repo workspace after verification: `backend/dist`, `frontend/.next`, `frontend/out`, `frontend/out-tauri`, and `frontend/src-tauri/target`.
+- Keep generated output and transient local logs out of commits. Clean `backend/dist`, `frontend/.next`, `frontend/out`, `frontend/out-tauri`, local `*.log` files, and `*.tsbuildinfo` after verification. Keep `frontend/src-tauri/target/release/bundle/` only when intentionally delivering local release installers; do not commit generated binaries unless a maintainer explicitly asks for that release artifact to be versioned.
 - Prefer existing patterns and small, typed modules over broad rewrites.
 - Keep files maintainable by default: split new frontend screens before they exceed 300 lines, split shared frontend modules before 450 lines, and split Rust/backend domain modules before 600 lines unless a documented exception is added.
 - Keep frontend desktop shells thin. Page orchestration belongs in `frontend/src/components/desktop/panels/`, shared primitives in `frontend/src/components/desktop/shared.tsx`, owner-facing markdown rendering in `frontend/src/components/desktop/markdown.tsx`, and large feature surfaces in feature folders such as `frontend/src/components/desktop/tools/`.
@@ -57,6 +58,7 @@ cargo clippy --all-targets -- -D warnings
 - Add tests when changing license crypto, entitlement logic, provider routing, workflow validation, local state persistence, or security-sensitive behavior.
 - Do not reintroduce the removed mobile wrapper, hosted startup dashboard, separate vector service, or hosted document/chat modules without a recorded product decision.
 - Do not add demo-only dead ends, inactive buttons, fake success paths, or incomplete provider paths to production screens.
+- Do not add hosted access to the desktop software surface in production web mode. The desktop is shipped as installed software and should be rendered from the Tauri bundle.
 
 ## Documentation Rules
 
@@ -65,3 +67,4 @@ cargo clippy --all-targets -- -D warnings
 - Update `docs/AGENT_ORCHESTRATION.md` when workflow types, model routing, prompt contracts, or review gates change.
 - Update `docs/OPERATIONS.md` when build, audit, release, or incident procedures change.
 - Update `docs/PRODUCT_POSITIONING.md` when onboarding, owner-facing language, market positioning, or product pillars change.
+- Update `README.md`, `CONTRIBUTING.md`, and package-level README files when setup, release, or repository layout changes would confuse a new open-source contributor.

@@ -92,7 +92,7 @@ function LoginContent() {
         toast.success('Account created');
         router.replace(next);
       } else {
-        toast.success('Check your email for the confirmation link');
+        toast.success('Check your email to finish setting up your account');
       }
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -111,7 +111,7 @@ function LoginContent() {
     const supabase = createClient();
     await supabase.auth.signOut().catch(() => undefined);
     clearAllAuthStorage();
-    toast.success('Local session cleared');
+    toast.success('Browser session cleared');
     setIsLoading(false);
   }
 
@@ -125,18 +125,18 @@ function LoginContent() {
         </Link>
         <div className="max-w-md space-y-6">
           <h1 className="font-serif text-5xl font-medium leading-tight tracking-normal">
-            Cloud account for local-first software.
+            Your Co-Op account.
           </h1>
           <p className="text-lg leading-8 text-muted-foreground">
-            Manage licenses, downloads, payments, and device activations in the cloud while company
-            work runs inside Co-Op Desktop.
+            Manage license access, downloads, and billing from the web. Company work stays inside
+            Co-Op Desktop.
           </p>
           <div className="space-y-3 pt-6 text-sm text-muted-foreground">
             {[
-              'License ownership and billing in the control plane',
-              'Device-bound desktop activation',
-              'Local AI and private provider support',
-              'Local data plane for business orchestration',
+              'License access and billing in one account',
+              'Desktop activation for your business',
+              'Private assistant settings in the app',
+              'Company work kept on the computer',
             ].map((item) => (
               <div key={item} className="flex items-center gap-3">
                 <span className="h-1.5 w-1.5 rounded-full bg-foreground/50" />
@@ -157,12 +157,12 @@ function LoginContent() {
 
           <div className="mb-8">
             <h2 className="font-serif text-3xl font-medium tracking-normal">
-              {isSignUp ? 'Create account' : 'Welcome back'}
+              {isSignUp ? 'Create your account' : 'Sign in to Co-Op'}
             </h2>
             <p className="mt-2 text-sm text-muted-foreground">
               {isSignUp
-                ? 'Create an account to manage licenses and downloads.'
-                : 'Sign in to manage your license.'}
+                ? 'Use this account for license access, downloads, and billing.'
+                : 'Open your account center and license details.'}
             </p>
           </div>
 
@@ -219,7 +219,7 @@ function LoginContent() {
               </div>
 
               <Button type="submit" className="h-11 w-full" disabled={isLoading}>
-                {isLoading ? 'Working...' : isSignUp ? 'Create Account' : 'Sign In'}
+                {isLoading ? 'Please wait...' : isSignUp ? 'Create account' : 'Sign in'}
                 <ArrowRight weight="bold" className="h-4 w-4" />
               </Button>
             </form>
@@ -240,7 +240,7 @@ function LoginContent() {
               onClick={() => void resetLocalAuth()}
               className="block w-full text-center text-xs text-muted-foreground hover:text-foreground"
             >
-              Clear this browser session
+              Clear saved browser sign-in
             </button>
           </div>
         </div>

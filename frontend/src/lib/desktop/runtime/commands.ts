@@ -27,6 +27,16 @@ import type {
   WorkflowRun,
 } from './types';
 
+const webLockedState: DesktopState = {
+  ...previewState,
+  activation: null,
+  isUsable: false,
+};
+
+function canUseBrowserPreview(): boolean {
+  return process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_TAURI === '1';
+}
+
 export function isTauriRuntime(): boolean {
   if (typeof window === 'undefined') return false;
   return Boolean(
@@ -36,7 +46,7 @@ export function isTauriRuntime(): boolean {
 }
 
 export async function getActivationState(): Promise<DesktopState> {
-  if (!isTauriRuntime()) return previewState;
+  if (!isTauriRuntime()) return canUseBrowserPreview() ? previewState : webLockedState;
   return invokeDesktop<DesktopState>('get_activation_state');
 }
 

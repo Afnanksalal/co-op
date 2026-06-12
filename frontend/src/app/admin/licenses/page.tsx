@@ -72,7 +72,7 @@ export default function AdminLicensesPage() {
         <div>
           <h1 className="text-3xl font-semibold tracking-normal">License keys</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Generate device-bound desktop software licenses for paying customers.
+            Generate desktop software licenses for paying customers.
           </p>
         </div>
         <Button variant="outline" onClick={() => void refreshLicenses()}>

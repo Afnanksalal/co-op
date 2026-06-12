@@ -30,6 +30,7 @@ export function LocalCoOpShell() {
   const [error, setError] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [screenshotMode, setScreenshotMode] = useState(false);
   const runtimeAvailable = isTauriRuntime();
   const lockedView =
     runtimeAvailable &&
@@ -58,6 +59,10 @@ export function LocalCoOpShell() {
 
   useEffect(() => {
     void refresh();
+  }, []);
+
+  useEffect(() => {
+    setScreenshotMode(new URLSearchParams(window.location.search).get('screenshot') === '1');
   }, []);
 
   useEffect(() => {
@@ -195,32 +200,34 @@ export function LocalCoOpShell() {
         </div>
       </nav>
 
-      <div className="border-t border-border/40 p-3">
-        <div
-          className={`rounded-lg border border-border/50 bg-muted/30 p-3 ${collapsed ? 'flex justify-center' : ''}`}
-        >
-          {collapsed ? (
-            <ShieldCheck
-              className={`h-5 w-5 ${state?.isUsable ? 'text-green-600 dark:text-green-300' : 'text-amber-600 dark:text-amber-300'}`}
-            />
-          ) : (
-            <div className="min-w-0">
-              <div className="flex items-center justify-between gap-2">
-                <Badge variant={state?.isUsable ? 'success' : 'warning'}>
-                  {state?.isUsable ? 'Licensed' : 'Activation required'}
-                </Badge>
-                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                  Local
-                </span>
+      {!screenshotMode && (
+        <div className="border-t border-border/40 p-3">
+          <div
+            className={`rounded-lg border border-border/50 bg-muted/30 p-3 ${collapsed ? 'flex justify-center' : ''}`}
+          >
+            {collapsed ? (
+              <ShieldCheck
+                className={`h-5 w-5 ${state?.isUsable ? 'text-green-600 dark:text-green-300' : 'text-amber-600 dark:text-amber-300'}`}
+              />
+            ) : (
+              <div className="min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <Badge variant={state?.isUsable ? 'success' : 'warning'}>
+                    {state?.isUsable ? 'Licensed' : 'Activation required'}
+                  </Badge>
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Local
+                  </span>
+                </div>
+                <p className="mt-2 truncate text-xs text-muted-foreground">
+                  {state?.activation?.customerEmail ??
+                    (state ? 'Private on this computer' : 'Loading Co-Op')}
+                </p>
               </div>
-              <p className="mt-2 truncate text-xs text-muted-foreground">
-                {state?.activation?.customerEmail ??
-                  (state ? 'Private on this computer' : 'Loading Co-Op')}
-              </p>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </>
   );
 
@@ -282,22 +289,22 @@ export function LocalCoOpShell() {
         className={`fixed bottom-0 left-0 top-0 z-40 hidden flex-col border-r border-border/40 bg-background transition-[width] duration-300 md:flex ${sidebarCollapsed ? 'w-[72px]' : 'w-[260px]'}`}
       >
         <div className="flex h-16 items-center justify-between border-b border-border/40 px-4">
-          <button
-            type="button"
-            onClick={() => openView('dashboard')}
-            className={`flex min-w-0 items-center ${sidebarCollapsed ? 'justify-center' : ''}`}
-          >
-            {sidebarCollapsed ? (
-              <span className="font-serif text-base font-semibold tracking-normal">Co</span>
-            ) : (
+          {sidebarCollapsed ? (
+            <div aria-hidden="true" className="w-6" />
+          ) : (
+            <button
+              type="button"
+              onClick={() => openView('dashboard')}
+              className="flex min-w-0 items-center"
+            >
               <div className="min-w-0 text-left">
                 <p className="truncate font-serif text-lg font-semibold tracking-normal">Co-Op</p>
                 <p className="truncate text-xs text-muted-foreground">
                   {state?.workspace.companyName || 'Private business workspace'}
                 </p>
               </div>
-            )}
-          </button>
+            </button>
+          )}
           <Button
             variant="ghost"
             size="icon"
@@ -349,7 +356,7 @@ export function LocalCoOpShell() {
               : 'coop-page-scroll coop-scrollbar flex-col gap-5'
           }`}
         >
-          {!runtimeAvailable && (
+          {!runtimeAvailable && !screenshotMode && (
             <Notice
               tone="warning"
               text="This preview can show the interface. Install or run Co-Op Desktop to use local business tools."

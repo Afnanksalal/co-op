@@ -1,18 +1,29 @@
 # Product Positioning
 
-Research date: 2026-06-12
+Research baseline: 2026-06-12
 
-Co-Op is local-first business management software for owners who want one private place to plan, decide, research, follow up, and keep company context useful. The cloud exists for account, license, entitlement, payment, and software distribution. Daily business work stays on the installed desktop app.
+Co-Op is local-first business management software for owners who want one private place to plan, decide, research, follow up, and keep company context useful. The cloud exists for account, license, entitlement, payment, and software distribution. Daily business work happens in the installed desktop app.
+
+## Audience
+
+Primary users:
+
+- Founder-operators.
+- Small business owners.
+- Independent agencies and studios.
+- Early teams that need structured decisions, research, customer work, and operating follow-through.
+
+They are not buying a developer console. They need fewer blank pages, clearer next steps, and confidence that private company context is not being pushed into a hosted workflow product by default.
 
 ## Market Signal
 
-Comparable products point to five buyer expectations:
+Comparable products show five buyer expectations:
 
-- Shared business context: Notion Enterprise Search and ChatGPT Business position connectors and workspace knowledge as core value, not as a hidden technical feature.
-- Embedded action: HubSpot Breeze and Clay emphasize sales, marketing, service, enrichment, and growth workflows that turn data into outcomes.
-- Trust by default: business AI buyers expect clear privacy boundaries, admin controls, and explicit routing of sensitive data.
-- Guided setup: onboarding research favors quick first value, progressive disclosure, and contextual help over up-front education.
-- Guarded autonomy: modern agent frameworks emphasize state, tracing, human review, and controlled handoffs rather than unlimited autonomous action.
+- Shared company context should be a core feature, not a hidden technical feature.
+- Useful software should turn context into actions such as plans, research, follow-ups, and reviews.
+- Trust boundaries should be explicit and easy to understand.
+- Onboarding should reach first value quickly instead of requiring a long setup form.
+- Review and human approval matter more than unrestricted autonomy.
 
 Reference inputs:
 
@@ -27,16 +38,50 @@ Reference inputs:
 
 ## Position
 
-Co-Op should be positioned as:
+Use this as the product frame:
 
-> The private operating workspace for business owners: plan work, ask questions, use company files, research markets, prepare outreach, and keep decisions accountable without putting the company workflow in a hosted AI dashboard.
+> Co-Op is a private operating workspace for business owners. It helps plan work, use company files, research markets, prepare customer follow-up, and keep decisions accountable while business data stays on the installed app by default.
 
-Do not position Co-Op as:
+Avoid positioning Co-Op as:
 
 - A generic chatbot.
 - A hosted CRM clone.
-- A multi-agent research toy.
-- A developer workbench for prompts, vectors, graphs, and model debate.
+- A developer workbench.
+- A model comparison tool.
+- A product that depends on cloud-hosted business workflows.
+
+## Voice And Wording
+
+The product should sound calm, direct, and useful.
+
+Use:
+
+- "Ask Co-Op"
+- "Company files"
+- "Business memory"
+- "Second look"
+- "Review level"
+- "AI setup"
+- "Live research"
+- "Customer follow-up"
+- "Saved plans"
+- "Money & tools"
+
+Avoid in normal UI:
+
+- "RAG"
+- "Vector"
+- "Graph"
+- "LLM"
+- "LLM council"
+- "Agent orchestration"
+- "Harness"
+- "Model routing"
+- Generic premium claims that do not describe the product.
+- Named third-party analogies that create brand or legal risk.
+- Empty hype such as "10x", "magic", or "revolutionary"
+
+Technical terms are acceptable in developer docs when they help maintainers understand the implementation.
 
 ## First-Run Journey
 
@@ -44,13 +89,11 @@ The first run should unlock value before exposing the full product surface.
 
 ```mermaid
 flowchart LR
-  Activate["Activate license"] --> Basics["Name the business"]
-  Basics --> Customer["Customer, problem, offer"]
-  Customer --> FirstWin["Pick the first win"]
-  FirstWin --> Overview["Open overview"]
-  Overview --> Work["Start a plan or ask Co-Op"]
-
-  Advanced["Advanced profile, files, outreach, integrations"] -. "after first value" .-> Overview
+  Activate["Activate license"] --> Business["Name the business"]
+  Business --> Basics["Customer, problem, offer"]
+  Basics --> Priority["Pick the first priority"]
+  Priority --> Today["Open Today"]
+  Today --> Action["Ask, start a plan, or add a file"]
 ```
 
 Required first-run fields:
@@ -62,46 +105,62 @@ Required first-run fields:
 - What the business offers.
 - First priority.
 
-Everything else belongs behind progressive profile sections or in the feature where it becomes useful.
-
-## UX Principles
-
-- Use owner language: "company files", "business memory", "second look", "review level", "AI setup".
-- Avoid internal language in the interface: "RAG", "vector", "graph", "LLM council", "agent", "model routing".
-- Show only the next useful action on the overview.
-- Keep advanced setup available, but do not make it the first screen.
-- Treat privacy as a product feature: remind users that keys and company files stay on the computer.
-- Use motion as orientation only: step transitions, progress movement, and small state changes.
+Everything else belongs behind progressive profile sections or inside the feature where it becomes useful.
 
 ## Feature Pillars
 
 ```mermaid
 mindmap
   root((Co-Op))
-    Work planning
+    Today
+      Priorities
+      Recent plans
+      Useful next action
+    Ask
+      Advisor areas
+      Company files
+      Second look
+    Plans
       Decisions
       Risks
       Owners
       Next steps
-    Ask Co-Op
-      Advisor areas
-      Company context
-      Second look
     Company files
-      Local search
-      Business memory
       Private storage
-    Growth work
-      Research
+      Search
+      Business memory
+    Customers
       Leads
       Outreach
       Campaigns
+    Research
+      Markets
+      Competitors
+      Customers
+      Pricing
+    Money and tools
+      Runway
+      Pitch review
+      Ownership
+      Investors
     Trust
       Local-first data
       Bring-your-own AI
-      Review gates
-      Cloud licensing
+      Cloud license only
 ```
+
+## UX Principles
+
+- Keep the dashboard focused on work, not setup status.
+- Hide completed readiness checklists when everything is ready.
+- Use short interactive onboarding instead of long forms.
+- Show advanced setup only where it matters.
+- Make every visible button perform a real action.
+- Use simple labels and consistent controls.
+- Keep scroll regions bounded so one panel does not move unrelated controls.
+- Prefer compact, readable layouts over dense control panels.
+- Use motion only to orient the user: transitions, expansion, progress, and gentle state change.
+- Treat privacy as part of the product experience.
 
 ## Product Bar
 
@@ -109,7 +168,21 @@ Before shipping a desktop UX change, verify:
 
 - A non-technical owner can activate with only a license key.
 - A new owner sees onboarding before the dashboard.
-- The first-run flow can be completed in under two minutes.
-- Dashboard cards lead to working features, not placeholder screens.
-- Technical terms are hidden unless the user is in setup or docs.
+- The first-run flow can be completed quickly.
+- The primary action on each screen is obvious.
+- Dashboard cards lead to working features.
+- Tables and long panels scroll inside their own bounds.
+- Technical terms are hidden from normal owner workflows.
 - Provider keys, license keys, prompts, outputs, and file content are not logged.
+
+## Landing Page Bar
+
+The public site should be professional and specific:
+
+- Lead with what Co-Op does, not hype.
+- Show real product screenshots or carefully anonymized screenshots from the actual UI.
+- Use contact email `contact@co-op.software`.
+- Avoid named comparisons that create brand or legal risk.
+- Explain local-first behavior plainly.
+- Link to privacy, terms, security, cookies, account, and download pages.
+- Keep metadata, sitemap, robots, and `llms.txt` aligned with the public product.

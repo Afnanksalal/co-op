@@ -1,7 +1,7 @@
 {
-  "name": "Co-Op - Private Business Workspace",
+  "name": "Co-Op",
   "short_name": "Co-Op",
-  "description": "Private business management software with cloud licensing, desktop activation, local AI, and private provider support.",
+  "description": "Local-first desktop business management software with cloud license access and private assistant settings.",
   "start_url": "/download",
   "display": "standalone",
   "background_color": "#101216",
@@ -35,10 +35,10 @@
       "icons": [{ "src": "/logo.png", "sizes": "512x512" }]
     },
     {
-      "name": "Activate",
-      "short_name": "Activate",
-      "description": "Activate a local Co-Op Desktop install",
-      "url": "/activate",
+      "name": "Account center",
+      "short_name": "Account",
+      "description": "Open the Co-Op account center for license access",
+      "url": "/account",
       "icons": [{ "src": "/logo.png", "sizes": "512x512" }]
     }
   ],
