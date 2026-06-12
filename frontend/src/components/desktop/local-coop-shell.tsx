@@ -62,7 +62,12 @@ export function LocalCoOpShell() {
   }, []);
 
   useEffect(() => {
-    setScreenshotMode(new URLSearchParams(window.location.search).get('screenshot') === '1');
+    const shouldForceScreenshotTheme =
+      new URLSearchParams(window.location.search).get('screenshot') === '1';
+    setScreenshotMode(shouldForceScreenshotTheme);
+    if (shouldForceScreenshotTheme) {
+      document.documentElement.classList.add('dark');
+    }
   }, []);
 
   useEffect(() => {

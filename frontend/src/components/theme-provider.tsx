@@ -13,7 +13,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const root = document.documentElement;
-    
+
     const applyTheme = (isDark: boolean) => {
       if (isDark) {
         root.classList.add('dark');
@@ -21,6 +21,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         root.classList.remove('dark');
       }
     };
+
+    if (new URLSearchParams(window.location.search).get('screenshot') === '1') {
+      applyTheme(true);
+      return;
+    }
 
     if (theme === 'system') {
       // Try to detect system theme, default to dark if detection fails
