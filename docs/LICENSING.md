@@ -118,7 +118,7 @@ stateDiagram-v2
 | `POST /api/v1/licenses` | Admin web user | Generate an admin-issued license. |
 | `GET /api/v1/licenses/mine` | Signed-in account user | Read account licenses. |
 | `POST /api/v1/licenses/self-service` | Signed-in account user | Create or retrieve an account activation key. |
-| `DELETE /api/v1/licenses/mine/:licenseId` | Signed-in account user | Revoke an owned activation key and deactivate its devices. |
+| `DELETE /api/v1/licenses/mine/:licenseId` | Signed-in account user | Delete an owned generated activation key. |
 | `POST /api/v1/licenses/activate` | Desktop app | Activate one installed device. |
 | `POST /api/v1/licenses/heartbeat` | Desktop app | Refresh entitlement and last-seen state. |
 | `POST /api/v1/licenses/deactivate` | Desktop app | Deactivate the current install. |
@@ -184,9 +184,9 @@ Lost activation keys should be handled by issuing a replacement key and revoking
 
 ## Customer Key Deletion
 
-The account center can delete an owned activation key. This sets the license status to `cancelled`, deactivates active devices for that license, records a license event, and lets the customer generate a fresh key.
+The account center can delete an owned generated activation key. This removes that license record, its activations, and its license events while keeping the customer account intact. After deletion, the key no longer appears in the account center and the customer can generate a fresh key.
 
-Deletion is a revocation flow, not physical audit-log removal. The backend still retains safe license metadata, hash records, activation history, and event history for entitlement and security auditing.
+Admin, payment, chargeback, and abuse actions should use revocation or suspension flows that keep safe audit metadata. Customer account-center deletion is intentionally narrower: it removes the selected generated key so the customer is not left with dead key rows.
 
 ## Logging Rules
 

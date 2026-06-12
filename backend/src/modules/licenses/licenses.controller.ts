@@ -50,11 +50,11 @@ export class LicensesController {
 
   @Delete('mine/:licenseId')
   @UseGuards(AuthGuard)
-  async revokeMyLicense(
+  async deleteMyLicense(
     @Param('licenseId') licenseId: string,
     @Req() request: AuthenticatedRequest,
   ): Promise<ApiResponseDto<null>> {
-    await this.licensesService.revokeLicenseForCustomer(request.user!.email, licenseId);
+    await this.licensesService.deleteLicenseForCustomer(request.user!.email, licenseId);
     return ApiResponseDto.message('Activation key deleted');
   }
 

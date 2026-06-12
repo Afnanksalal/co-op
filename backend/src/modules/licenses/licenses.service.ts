@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { and, count, desc, eq, sql } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE_CONNECTION } from '@/database/database.module';
 import * as schema from '@/database/schema';
@@ -149,12 +149,11 @@ export class LicensesService {
     });
   }
 
-  async revokeLicenseForCustomer(email: string, licenseId: string): Promise<void> {
+  async deleteLicenseForCustomer(email: string, licenseId: string): Promise<void> {
     const customerEmail = email.toLowerCase();
-    const now = new Date();
 
     await this.db.transaction(async tx => {
-      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`revoke:${licenseId}`}))`);
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`delete-license:${licenseId}`}))`);
 
       const rows = await tx
         .select()
@@ -167,37 +166,20 @@ export class LicensesService {
         throw new NotFoundException('License not found for this account');
       }
 
-      if (license.status !== 'cancelled') {
-        await tx
-          .update(schema.licenses)
-          .set({
-            status: 'cancelled',
-            updatedAt: now,
-            metadata: {
-              ...(license.metadata && typeof license.metadata === 'object' ? license.metadata : {}),
-              revokedBy: 'account_center',
-              revokedAt: now.toISOString(),
-            },
-          })
-          .where(eq(schema.licenses.id, license.id));
-      }
+      const activationRows = await tx
+        .select({ id: schema.licenseActivations.id })
+        .from(schema.licenseActivations)
+        .where(eq(schema.licenseActivations.licenseId, license.id));
+      const activationIds = activationRows.map(activation => activation.id);
 
-      await tx
-        .update(schema.licenseActivations)
-        .set({
-          status: 'deactivated',
-          deactivatedAt: now,
-        })
-        .where(and(eq(schema.licenseActivations.licenseId, license.id), eq(schema.licenseActivations.status, 'active')));
+      await tx.delete(schema.licenseEvents).where(
+        activationIds.length > 0
+          ? or(eq(schema.licenseEvents.licenseId, license.id), inArray(schema.licenseEvents.activationId, activationIds))
+          : eq(schema.licenseEvents.licenseId, license.id),
+      );
 
-      await tx.insert(schema.licenseEvents).values({
-        licenseId: license.id,
-        activationId: null,
-        eventType: 'license.customer_revoked',
-        metadata: {
-          source: 'account_center',
-        },
-      });
+      await tx.delete(schema.licenseActivations).where(eq(schema.licenseActivations.licenseId, license.id));
+      await tx.delete(schema.licenses).where(eq(schema.licenses.id, license.id));
     });
   }
 

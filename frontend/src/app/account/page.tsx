@@ -28,6 +28,7 @@ export default function AccountPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [deletingLicenseId, setDeletingLicenseId] = useState('');
+  const [licenseToDelete, setLicenseToDelete] = useState<LicenseSummary | null>(null);
   const [visibleLicenseKeys, setVisibleLicenseKeys] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
 
@@ -119,16 +120,12 @@ export default function AccountPage() {
   }
 
   async function deleteLicense(license: LicenseSummary) {
-    const confirmed = window.confirm(
-      `Delete activation key ${license.licensePrefix}? This revokes the key and deactivates devices using it.`
-    );
-    if (!confirmed) return;
-
     setDeletingLicenseId(license.id);
     setError('');
 
     try {
       await api.deleteMyLicense(license.id);
+      setLicenses((items) => items.filter((item) => item.id !== license.id));
       setVisibleLicenseKeys((keys) => {
         const next = { ...keys };
         delete next[license.id];
@@ -137,6 +134,7 @@ export default function AccountPage() {
       if (createdLicense?.id === license.id) {
         setCreatedLicense(null);
       }
+      setLicenseToDelete(null);
       await loadAccount();
       toast.success('Activation key deleted');
     } catch (error) {
@@ -360,30 +358,20 @@ export default function AccountPage() {
                           </Button>
                         )}
                         {!visibleLicenseKeys[license.id] && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              void copyText(license.licensePrefix, 'Activation key prefix copied')
-                            }
-                          >
-                            <Copy className="h-4 w-4" />
-                            Copy prefix
-                          </Button>
+                          <span className="self-center text-xs text-muted-foreground">
+                            Hidden after creation
+                          </span>
                         )}
-                        {license.status === 'active' && (
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => void deleteLicense(license)}
-                            disabled={deletingLicenseId === license.id}
-                          >
-                            <Trash className="h-4 w-4" />
-                            {deletingLicenseId === license.id ? 'Deleting...' : 'Delete'}
-                          </Button>
-                        )}
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => setLicenseToDelete(license)}
+                          disabled={deletingLicenseId === license.id}
+                        >
+                          <Trash className="h-4 w-4" />
+                          {deletingLicenseId === license.id ? 'Deleting...' : 'Delete'}
+                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -407,6 +395,12 @@ export default function AccountPage() {
           </div>
         </section>
       </div>
+      <DeleteLicenseDialog
+        license={licenseToDelete}
+        isDeleting={Boolean(licenseToDelete && deletingLicenseId === licenseToDelete.id)}
+        onCancel={() => setLicenseToDelete(null)}
+        onConfirm={(license) => void deleteLicense(license)}
+      />
     </main>
   );
 }
@@ -416,6 +410,84 @@ function Row({ label, value }: { label: string; value: string }) {
     <div className="grid min-w-0 gap-1 border-b border-border pb-2 last:border-0 sm:grid-cols-[minmax(7rem,0.8fr)_minmax(0,1.2fr)] sm:gap-4">
       <span className="text-muted-foreground">{label}</span>
       <span className="min-w-0 break-words font-medium sm:text-right">{value}</span>
+    </div>
+  );
+}
+
+function DeleteLicenseDialog({
+  license,
+  isDeleting,
+  onCancel,
+  onConfirm,
+}: {
+  license: LicenseSummary | null;
+  isDeleting: boolean;
+  onCancel: () => void;
+  onConfirm: (license: LicenseSummary) => void;
+}) {
+  useEffect(() => {
+    if (!license) return undefined;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !isDeleting) {
+        onCancel();
+      }
+    };
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isDeleting, license, onCancel]);
+
+  if (!license) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm"
+      aria-labelledby="delete-license-title"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-2xl">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 rounded-full bg-destructive/10 p-2 text-destructive">
+            <Trash className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <h2 id="delete-license-title" className="text-lg font-semibold tracking-normal">
+              Delete activation key?
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              This removes this generated key from your account and signs out any desktop installs
+              using it. Your Co-Op account stays the same.
+            </p>
+            <div className="mt-4 rounded-lg border border-border bg-background px-3 py-2">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Key</p>
+              <p className="mt-1 font-mono text-sm">{license.licensePrefix}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5 flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={onCancel} disabled={isDeleting}>
+            Keep key
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={() => onConfirm(license)}
+            disabled={isDeleting}
+          >
+            <Trash className="h-4 w-4" />
+            {isDeleting ? 'Deleting...' : 'Delete key'}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

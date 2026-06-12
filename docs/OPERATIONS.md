@@ -111,7 +111,7 @@ npm run tauri:build
 6. Smoke test hosted web routes: `/`, `/login`, `/signup`, `/account`, `/download`, `/privacy`, `/terms`, `/security`, `/cookies`, and `/admin/licenses`.
 7. Confirm hosted production `/desktop` and `/local` return 404.
 8. Smoke test desktop first run: activate with a key, complete onboarding, open Today, ask a question, run a plan, add a file, and refresh license heartbeat.
-9. Smoke test account key management: generate a key, copy it while visible, delete/revoke it, and confirm a fresh key can be generated.
+9. Smoke test account key management: generate a key, copy it while visible, delete it, confirm it disappears from the account table, and confirm a fresh key can be generated.
 10. Confirm production CORS origins are restricted.
 11. Confirm `LICENSE_KEY_PEPPER` is strong and not reused from development.
 12. Clean generated folders that should not be committed.
