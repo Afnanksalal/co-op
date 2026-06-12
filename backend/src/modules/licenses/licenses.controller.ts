@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { AdminGuard } from '@/common/guards/admin.guard';
 import { AuthGuard, type AuthenticatedRequest } from '@/common/guards/auth.guard';
 import { ApiResponseDto } from '@/common/dto/api-response.dto';
@@ -46,6 +46,16 @@ export class LicensesController {
   async createSelfServiceLicense(@Req() request: AuthenticatedRequest): Promise<ApiResponseDto<CreatedLicenseDto>> {
     const result = await this.licensesService.createSelfServiceLicense(request.user!.email);
     return ApiResponseDto.success(result, 'Activation key generated');
+  }
+
+  @Delete('mine/:licenseId')
+  @UseGuards(AuthGuard)
+  async revokeMyLicense(
+    @Param('licenseId') licenseId: string,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<ApiResponseDto<null>> {
+    await this.licensesService.revokeLicenseForCustomer(request.user!.email, licenseId);
+    return ApiResponseDto.message('Activation key deleted');
   }
 
   @Post()

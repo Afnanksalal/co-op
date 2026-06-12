@@ -2,11 +2,36 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { ArrowRight, Fingerprint } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
+import { createClient } from '@/lib/supabase/client';
 import { footerLinks, navLinks } from './data';
 
 export function MarketingHeader() {
+  const [isSignedIn, setIsSignedIn] = useState(false);
+  const [authLoaded, setAuthLoaded] = useState(false);
+
+  useEffect(() => {
+    const supabase = createClient();
+
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        setIsSignedIn(Boolean(session?.user));
+      })
+      .finally(() => setAuthLoaded(true));
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsSignedIn(Boolean(session?.user));
+      setAuthLoaded(true);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   return (
     <header className="sticky top-0 z-50 border-b border-border/70 bg-background/88 backdrop-blur-xl">
       <div className="container-wide flex h-16 items-center justify-between">
@@ -28,9 +53,9 @@ export function MarketingHeader() {
           )}
         </nav>
         <div className="flex items-center gap-2">
-          <Link href="/login" className="hidden sm:block">
+          <Link href={isSignedIn ? '/account' : '/login'} className="hidden sm:block">
             <Button variant="ghost" size="sm">
-              Sign in
+              {!authLoaded ? 'Account' : isSignedIn ? 'Account center' : 'Sign in'}
             </Button>
           </Link>
           <Link href="/download">

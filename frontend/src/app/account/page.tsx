@@ -10,6 +10,7 @@ import {
   DownloadSimple,
   Key,
   SignOut,
+  Trash,
   Warning,
 } from '@phosphor-icons/react';
 import { toast } from 'sonner';
@@ -26,6 +27,8 @@ export default function AccountPage() {
   const [createdLicense, setCreatedLicense] = useState<CreatedLicense | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [deletingLicenseId, setDeletingLicenseId] = useState('');
+  const [visibleLicenseKeys, setVisibleLicenseKeys] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
 
   const activeLicense = useMemo(
@@ -74,6 +77,7 @@ export default function AccountPage() {
     try {
       const license = await api.createSelfServiceLicense();
       setCreatedLicense(license);
+      setVisibleLicenseKeys((keys) => ({ ...keys, [license.id]: license.licenseKey }));
       await loadAccount();
       toast.success('Activation key generated');
     } catch (error) {
@@ -83,10 +87,63 @@ export default function AccountPage() {
     }
   }
 
-  async function copyActivationKey() {
-    if (!createdLicense?.licenseKey) return;
-    await navigator.clipboard.writeText(createdLicense.licenseKey);
-    toast.success('Activation key copied');
+  async function copyText(value: string, successMessage: string) {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = value;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        textarea.remove();
+      }
+      toast.success(successMessage);
+    } catch {
+      toast.error('Copy failed');
+    }
+  }
+
+  async function copyActivationKey(licenseId: string) {
+    const licenseKey = visibleLicenseKeys[licenseId];
+    if (!licenseKey) {
+      toast.error('Full key is only available right after generation');
+      return;
+    }
+
+    await copyText(licenseKey, 'Activation key copied');
+  }
+
+  async function deleteLicense(license: LicenseSummary) {
+    const confirmed = window.confirm(
+      `Delete activation key ${license.licensePrefix}? This revokes the key and deactivates devices using it.`
+    );
+    if (!confirmed) return;
+
+    setDeletingLicenseId(license.id);
+    setError('');
+
+    try {
+      await api.deleteMyLicense(license.id);
+      setVisibleLicenseKeys((keys) => {
+        const next = { ...keys };
+        delete next[license.id];
+        return next;
+      });
+      if (createdLicense?.id === license.id) {
+        setCreatedLicense(null);
+      }
+      await loadAccount();
+      toast.success('Activation key deleted');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to delete activation key');
+    } finally {
+      setDeletingLicenseId('');
+    }
   }
 
   async function signOut() {
@@ -154,10 +211,15 @@ export default function AccountPage() {
                   {createdLicense.licenseKey}
                 </code>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Copy it now. The raw key is shown only once.
+                  You can copy this key while it is visible on this page. For security, the full
+                  key is not recoverable after you leave or refresh.
                 </p>
               </div>
-              <Button type="button" variant="outline" onClick={() => void copyActivationKey()}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void copyActivationKey(createdLicense.id)}
+              >
                 <Copy className="h-4 w-4" />
                 Copy key
               </Button>
@@ -211,8 +273,8 @@ export default function AccountPage() {
 
             {activeLicense && (
               <p className="mt-4 rounded-md bg-muted p-3 text-sm text-muted-foreground">
-                This account already has an active license. Use the existing activation key prefix
-                shown in the table, or contact support to rotate the license.
+                This account already has an active license. If the full key is no longer visible,
+                delete this key and generate a fresh one.
               </p>
             )}
           </section>
@@ -253,7 +315,7 @@ export default function AccountPage() {
             <h2 className="text-xl font-semibold tracking-normal">Your licenses</h2>
           </div>
           <div className="coop-scrollbar overflow-x-auto">
-            <table className="w-full min-w-[42rem] text-sm">
+            <table className="w-full min-w-[54rem] text-sm">
               <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3">Key prefix</th>
@@ -261,6 +323,7 @@ export default function AccountPage() {
                   <th className="px-4 py-3">Devices</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Expires</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -283,18 +346,58 @@ export default function AccountPage() {
                         ? new Date(license.expiresAt).toLocaleDateString()
                         : 'Never'}
                     </td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end gap-2">
+                        {visibleLicenseKeys[license.id] && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void copyActivationKey(license.id)}
+                          >
+                            <Copy className="h-4 w-4" />
+                            Copy key
+                          </Button>
+                        )}
+                        {!visibleLicenseKeys[license.id] && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              void copyText(license.licensePrefix, 'Activation key prefix copied')
+                            }
+                          >
+                            <Copy className="h-4 w-4" />
+                            Copy prefix
+                          </Button>
+                        )}
+                        {license.status === 'active' && (
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => void deleteLicense(license)}
+                            disabled={deletingLicenseId === license.id}
+                          >
+                            <Trash className="h-4 w-4" />
+                            {deletingLicenseId === license.id ? 'Deleting...' : 'Delete'}
+                          </Button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
                 {!isLoading && licenses.length === 0 && (
                   <tr>
-                    <td className="px-4 py-8 text-center text-muted-foreground" colSpan={5}>
+                    <td className="px-4 py-8 text-center text-muted-foreground" colSpan={6}>
                       No licenses yet.
                     </td>
                   </tr>
                 )}
                 {isLoading && (
                   <tr>
-                    <td className="px-4 py-8 text-center text-muted-foreground" colSpan={5}>
+                    <td className="px-4 py-8 text-center text-muted-foreground" colSpan={6}>
                       Loading licenses...
                     </td>
                   </tr>

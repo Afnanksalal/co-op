@@ -118,6 +118,7 @@ stateDiagram-v2
 | `POST /api/v1/licenses` | Admin web user | Generate an admin-issued license. |
 | `GET /api/v1/licenses/mine` | Signed-in account user | Read account licenses. |
 | `POST /api/v1/licenses/self-service` | Signed-in account user | Create or retrieve an account activation key. |
+| `DELETE /api/v1/licenses/mine/:licenseId` | Signed-in account user | Revoke an owned activation key and deactivate its devices. |
 | `POST /api/v1/licenses/activate` | Desktop app | Activate one installed device. |
 | `POST /api/v1/licenses/heartbeat` | Desktop app | Refresh entitlement and last-seen state. |
 | `POST /api/v1/licenses/deactivate` | Desktop app | Deactivate the current install. |
@@ -180,6 +181,12 @@ Do not rotate casually. Plan rotation as a security event with:
 - Audit of affected activations.
 
 Lost activation keys should be handled by issuing a replacement key and revoking the old license. Do not build raw-key recovery.
+
+## Customer Key Deletion
+
+The account center can delete an owned activation key. This sets the license status to `cancelled`, deactivates active devices for that license, records a license event, and lets the customer generate a fresh key.
+
+Deletion is a revocation flow, not physical audit-log removal. The backend still retains safe license metadata, hash records, activation history, and event history for entitlement and security auditing.
 
 ## Logging Rules
 

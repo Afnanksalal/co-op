@@ -24,6 +24,9 @@ const productName = 'Co-Op';
 const productTitle = 'Co-Op | Local-First Business Management Software';
 const productDescription =
   'Co-Op is local-first desktop software for managing company context, plans, research, customer follow-up, and business decisions with cloud license access.';
+const socialCardPath = '/social-card.png';
+const socialTitle = 'Co-Op';
+const socialDescription = 'A clearer way to run the company.';
 
 export const metadata: Metadata = {
   title: {
@@ -54,23 +57,23 @@ export const metadata: Metadata = {
     locale: 'en_US',
     url: siteUrl,
     siteName: productName,
-    title: productTitle,
-    description: productDescription,
+    title: socialTitle,
+    description: socialDescription,
     images: [
       {
-        url: '/software-dashboard.png',
-        width: 1280,
-        height: 720,
-        alt: 'Co-Op desktop dashboard showing company context, files, plans, customers, and research',
+        url: socialCardPath,
+        width: 1200,
+        height: 630,
+        alt: 'Co-Op. A clearer way to run the company.',
         type: 'image/png',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: productTitle,
-    description: productDescription,
-    images: ['/software-dashboard.png'],
+    title: socialTitle,
+    description: socialDescription,
+    images: [socialCardPath],
     creator: '@coop_ai',
     site: '@coop_ai',
   },
@@ -167,7 +170,7 @@ const jsonLd = [
     operatingSystem: 'Windows, macOS, Linux',
     description: productDescription,
     url: siteUrl,
-    image: `${siteUrl}/software-dashboard.png`,
+    image: `${siteUrl}${socialCardPath}`,
     softwareVersion: '1.0.0',
     featureList: [
       'Local desktop workspace',

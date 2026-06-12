@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { and, count, desc, eq, sql } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -146,6 +146,58 @@ export class LicensesService {
         expiresAt: license.expiresAt,
         createdAt: license.createdAt,
       };
+    });
+  }
+
+  async revokeLicenseForCustomer(email: string, licenseId: string): Promise<void> {
+    const customerEmail = email.toLowerCase();
+    const now = new Date();
+
+    await this.db.transaction(async tx => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`revoke:${licenseId}`}))`);
+
+      const rows = await tx
+        .select()
+        .from(schema.licenses)
+        .where(and(eq(schema.licenses.id, licenseId), eq(schema.licenses.customerEmail, customerEmail)))
+        .limit(1);
+      const license = rows[0];
+
+      if (!license) {
+        throw new NotFoundException('License not found for this account');
+      }
+
+      if (license.status !== 'cancelled') {
+        await tx
+          .update(schema.licenses)
+          .set({
+            status: 'cancelled',
+            updatedAt: now,
+            metadata: {
+              ...(license.metadata && typeof license.metadata === 'object' ? license.metadata : {}),
+              revokedBy: 'account_center',
+              revokedAt: now.toISOString(),
+            },
+          })
+          .where(eq(schema.licenses.id, license.id));
+      }
+
+      await tx
+        .update(schema.licenseActivations)
+        .set({
+          status: 'deactivated',
+          deactivatedAt: now,
+        })
+        .where(and(eq(schema.licenseActivations.licenseId, license.id), eq(schema.licenseActivations.status, 'active')));
+
+      await tx.insert(schema.licenseEvents).values({
+        licenseId: license.id,
+        activationId: null,
+        eventType: 'license.customer_revoked',
+        metadata: {
+          source: 'account_center',
+        },
+      });
     });
   }
 

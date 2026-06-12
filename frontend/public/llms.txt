@@ -6,6 +6,7 @@
 
 - [Home](https://co-op.software/): Product overview for Co-Op.
 - [Download](https://co-op.software/download): Desktop software download and install path.
+- [Social Card](https://co-op.software/social-card.png): Preferred public preview image for link embeds.
 - [Account Center](https://co-op.software/account): Customer account and license access page.
 - [Privacy Policy](https://co-op.software/privacy): Data boundary between cloud account data and local desktop data.
 - [Terms of Service](https://co-op.software/terms): Account, license, desktop software, provider, and acceptable-use terms.

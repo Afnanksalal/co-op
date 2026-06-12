@@ -25,6 +25,7 @@ It does not run business workflows. Business plans, chat, files, research, custo
 | `POST /api/v1/licenses` | Admin license creation. |
 | `GET /api/v1/licenses/mine` | Signed-in user's licenses. |
 | `POST /api/v1/licenses/self-service` | Signed-in user's activation key flow. |
+| `DELETE /api/v1/licenses/mine/:licenseId` | Revoke a signed-in user's owned activation key. |
 | `POST /api/v1/licenses/activate` | Desktop activation. |
 | `POST /api/v1/licenses/heartbeat` | Desktop entitlement refresh. |
 | `POST /api/v1/licenses/deactivate` | Desktop deactivation. |

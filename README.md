@@ -30,7 +30,7 @@ Cloud services are intentionally narrow. Customer prompts, outputs, company file
 ## What Is Included
 
 - Public web site, login, account center, download page, legal pages, and admin license console.
-- NestJS license backend for license generation, activation, heartbeat, deactivation, health checks, and existing-user backfill.
+- NestJS license backend for license generation, customer key revocation, activation, heartbeat, deactivation, health checks, and existing-user backfill.
 - Tauri desktop app for onboarding, company profile, private files, local search, business memory, advisor chat, work plans, research, customers, outreach, pitch review, calculators, ownership tools, settings, and license status.
 - Local-first model routing through Ollama or an OpenAI-compatible bring-your-own-key endpoint.
 - Optional local configuration for Firecrawl web research and Resend or SendGrid email sending.

@@ -161,6 +161,13 @@ class ApiClient {
     });
   }
 
+  deleteMyLicense(licenseId: string): Promise<void> {
+    return this.request<void>(`/licenses/mine/${encodeURIComponent(licenseId)}`, {
+      method: 'DELETE',
+      authenticated: true,
+    });
+  }
+
   activateCloudLicense(data: ActivateLicenseRequest): Promise<ActivationResponse> {
     return this.request<ActivationResponse>('/licenses/activate', {
       method: 'POST',

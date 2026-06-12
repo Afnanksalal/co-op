@@ -10,6 +10,7 @@ Allow: /terms
 Allow: /security
 Allow: /cookies
 Allow: /llms.txt
+Allow: /social-card.png
 Allow: /software-dashboard.png
 Disallow: /api/
 Disallow: /account/
