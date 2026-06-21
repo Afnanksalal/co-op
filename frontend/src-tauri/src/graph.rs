@@ -49,6 +49,21 @@ pub fn build_knowledge_graph(state: &DesktopState) -> KnowledgeGraphSnapshot {
         builder.add_edge(&company_id, &document_id, "has_knowledge", 0.72);
     }
 
+    for memory in &state.memories {
+        let memory_id = format!("memory:{}", memory.id);
+        builder.add_node(
+            &memory_id,
+            &memory.title,
+            "memory",
+            format!(
+                "{} memory from {}",
+                empty_dash(&memory.memory_type),
+                empty_dash(&memory.source)
+            ),
+        );
+        builder.add_edge(&company_id, &memory_id, "remembers", memory.confidence);
+    }
+
     for run in &state.research_runs {
         let research_id = format!("research:{}", run.id);
         builder.add_node(
@@ -435,7 +450,7 @@ fn empty_dash(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{DesktopState, KnowledgeChunk, KnowledgeDocument, Lead};
+    use crate::types::{BusinessMemory, DesktopState, KnowledgeChunk, KnowledgeDocument, Lead};
 
     #[test]
     fn graph_links_workspace_documents_and_leads() {
@@ -476,12 +491,24 @@ mod tests {
             source: "manual".to_string(),
             created_at: Utc::now().to_rfc3339(),
         });
+        state.memories.push(BusinessMemory {
+            id: "memory1".to_string(),
+            memory_type: "decision".to_string(),
+            title: "Pipeline focus".to_string(),
+            content: "Focus on qualified pipeline this month.".to_string(),
+            source: "test".to_string(),
+            confidence: 0.9,
+            pinned: false,
+            created_at: Utc::now().to_rfc3339(),
+            updated_at: Utc::now().to_rfc3339(),
+        });
 
         let graph = build_knowledge_graph(&state);
 
         assert!(graph.nodes.iter().any(|node| node.node_type == "company"));
         assert!(graph.nodes.iter().any(|node| node.node_type == "document"));
         assert!(graph.nodes.iter().any(|node| node.node_type == "lead"));
+        assert!(graph.nodes.iter().any(|node| node.node_type == "memory"));
         assert!(graph
             .edges
             .iter()
@@ -490,5 +517,9 @@ mod tests {
             .edges
             .iter()
             .any(|edge| edge.relationship == "targets"));
+        assert!(graph
+            .edges
+            .iter()
+            .any(|edge| edge.relationship == "remembers"));
     }
 }

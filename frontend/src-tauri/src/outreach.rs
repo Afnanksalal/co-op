@@ -6,8 +6,9 @@ use uuid::Uuid;
 use crate::constants::{
     MAX_CAMPAIGN_SEND_BATCH, MAX_GENERATED_EMAILS_PER_CAMPAIGN, MAX_LEADS, MAX_RESEARCH_RUNS,
 };
+use crate::guardrails::{validate_business_input, validate_model_output};
 use crate::providers::{call_model, search_firecrawl, send_email};
-use crate::research::format_sources;
+use crate::research_sources::format_sources;
 use crate::storage::{load_or_create_state, require_usable_activation, save_state, to_response};
 use crate::types::{
     Campaign, CampaignEmail, CampaignEmailRequest, CampaignRequest, DesktopState,
@@ -35,6 +36,7 @@ pub async fn discover_leads(
     request: DiscoverLeadsRequest,
 ) -> Result<DesktopStateResponse, String> {
     validate_objective("Lead discovery query", &request.query)?;
+    validate_business_input("Customer discovery", &request.lead_type, &request.query)?;
     if !matches!(request.lead_type.as_str(), "person" | "company") {
         return Err("Lead type must be person or company".to_string());
     }
@@ -44,7 +46,7 @@ pub async fn discover_leads(
     validate_model_settings(&mut settings)?;
     if settings.research_provider != "firecrawl" {
         return Err(
-            "Lead discovery uses web search. Open Setup > Research and choose Web search before discovering leads."
+            "Lead discovery uses web search. Open Settings and save a web search key before discovering prospects."
                 .to_string(),
         );
     }
@@ -56,7 +58,7 @@ pub async fn discover_leads(
         .is_empty()
     {
         return Err(
-            "Lead discovery needs a saved web search key. Open Setup > Research and save your Firecrawl key."
+            "Lead discovery needs a saved web search key. Open Settings > Sources and save your web search key."
                 .to_string(),
         );
     }
@@ -141,6 +143,14 @@ pub fn create_campaign(
     request: CampaignRequest,
 ) -> Result<DesktopStateResponse, String> {
     validate_campaign_request(&request)?;
+    validate_business_input(
+        "Outreach",
+        &request.target_lead_type,
+        &format!(
+            "{}\n{}\n{}",
+            request.campaign_goal, request.subject_template, request.body_template
+        ),
+    )?;
     let mut state = load_or_create_state(&app)?;
     require_usable_activation(&state)?;
     state.campaigns.insert(
@@ -176,6 +186,11 @@ pub async fn generate_campaign_emails(
         .find(|campaign| campaign.id == request.campaign_id)
         .cloned()
         .ok_or_else(|| "Campaign not found".to_string())?;
+    validate_business_input(
+        "Outreach",
+        &campaign.target_lead_type,
+        &campaign.campaign_goal,
+    )?;
     let leads: Vec<Lead> = state
         .leads
         .iter()
@@ -215,6 +230,7 @@ pub async fn generate_campaign_emails(
                 &prompt,
             )
             .await?;
+            validate_model_output(&output, false, false)?;
             split_subject_body(&output)
         } else {
             (

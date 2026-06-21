@@ -1,14 +1,33 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { Brain, Briefcase, ChartBar, ChartLine, EnvelopeSimple, FlowArrow, HardDrives, Key, MagnifyingGlass, ShieldCheck, Sparkle, UsersThree } from '@phosphor-icons/react';
+import {
+  Brain,
+  Briefcase,
+  ChartBar,
+  ChartLine,
+  EnvelopeSimple,
+  FlowArrow,
+  HardDrives,
+  Key,
+  MagnifyingGlass,
+  ShieldCheck,
+  Sparkle,
+  UsersThree,
+} from '@phosphor-icons/react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { DesktopState } from '@/lib/desktop/runtime';
 import type { View } from '../shell-types';
 import { EmptyState, PanelTitle } from '../shared';
-import { MarkdownOutput, markdownToPlainText } from '../markdown';
-import { providerDisplay, researchProviderDisplay, reviewModeDisplay, workspaceCompletion } from '../utils';
+import { markdownToPlainText } from '../markdown';
+import {
+  providerDisplay,
+  researchProviderDisplay,
+  reviewModeDisplay,
+  webSearchReady,
+  workspaceCompletion,
+} from '../utils';
 import { RunCard } from './history';
 
 export function DashboardPanel({
@@ -19,10 +38,17 @@ export function DashboardPanel({
   onNavigate: (view: View) => void;
 }) {
   const workspaceScore = workspaceCompletion(state.workspace);
+  const hasWebSearch = webSearchReady(state);
   const latestRun = state.workflowRuns[0];
   const latestResearch = state.researchRuns[0];
-  const nextBestAction =
-    workspaceScore < 70
+  const nextBestAction = !hasWebSearch
+    ? {
+        label: 'Connect web sources',
+        detail: 'Co-Op needs web sources for market, competitor, customer, legal, and risk work.',
+        view: 'settings' as const,
+        button: 'Set up web search',
+      }
+    : workspaceScore < 70
       ? {
           label: 'Finish the company profile',
           detail: 'Co-Op gives better answers when it knows your customer, offer, and goals.',
@@ -57,6 +83,13 @@ export function DashboardPanel({
       icon: HardDrives,
       tone: 'text-blue-600 dark:text-blue-300',
       view: 'rag' as const,
+    },
+    {
+      label: 'Memory',
+      value: state.memories.length,
+      icon: Brain,
+      tone: 'text-cyan-600 dark:text-cyan-300',
+      view: 'memory' as const,
     },
     {
       label: 'Customers',
@@ -124,12 +157,27 @@ export function DashboardPanel({
       view: 'rag' as const,
     },
     {
+      label: 'Memory',
+      detail:
+        state.memories.length > 0
+          ? `${state.memories.length} saved decisions and notes`
+          : 'Save a decision, preference, risk, or customer note',
+      status: state.memories.length > 0 ? 'ready' : 'attention',
+      view: 'memory' as const,
+    },
+    {
       label: 'Assistant setup',
       detail:
         state.modelSettings.provider === 'ollama'
           ? 'Runs on this computer'
           : 'Uses your private key',
       status: 'ready',
+      view: 'settings' as const,
+    },
+    {
+      label: 'Web sources',
+      detail: hasWebSearch ? 'Ready for source-backed answers' : 'Add a web search key',
+      status: hasWebSearch ? 'ready' : 'attention',
       view: 'settings' as const,
     },
     {
@@ -166,13 +214,14 @@ export function DashboardPanel({
                 One private place for company context, plans, research, customer outreach, and
                 practical decisions.
               </p>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                 <OperationalStatus label="Profile" value={`${workspaceScore}%`} />
                 <OperationalStatus
                   label="Assistant"
                   value={providerDisplay(state.modelSettings.provider)}
                 />
                 <OperationalStatus label="Files" value={String(state.documents.length)} />
+                <OperationalStatus label="Memory" value={String(state.memories.length)} />
                 <OperationalStatus label="Plans" value={String(state.workflowRuns.length)} />
               </div>
             </div>
@@ -230,7 +279,7 @@ export function DashboardPanel({
         )}
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {metrics.map((metric) => (
           <button
             key={metric.label}
@@ -332,24 +381,6 @@ function OperationalStatus({ label, value }: { label: string; value: string }) {
     <div className="min-w-0 rounded-md border border-border/50 bg-background px-3 py-2">
       <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</p>
       <p className="mt-1 truncate text-sm font-medium">{value}</p>
-    </div>
-  );
-}
-
-function MetricCard({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: typeof ShieldCheck;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="rounded-md border border-border/50 bg-background p-4">
-      <Icon className="h-5 w-5 text-muted-foreground" />
-      <p className="mt-3 text-2xl font-semibold">{value}</p>
-      <p className="mt-1 text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
     </div>
   );
 }

@@ -100,7 +100,7 @@ impl Default for ModelSettings {
             openai_model: "gpt-4.1-mini".to_string(),
             council_mode: "review_only".to_string(),
             max_run_tokens: 12000,
-            research_provider: "llm".to_string(),
+            research_provider: "firecrawl".to_string(),
             firecrawl_base_url: "https://api.firecrawl.dev".to_string(),
             firecrawl_api_key: None,
             email_provider: "none".to_string(),

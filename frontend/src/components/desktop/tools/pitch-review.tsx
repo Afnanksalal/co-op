@@ -28,7 +28,11 @@ export function PitchReviewSurface({
         }}
       >
         <PanelTitle icon={ChartLine} title="Pitch review" />
-        <Field label="Title" value={pitch.title} onChange={(title) => onPitchChange({ ...pitch, title })} />
+        <Field
+          label="Title"
+          value={pitch.title}
+          onChange={(title) => onPitchChange({ ...pitch, title })}
+        />
         <div className="mt-4 space-y-2">
           <Label htmlFor="pitch-deck-file">Deck file</Label>
           <label
@@ -37,7 +41,9 @@ export function PitchReviewSurface({
           >
             <BookBookmark className="h-8 w-8 text-muted-foreground" weight="light" />
             <span className="mt-3 text-sm font-medium">Upload PDF, PPTX, TXT, or Markdown</span>
-            <span className="mt-1 text-xs text-muted-foreground">Read locally before Co-Op reviews it</span>
+            <span className="mt-1 text-xs text-muted-foreground">
+              Read locally before Co-Op reviews it
+            </span>
           </label>
           <input
             id="pitch-deck-file"
@@ -54,7 +60,12 @@ export function PitchReviewSurface({
               <span className="min-w-0 truncate">
                 {pitchFileMeta.name} - {pitchFileMeta.size}
               </span>
-              <Button type="button" size="sm" variant="outline" onClick={() => void onPitchFile(null)}>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => void onPitchFile(null)}
+              >
                 Remove
               </Button>
             </div>
@@ -88,10 +99,14 @@ export function PitchReviewSurface({
             </div>
             <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
               {deck.sourceFileName && (
-                <span className="rounded-full border border-border px-2 py-1">{deck.sourceFileName}</span>
+                <span className="rounded-full border border-border px-2 py-1">
+                  {deck.sourceFileName}
+                </span>
               )}
               {deck.slideCount > 0 && (
-                <span className="rounded-full border border-border px-2 py-1">{deck.slideCount} slides/pages</span>
+                <span className="rounded-full border border-border px-2 py-1">
+                  {deck.slideCount} slides/pages
+                </span>
               )}
             </div>
             <MarkdownOutput

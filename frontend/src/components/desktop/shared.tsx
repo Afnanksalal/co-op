@@ -15,13 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { KnowledgeGraphSnapshot } from '@/lib/desktop/runtime';
 import type { DesktopIcon } from './shell-types';
-import {
-  graphLabel,
-  labelOption,
-  memoryRelationshipDisplay,
-  memoryTypeDisplay,
-} from './utils';
-
+import { graphLabel, labelOption, memoryRelationshipDisplay, memoryTypeDisplay } from './utils';
 
 export function MetricCard({
   icon: Icon,

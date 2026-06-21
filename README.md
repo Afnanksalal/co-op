@@ -33,7 +33,8 @@ Cloud services are intentionally narrow. Customer prompts, outputs, company file
 - NestJS license backend for license generation, customer key deletion, activation, heartbeat, deactivation, health checks, and existing-user backfill.
 - Tauri desktop app for onboarding, company profile, private files, local search, business memory, advisor chat, work plans, research, customers, outreach, pitch review, calculators, ownership tools, settings, and license status.
 - Local-first model routing through Ollama or an OpenAI-compatible bring-your-own-key endpoint.
-- Optional local configuration for Firecrawl web research and Resend or SendGrid email sending.
+- Required local Firecrawl configuration for source-backed market, competitor, legal, customer, pricing, investor, and risk research, plus optional Resend or SendGrid email sending.
+- Runtime guardrails for business-topic scope, source-backed outside facts, prompt-injection resistance, secret protection, no code execution, and output checks.
 - Documentation for architecture, licensing, orchestration, operations, data boundaries, positioning, audits, and contribution rules.
 
 ## What Is Not Included
@@ -92,16 +93,16 @@ npm run dev
 
 Required backend variables:
 
-| Variable | Purpose |
-| --- | --- |
-| `DATABASE_URL` | PostgreSQL connection string. |
+| Variable                           | Purpose                                                                                   |
+| ---------------------------------- | ----------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                     | PostgreSQL connection string.                                                             |
 | `DATABASE_SSL_REJECT_UNAUTHORIZED` | Set to `true` in production unless the database provider requires a documented exception. |
-| `SUPABASE_URL` | Supabase project URL. |
-| `SUPABASE_ANON_KEY` | Supabase public anon key used to verify user sessions. |
-| `LICENSE_KEY_PEPPER` | Strong server secret used for keyed license and activation-token hashes. |
-| `CORS_ORIGINS` | Comma-separated trusted web origins in production. |
-| `LICENSE_OFFLINE_GRACE_DAYS` | Optional desktop offline grace window. |
-| `SUPABASE_SERVICE_KEY` | Optional one-off key for existing-user license backfills. |
+| `SUPABASE_URL`                     | Supabase project URL.                                                                     |
+| `SUPABASE_ANON_KEY`                | Supabase public anon key used to verify user sessions.                                    |
+| `LICENSE_KEY_PEPPER`               | Strong server secret used for keyed license and activation-token hashes.                  |
+| `CORS_ORIGINS`                     | Comma-separated trusted web origins in production.                                        |
+| `LICENSE_OFFLINE_GRACE_DAYS`       | Optional desktop offline grace window.                                                    |
+| `SUPABASE_SERVICE_KEY`             | Optional one-off key for existing-user license backfills.                                 |
 
 ## Frontend And Desktop Setup
 
@@ -114,13 +115,13 @@ npm run dev
 
 Required frontend variables:
 
-| Variable | Purpose |
-| --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL for browser auth. |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase browser anon key. |
-| `NEXT_PUBLIC_API_URL` | Backend API URL, usually ending in `/api/v1`. |
-| `NEXT_PUBLIC_APP_URL` | Public web app URL. |
-| `COOP_CLOUD_URL` | Optional desktop build override for the cloud origin. |
+| Variable                        | Purpose                                               |
+| ------------------------------- | ----------------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Supabase project URL for browser auth.                |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase browser anon key.                            |
+| `NEXT_PUBLIC_API_URL`           | Backend API URL, usually ending in `/api/v1`.         |
+| `NEXT_PUBLIC_APP_URL`           | Public web app URL.                                   |
+| `COOP_CLOUD_URL`                | Optional desktop build override for the cloud origin. |
 
 Desktop development:
 
@@ -175,6 +176,8 @@ npm run tauri:build
 - Store desktop activation tokens and provider keys in OS credential storage.
 - Keep business workflows local to the installed app.
 - Require explicit customer configuration before routing work to an external AI, research, email, or integration provider.
+- Reject executable code requests and do not expose shell execution from the desktop runtime.
+- Require web sources for outside-fact business work and fail closed when sources are unavailable.
 - Keep production CORS restricted to known origins.
 - Keep `/desktop` and `/local` unavailable in hosted production web builds.
 

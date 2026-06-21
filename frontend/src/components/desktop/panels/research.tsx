@@ -5,7 +5,12 @@ import { BookBookmark, MagnifyingGlass } from '@phosphor-icons/react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { runResearchQuery, type DesktopState, type ResearchRun, type StartupProfile } from '@/lib/desktop/runtime';
+import {
+  runResearchQuery,
+  type DesktopState,
+  type ResearchRun,
+  type StartupProfile,
+} from '@/lib/desktop/runtime';
 import type { View } from '../shell-types';
 import { EmptyState, PanelTitle, SegmentedControl, TextArea, Toggle } from '../shared';
 import { MarkdownOutput } from '../markdown';
@@ -34,17 +39,9 @@ export function ResearchPanel({
   const [depth, setDepth] = useState('standard');
   const activePlaybook =
     researchPlaybooks.find((playbook) => playbook.id === researchType) ?? researchPlaybooks[0];
-  const providerBlocked =
-    state.modelSettings.researchProvider === 'firecrawl' &&
-    !state.modelSettings.firecrawlApiKeySaved;
-  const webSourcesReady =
-    state.modelSettings.researchProvider === 'firecrawl' &&
-    state.modelSettings.firecrawlApiKeySaved;
-  const providerLabel = webSourcesReady
-    ? 'Web sources ready'
-    : state.modelSettings.researchProvider === 'firecrawl'
-      ? 'Needs web key'
-      : 'Assistant only';
+  const providerBlocked = !state.modelSettings.firecrawlApiKeySaved;
+  const webSourcesReady = state.modelSettings.firecrawlApiKeySaved;
+  const providerLabel = webSourcesReady ? 'Web sources ready' : 'Needs web key';
   const sourceTotal = state.researchRuns.reduce((total, run) => total + run.sources.length, 0);
   const suggestions = researchSuggestions(researchType, state.workspace);
   const canResearch = query.trim().length > 0 && !providerBlocked && busyAction !== 'research';
@@ -139,9 +136,7 @@ export function ResearchPanel({
             <span>
               {webSourcesReady
                 ? 'Uses live web sources, then saves the report locally.'
-                : providerBlocked
-                  ? 'Add a web search key before running live research.'
-                  : 'Uses your assistant only. Add web search for source-backed research.'}
+                : 'Add a web search key before running source-backed research.'}
             </span>
             {!webSourcesReady && (
               <Button
@@ -316,8 +311,8 @@ function ResearchRunCard({ run, onReuse }: { run: ResearchRun; onReuse: () => vo
         </div>
       ) : (
         <p className="mt-4 rounded-md border border-border/60 bg-background p-3 text-xs leading-5 text-muted-foreground">
-          This was answered by the configured assistant without live web sources. Add web sources in
-          Settings for cited research.
+          This older report has no saved web sources. New research requires web sources before it
+          runs.
         </p>
       )}
     </article>

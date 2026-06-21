@@ -39,25 +39,25 @@ mindmap
 
 ## Feature Mapping
 
-| Old feature family | Current local-first implementation |
-| --- | --- |
-| Startup workspace and onboarding | Stored locally through the desktop workspace profile and first-run onboarding. |
-| Advisor chat window | Restored with session history, advisor area selection, second-look review, company files, live research option, and review level. |
-| Review gate | Restored as bounded local orchestration with no extra review, standard review, sensitive-work review, and full review. |
-| Company file intelligence | Restored as local sectioning, SQLite-backed search, compact matching data, and bounded context assembly. |
-| Business memory | Restored as a local derived snapshot from profile, files, research, customers, campaigns, and work history. |
-| Web research | Restored through customer-configured Firecrawl or model-only synthesis, with assistant-only disclosure when live sources are unavailable. |
-| Lead discovery | Restored as a live-research workflow that requires source-backed extraction and local deduplication. |
-| Personalized outreach | Restored with local leads, campaigns, AI-personalized draft generation, and send status. |
-| Email sending | Restored through locally stored Resend or SendGrid keys. |
-| Investor database | Restored as a local searchable investor surface. |
-| Competitor alerts | Restored as local alert records with manual refresh. |
-| Pitch deck analyzer | Restored as local file/notes analysis through the configured provider. |
-| Cap table simulator | Restored as local scenario storage and validation. |
-| Financial calculators | Restored for runway, burn rate, valuation, and unit economics. |
-| Bookmarks | Restored as local bookmark storage. |
-| Integrations | Restored as local endpoint records for configured services. |
-| Work history | Restored with status, trace, output, errors, and timestamps. |
+| Old feature family               | Current local-first implementation                                                                                                                             |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Startup workspace and onboarding | Stored locally through the desktop workspace profile and first-run onboarding.                                                                                 |
+| Advisor chat window              | Restored with session history, advisor area selection, second-look review, company files, live research option, and review level.                              |
+| Review gate                      | Restored as bounded local orchestration with no extra review, standard review, sensitive-work review, and full review.                                         |
+| Company file intelligence        | Restored as local sectioning, SQLite-backed search, compact matching data, and bounded context assembly.                                                       |
+| Business memory                  | Restored as a local derived snapshot from profile, files, research, customers, campaigns, and work history.                                                    |
+| Web research                     | Restored through customer-configured Firecrawl. Outside-fact research fails closed when web sources are unavailable instead of producing model-only synthesis. |
+| Lead discovery                   | Restored as a live-research workflow that requires source-backed extraction and local deduplication.                                                           |
+| Personalized outreach            | Restored with local leads, campaigns, AI-personalized draft generation, and send status.                                                                       |
+| Email sending                    | Restored through locally stored Resend or SendGrid keys.                                                                                                       |
+| Investor database                | Restored as a local searchable investor surface.                                                                                                               |
+| Competitor alerts                | Restored as local alert records with manual refresh.                                                                                                           |
+| Pitch deck analyzer              | Restored as local file/notes analysis through the configured provider.                                                                                         |
+| Cap table simulator              | Restored as local scenario storage and validation.                                                                                                             |
+| Financial calculators            | Restored for runway, burn rate, valuation, and unit economics.                                                                                                 |
+| Bookmarks                        | Restored as local bookmark storage.                                                                                                                            |
+| Integrations                     | Restored as local endpoint records for configured services.                                                                                                    |
+| Work history                     | Restored with status, trace, output, errors, and timestamps.                                                                                                   |
 
 ## Cloud Boundary
 

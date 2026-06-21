@@ -7,6 +7,7 @@ export type View =
   | 'workspace'
   | 'chat'
   | 'rag'
+  | 'memory'
   | 'research'
   | 'outreach'
   | 'tools'

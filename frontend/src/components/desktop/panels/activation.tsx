@@ -3,7 +3,12 @@
 import { useState } from 'react';
 import { Key, ShieldCheck } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
-import { activateLicense, clearActivation, refreshLicense, type DesktopState } from '@/lib/desktop/runtime';
+import {
+  activateLicense,
+  clearActivation,
+  refreshLicense,
+  type DesktopState,
+} from '@/lib/desktop/runtime';
 import { Field, PanelTitle, Rows } from '../shared';
 
 export function ActivationPanel({

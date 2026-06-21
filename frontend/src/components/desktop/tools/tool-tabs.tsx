@@ -51,7 +51,7 @@ export function ToolTabs({
         <h2 className="font-serif text-lg font-semibold tracking-normal">Business tools</h2>
         <p className="text-xs text-muted-foreground">Focused local operating surfaces</p>
       </div>
-      <div className="coop-scrollbar flex min-h-0 flex-1 gap-2 overflow-x-auto pb-1 xl:block xl:space-y-2 xl:overflow-x-hidden xl:overflow-y-auto xl:pb-0">
+      <div className="coop-scrollbar flex min-h-0 flex-1 gap-2 overflow-x-auto pb-1 xl:block xl:space-y-2 xl:overflow-y-auto xl:overflow-x-hidden xl:pb-0">
         {toolTabs.map((tab) => (
           <button
             key={tab.id}

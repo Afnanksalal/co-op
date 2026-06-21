@@ -3,10 +3,40 @@
 import { useState } from 'react';
 import { Briefcase, ChartBar } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
-import { saveWorkspaceProfile, type DesktopState, type StartupProfile } from '@/lib/desktop/runtime';
-import { businessModels, founderRoles, fundingStages, optionLabels, revenueModels, revenueStatuses, sectors, startupStages, teamSizes } from '../constants';
-import { DateField, Field, PanelTitle, Rows, SectionHeading, SegmentedControl, SelectField, TextArea } from '../shared';
-import { formatProfileUpdated, labelOption, numberToInput, optionalIntegerFromInput, optionalNumberFromInput, workspaceCompletion } from '../utils';
+import {
+  saveWorkspaceProfile,
+  type DesktopState,
+  type StartupProfile,
+} from '@/lib/desktop/runtime';
+import {
+  businessModels,
+  founderRoles,
+  fundingStages,
+  optionLabels,
+  revenueModels,
+  revenueStatuses,
+  sectors,
+  startupStages,
+  teamSizes,
+} from '../constants';
+import {
+  DateField,
+  Field,
+  PanelTitle,
+  Rows,
+  SectionHeading,
+  SegmentedControl,
+  SelectField,
+  TextArea,
+} from '../shared';
+import {
+  formatProfileUpdated,
+  labelOption,
+  numberToInput,
+  optionalIntegerFromInput,
+  optionalNumberFromInput,
+  workspaceCompletion,
+} from '../utils';
 
 export function WorkspacePanel({
   profile,

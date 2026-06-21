@@ -1,9 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { EnvelopeSimple, HardDrives, MagnifyingGlass, Plugs } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
-import { saveIntegration, saveModelSettings, type DesktopState, type ModelSettings, type ModelSettingsUpdate } from '@/lib/desktop/runtime';
+import {
+  saveIntegration,
+  saveModelSettings,
+  type DesktopState,
+  type ModelSettings,
+  type ModelSettingsUpdate,
+} from '@/lib/desktop/runtime';
 import { reviewModeLabels } from '../constants';
 import { Field, PanelTitle, SegmentedControl, SelectField } from '../shared';
 import { looksLikeEmail } from '../utils';
@@ -26,16 +32,20 @@ export function SettingsPanel({
   const [openaiApiKey, setOpenaiApiKey] = useState('');
   const [firecrawlApiKey, setFirecrawlApiKey] = useState('');
   const [emailApiKey, setEmailApiKey] = useState('');
-  const [settingsTab, setSettingsTab] = useState('model');
+  const [settingsTab, setSettingsTab] = useState(
+    settings.firecrawlApiKeySaved ? 'model' : 'research'
+  );
   const [integration, setIntegration] = useState({
     name: '',
     kind: 'mcp',
     baseUrl: '',
     enabled: true,
   });
-  const update = (patch: Partial<ModelSettings>) => setSettings({ ...settings, ...patch });
+  const update = (patch: Partial<ModelSettings>) =>
+    setSettings({ ...settings, researchProvider: 'firecrawl', ...patch });
   const settingsPayload: ModelSettingsUpdate = {
     ...settings,
+    researchProvider: 'firecrawl',
     openaiApiKey,
     firecrawlApiKey,
     emailApiKey,
@@ -43,17 +53,13 @@ export function SettingsPanel({
   const integrationReady =
     integration.name.trim().length >= 2 && integration.baseUrl.trim().length > 0;
   const needsModelKey = settings.provider === 'openai_compatible' && !settings.openaiApiKeySaved;
-  const needsFirecrawlKey =
-    settings.researchProvider === 'firecrawl' && !settings.firecrawlApiKeySaved;
+  const needsFirecrawlKey = !settings.firecrawlApiKeySaved;
   const needsEmailKey = settings.emailProvider !== 'none' && !settings.emailApiKeySaved;
   const modelReady =
     settings.provider !== 'openai_compatible' ||
     settings.openaiApiKeySaved ||
     openaiApiKey.trim().length > 0;
-  const researchReady =
-    settings.researchProvider !== 'firecrawl' ||
-    settings.firecrawlApiKeySaved ||
-    firecrawlApiKey.trim().length > 0;
+  const researchReady = settings.firecrawlApiKeySaved || firecrawlApiKey.trim().length > 0;
   const emailReady =
     settings.emailProvider === 'none' ||
     ((settings.emailApiKeySaved || emailApiKey.trim().length > 0) &&
@@ -75,7 +81,7 @@ export function SettingsPanel({
 
   const settingTabs = [
     { id: 'model', label: 'Assistant' },
-    { id: 'research', label: 'Research' },
+    { id: 'research', label: 'Sources' },
     { id: 'email', label: 'Email' },
     { id: 'integrations', label: 'Connections' },
   ];
@@ -84,8 +90,14 @@ export function SettingsPanel({
     settingsTab === 'model'
       ? 'Save assistant settings'
       : settingsTab === 'research'
-        ? 'Save research settings'
+        ? 'Save web sources'
         : 'Save email settings';
+
+  useEffect(() => {
+    if (!settings.firecrawlApiKeySaved) {
+      setSettingsTab('research');
+    }
+  }, [settings.firecrawlApiKeySaved]);
 
   if (settingsTab === 'integrations') {
     return (
@@ -223,39 +235,32 @@ export function SettingsPanel({
 
         {settingsTab === 'research' && (
           <div className="space-y-5">
-            <PanelTitle icon={MagnifyingGlass} title="Research" />
+            <PanelTitle icon={MagnifyingGlass} title="Web sources" />
+            <p className="text-sm leading-6 text-muted-foreground">
+              Web search is required for market, competitor, legal, customer, pricing, investor, and
+              risk answers. Keys stay on this computer.
+            </p>
             <div className="grid gap-4 md:grid-cols-2">
-              <SelectField
-                label="Research source"
-                value={settings.researchProvider}
-                onChange={(researchProvider) => update({ researchProvider })}
-                options={['llm', 'firecrawl']}
-                labels={{ llm: 'Assistant only', firecrawl: 'Web search' }}
+              <Field
+                label="Web search service address"
+                value={settings.firecrawlBaseUrl}
+                onChange={(firecrawlBaseUrl) => update({ firecrawlBaseUrl })}
               />
-              {settings.researchProvider === 'firecrawl' && (
-                <>
-                  <Field
-                    label="Web search service address"
-                    value={settings.firecrawlBaseUrl}
-                    onChange={(firecrawlBaseUrl) => update({ firecrawlBaseUrl })}
-                  />
-                  <div className="md:col-span-2">
-                    <Field
-                      label={
-                        settings.firecrawlApiKeySaved ? 'Replace web search key' : 'Web search key'
-                      }
-                      value={firecrawlApiKey}
-                      type="password"
-                      onChange={setFirecrawlApiKey}
-                    />
-                    <SecretStatus
-                      saved={settings.firecrawlApiKeySaved}
-                      pending={firecrawlApiKey.trim().length > 0}
-                      required={needsFirecrawlKey}
-                    />
-                  </div>
-                </>
-              )}
+              <div>
+                <Field
+                  label={
+                    settings.firecrawlApiKeySaved ? 'Replace web search key' : 'Web search key'
+                  }
+                  value={firecrawlApiKey}
+                  type="password"
+                  onChange={setFirecrawlApiKey}
+                />
+                <SecretStatus
+                  saved={settings.firecrawlApiKeySaved}
+                  pending={firecrawlApiKey.trim().length > 0}
+                  required={needsFirecrawlKey}
+                />
+              </div>
             </div>
           </div>
         )}

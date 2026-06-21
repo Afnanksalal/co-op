@@ -5,8 +5,24 @@ import { Brain, Database, FlowArrow, HardDrives, MagnifyingGlass } from '@phosph
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { addKnowledgeDocument, getKnowledgeGraph, searchKnowledge, type DesktopState, type KnowledgeGraphSnapshot, type SearchResult } from '@/lib/desktop/runtime';
-import { EmptyState, Field, MemoryBoard, MetricCard, Notice, PanelTitle, RelationshipBoard, TextArea } from '../shared';
+import {
+  addKnowledgeDocument,
+  getKnowledgeGraph,
+  searchKnowledge,
+  type DesktopState,
+  type KnowledgeGraphSnapshot,
+  type SearchResult,
+} from '@/lib/desktop/runtime';
+import {
+  EmptyState,
+  Field,
+  MemoryBoard,
+  MetricCard,
+  Notice,
+  PanelTitle,
+  RelationshipBoard,
+  TextArea,
+} from '../shared';
 import { errorMessage, formatBytes, knowledgeChunkCount } from '../utils';
 
 export function RagPanel({
@@ -45,6 +61,7 @@ export function RagPanel({
     };
   }, [
     state.documents.length,
+    state.memories.length,
     state.leads.length,
     state.campaigns.length,
     state.workflowRuns.length,

@@ -45,6 +45,12 @@ export function onboardingRequired(profile: StartupProfile): boolean {
   return !profile.onboardingCompletedAt && workspaceCompletion(profile) < 70;
 }
 
+export function webSearchReady(state: DesktopState): boolean {
+  return (
+    state.modelSettings.researchProvider === 'firecrawl' && state.modelSettings.firecrawlApiKeySaved
+  );
+}
+
 export function nextViewForState(
   next: DesktopState,
   currentView: View,
@@ -52,6 +58,9 @@ export function nextViewForState(
 ): View | null {
   if (!runtimeAvailable) return null;
   if (!next.activation) return currentView === 'activation' ? null : 'activation';
+  if (next.isUsable && !webSearchReady(next) && !['activation', 'settings'].includes(currentView)) {
+    return 'settings';
+  }
   if (
     next.isUsable &&
     onboardingRequired(next.workspace) &&
@@ -131,7 +140,7 @@ export function providerDisplay(value: string): string {
 export function researchProviderDisplay(value: string): string {
   const labels: Record<string, string> = {
     firecrawl: 'Web search',
-    llm: 'Assistant only',
+    llm: 'Unsourced report',
   };
   return labels[value] ?? labelOption(value);
 }
@@ -172,6 +181,7 @@ export function memoryRelationshipDisplay(value: string): string {
     runs_campaign: 'runs',
     contacts: 'contacts',
     executed: 'created',
+    remembers: 'remembers',
     founded_by: 'founded by',
     at_stage: 'stage',
     operates_in: 'market',
@@ -202,6 +212,7 @@ export function titleForView(view: View): string {
   if (view === 'workspace') return 'Company';
   if (view === 'chat') return 'Ask';
   if (view === 'rag') return 'Files';
+  if (view === 'memory') return 'Memory';
   if (view === 'research') return 'Research';
   if (view === 'outreach') return 'Customers';
   if (view === 'tools') return 'Money & Tools';
@@ -213,9 +224,10 @@ export function subtitleForView(view: View, state: DesktopState | null): string 
   if (!state) return 'Loading Co-Op';
   if (view === 'onboarding') return 'Three steps before the first plan';
   if (view === 'activation') return 'License check for this computer';
-  if (view === 'settings') return 'Assistant, research, email, and local connections';
+  if (view === 'settings') return 'Assistant, web sources, email, and local connections';
   if (view === 'workspace') return 'The business context Co-Op should remember';
   if (view === 'rag') return 'Private files saved on this computer';
+  if (view === 'memory') return 'Decisions, preferences, and context Co-Op remembers';
   if (view === 'history') return 'Plans, decisions, risks, and next steps';
   if (view === 'chat') return 'Ask questions using your private business context';
   if (view === 'research') return 'Market, competitor, and customer questions';

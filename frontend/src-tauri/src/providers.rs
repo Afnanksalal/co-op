@@ -1,6 +1,6 @@
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::time::Duration as StdDuration;
 
 use crate::constants::{MAX_EMAIL_BODY_LENGTH, MAX_EMAIL_SUBJECT_LENGTH, REQUEST_TIMEOUT_SECS};
@@ -58,19 +58,6 @@ struct OpenAiChoice {
 #[derive(Debug, Clone, Deserialize)]
 struct OpenAiMessage {
     content: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct FirecrawlSearchRequest<'a> {
-    query: &'a str,
-    limit: usize,
-    scrape_options: FirecrawlScrapeOptions,
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct FirecrawlScrapeOptions {
-    formats: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -233,16 +220,20 @@ pub async fn search_firecrawl(
         .firecrawl_api_key
         .as_deref()
         .filter(|value| !value.trim().is_empty())
-        .ok_or_else(|| "Firecrawl API key is not saved".to_string())?;
+        .ok_or_else(|| "Web search key is not saved".to_string())?;
     let base_url =
-        sanitize_http_base_url(&settings.firecrawl_base_url, true, false, "Firecrawl URL")?;
-    let request = FirecrawlSearchRequest {
-        query,
-        limit: limit.clamp(1, 10),
-        scrape_options: FirecrawlScrapeOptions {
-            formats: vec!["markdown".to_string()],
-        },
-    };
+        sanitize_http_base_url(&settings.firecrawl_base_url, true, false, "Web search URL")?;
+    let request = json!({
+        "query": query,
+        "limit": limit.clamp(1, 10),
+        "sources": ["web"],
+        "timeout": 60_000,
+        "ignoreInvalidURLs": true,
+        "scrapeOptions": {
+            "formats": [{ "type": "markdown" }],
+            "onlyMainContent": true
+        }
+    });
 
     let client = http_client()?;
     let response = client
@@ -273,16 +264,16 @@ async fn search_firecrawl_v1(
     let api_key = settings
         .firecrawl_api_key
         .as_deref()
-        .ok_or_else(|| "Firecrawl API key is not saved".to_string())?;
+        .ok_or_else(|| "Web search key is not saved".to_string())?;
     let base_url =
-        sanitize_http_base_url(&settings.firecrawl_base_url, true, false, "Firecrawl URL")?;
-    let request = FirecrawlSearchRequest {
-        query,
-        limit: limit.clamp(1, 10),
-        scrape_options: FirecrawlScrapeOptions {
-            formats: vec!["markdown".to_string()],
-        },
-    };
+        sanitize_http_base_url(&settings.firecrawl_base_url, true, false, "Web search URL")?;
+    let request = json!({
+        "query": query,
+        "limit": limit.clamp(1, 10),
+        "scrapeOptions": {
+            "formats": ["markdown"]
+        }
+    });
 
     let response = http_client()?
         .post(format!("{}/v1/search", base_url))
@@ -410,12 +401,7 @@ fn optional_sender_name(settings: &ModelSettings) -> Option<&str> {
 }
 
 fn parse_firecrawl_sources(payload: Value) -> Vec<ResearchSource> {
-    let candidates = payload
-        .get("data")
-        .and_then(Value::as_array)
-        .cloned()
-        .or_else(|| payload.get("results").and_then(Value::as_array).cloned())
-        .unwrap_or_default();
+    let candidates = firecrawl_result_items(&payload);
 
     candidates
         .into_iter()
@@ -440,6 +426,38 @@ fn parse_firecrawl_sources(payload: Value) -> Vec<ResearchSource> {
             })
         })
         .collect()
+}
+
+fn firecrawl_result_items(payload: &Value) -> Vec<Value> {
+    let mut items = Vec::new();
+
+    if let Some(data) = payload.get("data") {
+        if let Some(array) = data.as_array() {
+            items.extend(array.iter().cloned());
+        } else if let Some(object) = data.as_object() {
+            for key in ["web", "news", "images"] {
+                if let Some(array) = object.get(key).and_then(Value::as_array) {
+                    items.extend(array.iter().cloned());
+                }
+            }
+        }
+    }
+
+    if items.is_empty() {
+        if let Some(array) = payload.get("results").and_then(Value::as_array) {
+            items.extend(array.iter().cloned());
+        }
+    }
+
+    if items.is_empty() {
+        for key in ["web", "news"] {
+            if let Some(array) = payload.get(key).and_then(Value::as_array) {
+                items.extend(array.iter().cloned());
+            }
+        }
+    }
+
+    items
 }
 
 fn string_field(value: &Value, keys: &[&str]) -> Option<String> {
@@ -577,5 +595,51 @@ mod tests {
 
         assert_eq!(formatted_sender(&settings), "Ops Team <owner@example.com>");
         assert_eq!(optional_sender_name(&settings), Some("Ops Team"));
+    }
+
+    #[test]
+    fn parses_firecrawl_v2_web_results() {
+        let payload = json!({
+            "success": true,
+            "data": {
+                "web": [
+                    {
+                        "title": "Example competitor",
+                        "description": "A relevant company",
+                        "url": "https://example.com",
+                        "markdown": "# Example\nUseful source content"
+                    }
+                ]
+            }
+        });
+
+        let sources = parse_firecrawl_sources(payload);
+
+        assert_eq!(sources.len(), 1);
+        assert_eq!(sources[0].title, "Example competitor");
+        assert_eq!(sources[0].url, "https://example.com");
+        assert!(sources[0].content.contains("Useful source content"));
+    }
+
+    #[test]
+    fn parses_firecrawl_flat_legacy_results() {
+        let payload = json!({
+            "success": true,
+            "data": [
+                {
+                    "metadata": {
+                        "title": "Legacy title",
+                        "sourceURL": "https://legacy.example.com"
+                    },
+                    "content": "Legacy body"
+                }
+            ]
+        });
+
+        let sources = parse_firecrawl_sources(payload);
+
+        assert_eq!(sources.len(), 1);
+        assert_eq!(sources[0].title, "Legacy title");
+        assert_eq!(sources[0].url, "https://legacy.example.com");
     }
 }

@@ -72,7 +72,7 @@ mod tests {
             .expect("legacy desktop state should migrate");
 
         assert_eq!(state.install_id, "0598c23a-c67a-4378-928d-6b1a40c6ece6");
-        assert_eq!(state.model_settings.research_provider, "llm");
+        assert_eq!(state.model_settings.research_provider, "firecrawl");
         assert_eq!(state.model_settings.email_provider, "none");
         assert_eq!(
             state.model_settings.firecrawl_base_url,

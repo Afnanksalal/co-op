@@ -86,8 +86,8 @@ pub fn validate_model_settings(settings: &mut ModelSettings) -> Result<(), Strin
     ) {
         return Err("Unsupported council mode".to_string());
     }
-    if !matches!(settings.research_provider.as_str(), "llm" | "firecrawl") {
-        return Err("Unsupported research provider".to_string());
+    if settings.research_provider != "firecrawl" {
+        settings.research_provider = "firecrawl".to_string();
     }
     if !matches!(
         settings.email_provider.as_str(),
@@ -116,15 +116,14 @@ pub fn validate_model_settings(settings: &mut ModelSettings) -> Result<(), Strin
     {
         return Err("Provider API key is required for OpenAI-compatible routing".to_string());
     }
-    if settings.research_provider == "firecrawl"
-        && settings
-            .firecrawl_api_key
-            .as_deref()
-            .map(str::trim)
-            .unwrap_or("")
-            .is_empty()
+    if settings
+        .firecrawl_api_key
+        .as_deref()
+        .map(str::trim)
+        .unwrap_or("")
+        .is_empty()
     {
-        return Err("Firecrawl API key is required for Firecrawl research".to_string());
+        return Err("Web search key is required for source-backed business research".to_string());
     }
     if settings.email_provider != "none" {
         if settings
@@ -330,10 +329,54 @@ pub fn validate_cap_table(request: &CapTableRequest) -> Result<(), String> {
 
 pub fn normalize_email_secret(value: Option<String>, current: Option<String>) -> Option<String> {
     match value {
-        Some(secret) if secret.trim().is_empty() => current,
-        Some(secret) => Some(secret.trim().to_string()),
+        Some(secret) => {
+            let normalized = normalize_secret_input(&secret);
+            if normalized.is_empty() {
+                current
+            } else {
+                Some(normalized)
+            }
+        }
         None => current,
     }
+}
+
+fn normalize_secret_input(value: &str) -> String {
+    let mut normalized = value
+        .trim()
+        .trim_matches('"')
+        .trim_matches('\'')
+        .trim()
+        .to_string();
+
+    if let Some((key, secret)) = normalized.split_once('=') {
+        let key = key.trim().to_ascii_uppercase();
+        if matches!(
+            key.as_str(),
+            "API_KEY"
+                | "OPENAI_API_KEY"
+                | "XAI_API_KEY"
+                | "FIRECRAWL_API_KEY"
+                | "RESEND_API_KEY"
+                | "SENDGRID_API_KEY"
+        ) {
+            normalized = secret
+                .trim()
+                .trim_matches('"')
+                .trim_matches('\'')
+                .trim()
+                .to_string();
+        }
+    }
+
+    if let Some(secret) = normalized
+        .strip_prefix("Bearer ")
+        .or_else(|| normalized.strip_prefix("bearer "))
+    {
+        normalized = secret.trim().to_string();
+    }
+
+    normalized
 }
 
 pub fn looks_like_email(value: &str) -> bool {
@@ -385,25 +428,62 @@ mod tests {
     }
 
     #[test]
-    fn default_model_settings_are_valid() {
-        let mut settings = ModelSettings::default();
+    fn model_settings_are_valid_with_required_web_key() {
+        let mut settings = ModelSettings {
+            firecrawl_api_key: Some("fc-test".to_string()),
+            ..ModelSettings::default()
+        };
 
         assert!(validate_model_settings(&mut settings).is_ok());
     }
 
     #[test]
-    fn model_settings_require_keys_for_external_providers() {
+    fn model_settings_require_keys_for_external_provider_and_web_search() {
         let mut settings = ModelSettings {
             provider: "openai_compatible".to_string(),
+            firecrawl_api_key: Some("fc-test".to_string()),
             ..ModelSettings::default()
         };
         assert!(validate_model_settings(&mut settings).is_err());
 
+        let mut settings = ModelSettings::default();
+        assert!(validate_model_settings(&mut settings).is_err());
+    }
+
+    #[test]
+    fn old_assistant_only_research_setting_is_upgraded() {
         let mut settings = ModelSettings {
-            research_provider: "firecrawl".to_string(),
+            research_provider: "llm".to_string(),
+            firecrawl_api_key: Some("fc-test".to_string()),
             ..ModelSettings::default()
         };
-        assert!(validate_model_settings(&mut settings).is_err());
+
+        validate_model_settings(&mut settings).unwrap();
+
+        assert_eq!(settings.research_provider, "firecrawl");
+    }
+
+    #[test]
+    fn blank_secret_keeps_current_secret() {
+        let secret = normalize_email_secret(Some("   ".to_string()), Some("saved-key".to_string()));
+
+        assert_eq!(secret.as_deref(), Some("saved-key"));
+    }
+
+    #[test]
+    fn pasted_secret_wrappers_are_removed_before_storage() {
+        assert_eq!(
+            normalize_email_secret(Some("Bearer xai-live-key".to_string()), None).as_deref(),
+            Some("xai-live-key")
+        );
+        assert_eq!(
+            normalize_email_secret(Some("XAI_API_KEY='xai-live-key'".to_string()), None).as_deref(),
+            Some("xai-live-key")
+        );
+        assert_eq!(
+            normalize_email_secret(Some("\"fc-live-key\"".to_string()), None).as_deref(),
+            Some("fc-live-key")
+        );
     }
 
     #[test]

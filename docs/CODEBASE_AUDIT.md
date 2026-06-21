@@ -48,12 +48,12 @@ Watch:
 
 Use these limits unless a deliberate exception is documented:
 
-| Area | Soft limit |
-| --- | ---: |
-| Frontend screen or panel | 300 lines |
-| Shared frontend component or utility module | 450 lines |
-| Rust or backend domain module | 600 lines |
-| DTO module | Split by product domain before it becomes hard to review |
+| Area                                        |                                               Soft limit |
+| ------------------------------------------- | -------------------------------------------------------: |
+| Frontend screen or panel                    |                                                300 lines |
+| Shared frontend component or utility module |                                                450 lines |
+| Rust or backend domain module               |                                                600 lines |
+| DTO module                                  | Split by product domain before it becomes hard to review |
 
 Large files are not automatically wrong, but they need a clear reason and a plan to avoid becoming dumping grounds.
 

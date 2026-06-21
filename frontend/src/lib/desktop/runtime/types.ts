@@ -88,6 +88,15 @@ export interface ChatSession {
   updatedAt: string;
 }
 
+export interface ChatProgressEvent {
+  sessionId: string;
+  sequence: number;
+  stage: string;
+  title: string;
+  detail: string;
+  createdAt: string;
+}
+
 export interface KnowledgeChunk {
   id: string;
   documentId: string;
@@ -106,12 +115,28 @@ export interface KnowledgeDocument {
   createdAt: string;
 }
 
+export interface BusinessMemory {
+  id: string;
+  memoryType: string;
+  title: string;
+  content: string;
+  source: string;
+  confidence: number;
+  pinned: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface SearchResult {
   documentId: string;
   chunkId: string;
   title: string;
   source: string;
   content: string;
+  score: number;
+}
+
+export interface MemorySearchResult extends BusinessMemory {
   score: number;
 }
 
@@ -290,6 +315,7 @@ export interface DesktopState {
   workspace: StartupProfile;
   chatSessions: ChatSession[];
   documents: KnowledgeDocument[];
+  memories: BusinessMemory[];
   researchRuns: ResearchRun[];
   leads: Lead[];
   campaigns: Campaign[];
@@ -329,6 +355,20 @@ export interface DocumentRequest {
 }
 
 export interface SearchRequest {
+  query: string;
+  limit?: number;
+}
+
+export interface MemoryRequest {
+  memoryType: string;
+  title: string;
+  content: string;
+  source: string;
+  pinned?: boolean;
+  confidence?: number | null;
+}
+
+export interface MemorySearchRequest {
   query: string;
   limit?: number;
 }

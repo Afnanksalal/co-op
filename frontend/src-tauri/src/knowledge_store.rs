@@ -8,7 +8,7 @@ use crate::constants::{MAX_DOCUMENTS, RAG_VECTOR_DIMENSIONS};
 use crate::rag::{chunk_text, embed_text, tokenize};
 use crate::types::{DesktopState, KnowledgeChunk, KnowledgeDocument, SearchResult};
 
-mod schema;
+pub(crate) mod schema;
 
 use schema::open_store;
 #[cfg(test)]

@@ -1,6 +1,7 @@
 use chrono::Utc;
 use tauri::AppHandle;
 
+use crate::memory::remember_workspace_profile;
 use crate::storage::{load_or_create_state, require_usable_activation, save_state, to_response};
 use crate::types::{
     Bookmark, BookmarkRequest, DesktopStateResponse, IntegrationEndpoint, IntegrationRequest,
@@ -19,6 +20,8 @@ pub fn save_workspace_profile(
     let mut state = load_or_create_state(&app)?;
     require_usable_activation(&state)?;
     state.workspace = profile;
+    let profile_snapshot = state.workspace.clone();
+    let _ = remember_workspace_profile(&app, &mut state, &profile_snapshot);
     save_state(&app, &state)?;
     Ok(to_response(state))
 }

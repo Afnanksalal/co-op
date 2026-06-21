@@ -167,8 +167,17 @@ fn migrate_plaintext_secret(
 }
 
 fn load_secret(app: &AppHandle, install_id: &str, slot: SecretSlot) -> Option<String> {
-    load_keyring_secret(install_id, slot)
-        .or_else(|| load_file_secret(app, install_id, slot).ok().flatten())
+    select_preferred_secret(
+        load_file_secret(app, install_id, slot).ok().flatten(),
+        load_keyring_secret(install_id, slot),
+    )
+}
+
+fn select_preferred_secret(
+    file_secret: Option<String>,
+    keyring_secret: Option<String>,
+) -> Option<String> {
+    file_secret.or(keyring_secret)
 }
 
 fn load_keyring_secret(install_id: &str, slot: SecretSlot) -> Option<String> {
@@ -352,5 +361,15 @@ mod tests {
             decrypt_secret("install", &stored).expect("secret should decrypt"),
             "sk-test-secret"
         );
+    }
+
+    #[test]
+    fn encrypted_file_secret_wins_over_stale_keyring_value() {
+        let selected = select_preferred_secret(
+            Some("new-key-from-file".to_string()),
+            Some("old-key-from-keyring".to_string()),
+        );
+
+        assert_eq!(selected.as_deref(), Some("new-key-from-file"));
     }
 }

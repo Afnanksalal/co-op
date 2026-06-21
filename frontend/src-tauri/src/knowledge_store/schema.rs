@@ -4,9 +4,9 @@ use tauri::{AppHandle, Manager};
 use super::legacy_hash_marker;
 
 const KNOWLEDGE_DB_FILE: &str = "knowledge.sqlite3";
-const KNOWLEDGE_DB_SCHEMA_VERSION: i64 = 2;
+const KNOWLEDGE_DB_SCHEMA_VERSION: i64 = 3;
 
-pub(super) fn open_store(app: &AppHandle) -> Result<Connection, String> {
+pub(crate) fn open_store(app: &AppHandle) -> Result<Connection, String> {
     let dir = app
         .path()
         .app_data_dir()
@@ -20,7 +20,7 @@ pub(super) fn open_store(app: &AppHandle) -> Result<Connection, String> {
     Ok(conn)
 }
 
-pub(super) fn configure_connection(conn: &Connection) -> Result<(), String> {
+pub(crate) fn configure_connection(conn: &Connection) -> Result<(), String> {
     conn.execute_batch(
         "
         PRAGMA foreign_keys = ON;
@@ -32,7 +32,7 @@ pub(super) fn configure_connection(conn: &Connection) -> Result<(), String> {
     .map_err(|error| format!("Failed to configure local knowledge store: {error}"))
 }
 
-pub(super) fn init_schema(conn: &Connection) -> Result<(), String> {
+pub(crate) fn init_schema(conn: &Connection) -> Result<(), String> {
     conn.execute_batch(
         "
         CREATE TABLE IF NOT EXISTS knowledge_documents (
@@ -67,6 +67,29 @@ pub(super) fn init_schema(conn: &Connection) -> Result<(), String> {
           content,
           tokenize = 'unicode61'
         );
+
+        CREATE TABLE IF NOT EXISTS business_memories (
+          id TEXT PRIMARY KEY,
+          memory_type TEXT NOT NULL,
+          title TEXT NOT NULL,
+          content TEXT NOT NULL,
+          source TEXT NOT NULL,
+          content_hash TEXT NOT NULL DEFAULT '',
+          vector BLOB NOT NULL,
+          confidence REAL NOT NULL DEFAULT 0.75,
+          pinned INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE VIRTUAL TABLE IF NOT EXISTS business_memories_fts USING fts5(
+          memory_id UNINDEXED,
+          memory_type,
+          title,
+          source,
+          content,
+          tokenize = 'unicode61'
+        );
         ",
     )
     .map_err(|error| format!("Failed to initialize local knowledge store: {error}"))?;
@@ -90,6 +113,16 @@ fn ensure_indexes(conn: &Connection) -> Result<(), String> {
 
         CREATE INDEX IF NOT EXISTS knowledge_chunks_document_section_idx
           ON knowledge_chunks(document_id, section_index);
+
+        CREATE INDEX IF NOT EXISTS business_memories_updated_idx
+          ON business_memories(updated_at DESC);
+
+        CREATE INDEX IF NOT EXISTS business_memories_type_idx
+          ON business_memories(memory_type);
+
+        CREATE UNIQUE INDEX IF NOT EXISTS business_memories_content_hash_idx
+          ON business_memories(content_hash)
+          WHERE content_hash != '';
         ",
     )
     .map_err(|error| format!("Failed to index local knowledge store: {error}"))
@@ -173,7 +206,7 @@ fn ensure_column(
     Ok(())
 }
 
-pub(super) fn table_has_column(
+pub(crate) fn table_has_column(
     conn: &Connection,
     table: &str,
     column: &str,

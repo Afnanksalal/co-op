@@ -1,10 +1,33 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Briefcase, Calculator, CaretLeft, CaretRight, ChatsCircle, CircleNotch, EnvelopeSimple, FlowArrow, HardDrives, House, List, MagnifyingGlass, Plugs, ShieldCheck, X } from '@phosphor-icons/react';
+import {
+  Brain,
+  Briefcase,
+  Calculator,
+  CaretLeft,
+  CaretRight,
+  ChatsCircle,
+  CircleNotch,
+  EnvelopeSimple,
+  FlowArrow,
+  HardDrives,
+  House,
+  List,
+  MagnifyingGlass,
+  Plugs,
+  ShieldCheck,
+  X,
+} from '@phosphor-icons/react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { getActivationState, isTauriRuntime, type DesktopState, type ModelSettings, type StartupProfile } from '@/lib/desktop/runtime';
+import {
+  getActivationState,
+  isTauriRuntime,
+  type DesktopState,
+  type ModelSettings,
+  type StartupProfile,
+} from '@/lib/desktop/runtime';
 import { toast } from 'sonner';
 import type { NavItem, View } from './shell-types';
 import { Notice } from './shared';
@@ -12,6 +35,7 @@ import { ActivationPanel } from './panels/activation';
 import { ChatPanel } from './panels/chat';
 import { DashboardPanel, LoadingWorkbench, LockedPanel } from './panels/dashboard';
 import { HistoryPanel } from './panels/history';
+import { MemoryPanel } from './panels/memory';
 import { OnboardingPanel } from './panels/onboarding';
 import { OutreachPanel } from './panels/customers';
 import { RagPanel } from './panels/files';
@@ -19,7 +43,14 @@ import { ResearchPanel } from './panels/research';
 import { SettingsPanel } from './panels/settings';
 import { ToolsPanel } from './panels/tools';
 import { WorkspacePanel } from './panels/workspace';
-import { errorMessage, nextViewForState, onboardingRequired, subtitleForView, successToastText, titleForView } from './utils';
+import {
+  errorMessage,
+  nextViewForState,
+  onboardingRequired,
+  subtitleForView,
+  successToastText,
+  titleForView,
+} from './utils';
 
 export function LocalCoOpShell() {
   const [view, setView] = useState<View>('dashboard');
@@ -41,9 +72,17 @@ export function LocalCoOpShell() {
     view !== 'dashboard';
   const fixedWorkbench =
     !lockedView &&
-    ['chat', 'history', 'workspace', 'rag', 'research', 'outreach', 'tools', 'settings'].includes(
-      view
-    );
+    [
+      'chat',
+      'history',
+      'workspace',
+      'rag',
+      'memory',
+      'research',
+      'outreach',
+      'tools',
+      'settings',
+    ].includes(view);
 
   function setMessage(value: string) {
     const text = successToastText(value);
@@ -138,6 +177,7 @@ export function LocalCoOpShell() {
         items: [
           { id: 'workspace', label: 'Company', icon: Briefcase },
           { id: 'rag', label: 'Files', icon: HardDrives },
+          { id: 'memory', label: 'Memory', icon: Brain },
           { id: 'research', label: 'Research', icon: MagnifyingGlass },
           { id: 'outreach', label: 'Customers', icon: EnvelopeSimple },
         ],
@@ -401,6 +441,9 @@ export function LocalCoOpShell() {
           )}
           {!lockedView && view === 'rag' && state && (
             <RagPanel state={state} busyAction={busyAction} runWithState={runWithState} />
+          )}
+          {!lockedView && view === 'memory' && state && (
+            <MemoryPanel state={state} busyAction={busyAction} runWithState={runWithState} />
           )}
           {!lockedView && view === 'research' && state && (
             <ResearchPanel

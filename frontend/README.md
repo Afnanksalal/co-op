@@ -22,7 +22,7 @@ Installed desktop UI:
 - Plans.
 - Company profile.
 - Files.
-- Research.
+- Source-backed research.
 - Customers.
 - Money & Tools.
 - Settings.
@@ -32,19 +32,19 @@ Hosted production builds must not expose the desktop shell. `/desktop` and `/loc
 
 ## Routes
 
-| Route | Purpose |
-| --- | --- |
-| `/` | Public product page. |
-| `/login` | Cloud account login. |
-| `/signup` | Cloud account signup. |
-| `/account` | Signed-in account center and activation key flow. |
-| `/download` | Software download entry point. |
-| `/admin/licenses` | Admin license console. |
-| `/privacy` | Privacy policy. |
-| `/terms` | Terms. |
-| `/security` | Security page. |
-| `/cookies` | Cookie policy. |
-| `/desktop` | Desktop shell for Tauri/local development only. |
+| Route             | Purpose                                           |
+| ----------------- | ------------------------------------------------- |
+| `/`               | Public product page.                              |
+| `/login`          | Cloud account login.                              |
+| `/signup`         | Cloud account signup.                             |
+| `/account`        | Signed-in account center and activation key flow. |
+| `/download`       | Software download entry point.                    |
+| `/admin/licenses` | Admin license console.                            |
+| `/privacy`        | Privacy policy.                                   |
+| `/terms`          | Terms.                                            |
+| `/security`       | Security page.                                    |
+| `/cookies`        | Cookie policy.                                    |
+| `/desktop`        | Desktop shell for Tauri/local development only.   |
 
 ## Commands
 
@@ -68,15 +68,17 @@ Command notes:
 
 ## Environment
 
-| Variable | Purpose |
-| --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase browser auth URL. |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase browser anon key. |
-| `NEXT_PUBLIC_API_URL` | Backend API URL, normally ending in `/api/v1`. |
-| `NEXT_PUBLIC_APP_URL` | Hosted web app URL. |
-| `COOP_CLOUD_URL` | Optional explicit desktop cloud origin. |
+| Variable                        | Purpose                                        |
+| ------------------------------- | ---------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Supabase browser auth URL.                     |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase browser anon key.                     |
+| `NEXT_PUBLIC_API_URL`           | Backend API URL, normally ending in `/api/v1`. |
+| `NEXT_PUBLIC_APP_URL`           | Hosted web app URL.                            |
+| `COOP_CLOUD_URL`                | Optional explicit desktop cloud origin.        |
 
 `frontend/src-tauri/build.rs` embeds `COOP_CLOUD_URL` when set. If it is not set, the desktop build reads `NEXT_PUBLIC_API_URL` and strips `/api/v1`. The activation screen should ask business users only for the activation key.
+
+The installed desktop app requires a saved web search key before source-backed market, competitor, legal, customer, pricing, investor, risk, or prospect-discovery work can run. The key is stored on the user's computer by the Tauri runtime and is not sent to the Co-Op cloud license backend.
 
 ## Code Map
 

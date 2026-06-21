@@ -42,6 +42,26 @@ pub struct SearchRequest {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct MemoryRequest {
+    pub memory_type: String,
+    pub title: String,
+    pub content: String,
+    pub source: String,
+    #[serde(default)]
+    pub pinned: bool,
+    #[serde(default)]
+    pub confidence: Option<f32>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemorySearchRequest {
+    pub query: String,
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ResearchRequest {
     pub query: String,
     #[serde(default = "default_research_type")]

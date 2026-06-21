@@ -4,10 +4,11 @@ use tauri::{AppHandle, Manager};
 
 use crate::constants::{
     MAX_ALERTS, MAX_BOOKMARKS, MAX_CAMPAIGNS, MAX_CAMPAIGN_EMAILS, MAX_CAP_TABLES,
-    MAX_CHAT_SESSIONS, MAX_DOCUMENTS, MAX_INTEGRATIONS, MAX_LEADS, MAX_PITCH_DECKS,
+    MAX_CHAT_SESSIONS, MAX_DOCUMENTS, MAX_INTEGRATIONS, MAX_LEADS, MAX_MEMORIES, MAX_PITCH_DECKS,
     MAX_RESEARCH_RUNS, MAX_STORED_WORKFLOW_RUNS, STATE_FILE, STATE_SCHEMA_VERSION,
 };
 use crate::knowledge_store::{migrate_legacy_documents, to_document_summary};
+use crate::memory_store::list_memory_summaries;
 use crate::secrets::{hydrate_activation_secret, hydrate_model_secrets};
 use crate::types::{
     default_investors, ActivationState, ActivationStateView, DesktopState, DesktopStateResponse,
@@ -30,6 +31,9 @@ pub fn load_or_create_state(app: &AppHandle) -> Result<DesktopState, String> {
     hydrate_activation_secret(app, &state.install_id, &mut state.activation);
     hydrate_model_secrets(app, &state.install_id, &mut state.model_settings);
     migrate_legacy_documents(app, &mut state)?;
+    if let Ok(memories) = list_memory_summaries(app, MAX_MEMORIES) {
+        state.memories = memories;
+    }
     Ok(state)
 }
 
@@ -65,6 +69,7 @@ pub fn to_response(state: DesktopState) -> DesktopStateResponse {
         workspace: state.workspace,
         chat_sessions: state.chat_sessions,
         documents: state.documents,
+        memories: state.memories,
         research_runs: state.research_runs,
         leads: state.leads,
         campaigns: state.campaigns,
@@ -154,6 +159,9 @@ fn repair_state(state: &mut DesktopState) {
     {
         state.model_settings.email_from_name.clear();
     }
+    if state.model_settings.research_provider.trim() != "firecrawl" {
+        state.model_settings.research_provider = "firecrawl".to_string();
+    }
     if state.workspace.sector.trim().is_empty() {
         state.workspace.sector = if state.workspace.industry.trim().is_empty() {
             "other".to_string()
@@ -183,6 +191,7 @@ fn normalize_for_persistence(state: &mut DesktopState) {
     state.workflow_runs.truncate(MAX_STORED_WORKFLOW_RUNS);
     state.chat_sessions.truncate(MAX_CHAT_SESSIONS);
     state.documents.truncate(MAX_DOCUMENTS);
+    state.memories.truncate(MAX_MEMORIES);
     state.research_runs.truncate(MAX_RESEARCH_RUNS);
     state.leads.truncate(MAX_LEADS);
     state.campaigns.truncate(MAX_CAMPAIGNS);

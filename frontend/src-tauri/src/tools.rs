@@ -8,6 +8,8 @@ use uuid::Uuid;
 use zip::ZipArchive;
 
 use crate::constants::{MAX_ALERTS, MAX_CAP_TABLES, MAX_PITCH_DECKS};
+use crate::guardrails::{guardrail_policy_prompt, validate_business_input, validate_model_output};
+use crate::memory::remember_business_event;
 use crate::providers::call_model;
 use crate::research::run_research_query;
 use crate::storage::{load_or_create_state, require_usable_activation, save_state, to_response};
@@ -25,6 +27,7 @@ const MIN_PITCH_CONTEXT_CHARS: usize = 20;
 #[tauri::command]
 pub fn save_alert(app: AppHandle, request: AlertRequest) -> Result<DesktopStateResponse, String> {
     validate_objective("Alert query", &request.query)?;
+    validate_business_input("Research alert", "market", &request.query)?;
     if request.name.trim().len() < 2 {
         return Err("Alert name is required".to_string());
     }
@@ -89,6 +92,11 @@ pub async fn analyze_pitch_deck(
     if request.title.trim().len() < 2 {
         return Err("Pitch deck title is required".to_string());
     }
+    validate_business_input(
+        "Pitch review",
+        "investor",
+        &format!("{}\n{}", request.title, request.deck_notes),
+    )?;
     let mut state = load_or_create_state(&app)?;
     require_usable_activation(&state)?;
     let payload = pitch_deck_payload(&request)?;
@@ -106,12 +114,13 @@ pub async fn analyze_pitch_deck(
         payload.slide_count,
         payload.content
     );
-    let analysis = call_model(
-        &settings,
+    let system_prompt = format!(
+        "{}\n\n{}",
         "You are a senior venture investor and pitch deck operator. You evaluate decks rigorously, preserve uncertainty, and produce actionable revision guidance.",
-        &prompt,
-    )
-    .await?;
+        guardrail_policy_prompt("pitch review", false, false)
+    );
+    let analysis = call_model(&settings, &system_prompt, &prompt).await?;
+    validate_model_output(&analysis, false, false)?;
     let score = derive_score(&analysis);
     state.pitch_decks.insert(
         0,
@@ -122,11 +131,20 @@ pub async fn analyze_pitch_deck(
             source_file_name: payload.source_file_name,
             slide_count: payload.slide_count,
             score,
-            analysis,
+            analysis: analysis.clone(),
             created_at: Utc::now().to_rfc3339(),
         },
     );
     state.pitch_decks.truncate(MAX_PITCH_DECKS);
+    let _ = remember_business_event(
+        &app,
+        &mut state,
+        "decision",
+        request.title.trim(),
+        &analysis,
+        "pitch review",
+        0.78,
+    );
     save_state(&app, &state)?;
     Ok(to_response(state))
 }

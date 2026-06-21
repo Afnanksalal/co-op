@@ -1,5 +1,11 @@
 import type { Dispatch, FormEvent, SetStateAction } from 'react';
-import type { AlertRequest, BusinessToolResult, CapTableRequest, DesktopState, PitchDeckRequest } from '@/lib/desktop/runtime';
+import type {
+  AlertRequest,
+  BusinessToolResult,
+  CapTableRequest,
+  DesktopState,
+  PitchDeckRequest,
+} from '@/lib/desktop/runtime';
 
 export type ToolTabId = 'calculators' | 'alerts' | 'pitch' | 'captable' | 'investors';
 

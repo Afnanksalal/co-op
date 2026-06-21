@@ -23,7 +23,11 @@ export function WatchlistSurface({
         }}
       >
         <PanelTitle icon={Bell} title="Watchlist" />
-        <Field label="Name" value={alert.name} onChange={(name) => onAlertChange({ ...alert, name })} />
+        <Field
+          label="Name"
+          value={alert.name}
+          onChange={(name) => onAlertChange({ ...alert, name })}
+        />
         <TextArea
           label="Query"
           value={alert.query}

@@ -49,6 +49,53 @@ pub struct SearchResult {
     pub score: f32,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(default)]
+pub struct BusinessMemory {
+    pub id: String,
+    pub memory_type: String,
+    pub title: String,
+    pub content: String,
+    pub source: String,
+    pub confidence: f32,
+    pub pinned: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+impl Default for BusinessMemory {
+    fn default() -> Self {
+        let now = Utc::now().to_rfc3339();
+        Self {
+            id: String::new(),
+            memory_type: "note".to_string(),
+            title: String::new(),
+            content: String::new(),
+            source: String::new(),
+            confidence: 0.75,
+            pinned: false,
+            created_at: now.clone(),
+            updated_at: now,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemorySearchResult {
+    pub id: String,
+    pub memory_type: String,
+    pub title: String,
+    pub content: String,
+    pub source: String,
+    pub confidence: f32,
+    pub pinned: bool,
+    pub created_at: String,
+    pub updated_at: String,
+    pub score: f32,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KnowledgeGraphNode {

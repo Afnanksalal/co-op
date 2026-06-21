@@ -27,7 +27,10 @@ export function InvestorsSurface({
       />
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
         {investors.slice(0, 16).map((investor) => (
-          <article key={investor.id} className="rounded-lg border border-border/50 bg-background p-4">
+          <article
+            key={investor.id}
+            className="rounded-lg border border-border/50 bg-background p-4"
+          >
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="font-medium">{investor.name}</h3>
@@ -37,7 +40,9 @@ export function InvestorsSurface({
               </div>
               <Badge variant="outline">{investor.geography}</Badge>
             </div>
-            <p className="mt-3 text-xs leading-5 text-muted-foreground">{investor.sectors.join(', ')}</p>
+            <p className="mt-3 text-xs leading-5 text-muted-foreground">
+              {investor.sectors.join(', ')}
+            </p>
           </article>
         ))}
       </div>

@@ -1,12 +1,16 @@
 mod chat;
 mod constants;
 mod graph;
+mod guardrails;
 mod knowledge_store;
 mod license;
+mod memory;
+mod memory_store;
 mod outreach;
 mod providers;
 mod rag;
 mod research;
+mod research_sources;
 mod secrets;
 mod security;
 mod settings;
@@ -23,6 +27,7 @@ pub use license::{
     activate_license, clear_activation, get_activation_state, get_machine_fingerprint,
     heartbeat_license,
 };
+pub use memory::{save_business_memory, search_business_memory};
 pub use outreach::{
     create_campaign, create_lead, discover_leads, generate_campaign_emails, send_campaign_emails,
 };
@@ -36,7 +41,6 @@ pub use workspace::{save_bookmark, save_integration, save_workspace_profile};
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
             activate_license,
             add_knowledge_document,
@@ -56,12 +60,14 @@ pub fn run() {
             run_calculator,
             run_research_query,
             save_alert,
+            save_business_memory,
             save_bookmark,
             save_cap_table,
             save_integration,
             save_model_settings,
             save_workspace_profile,
             search_knowledge,
+            search_business_memory,
             send_campaign_emails,
         ])
         .setup(|app| {

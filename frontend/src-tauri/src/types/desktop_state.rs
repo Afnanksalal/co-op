@@ -2,10 +2,10 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::{
-    default_investors, ActivationState, ActivationStateView, Alert, Bookmark, Campaign,
-    CampaignEmail, CapTableScenario, ChatSession, IntegrationEndpoint, Investor, KnowledgeDocument,
-    Lead, ModelSettings, ModelSettingsView, PitchDeckAnalysis, ResearchRun, StartupProfile,
-    WorkflowRun,
+    default_investors, ActivationState, ActivationStateView, Alert, Bookmark, BusinessMemory,
+    Campaign, CampaignEmail, CapTableScenario, ChatSession, IntegrationEndpoint, Investor,
+    KnowledgeDocument, Lead, ModelSettings, ModelSettingsView, PitchDeckAnalysis, ResearchRun,
+    StartupProfile, WorkflowRun,
 };
 use crate::constants::STATE_SCHEMA_VERSION;
 
@@ -28,6 +28,8 @@ pub struct DesktopState {
     pub chat_sessions: Vec<ChatSession>,
     #[serde(default)]
     pub documents: Vec<KnowledgeDocument>,
+    #[serde(default)]
+    pub memories: Vec<BusinessMemory>,
     #[serde(default)]
     pub research_runs: Vec<ResearchRun>,
     #[serde(default)]
@@ -61,6 +63,7 @@ impl Default for DesktopState {
             workspace: StartupProfile::default(),
             chat_sessions: Vec::new(),
             documents: Vec::new(),
+            memories: Vec::new(),
             research_runs: Vec::new(),
             leads: Vec::new(),
             campaigns: Vec::new(),
@@ -89,6 +92,7 @@ pub struct DesktopStateResponse {
     pub workspace: StartupProfile,
     pub chat_sessions: Vec<ChatSession>,
     pub documents: Vec<KnowledgeDocument>,
+    pub memories: Vec<BusinessMemory>,
     pub research_runs: Vec<ResearchRun>,
     pub leads: Vec<Lead>,
     pub campaigns: Vec<Campaign>,

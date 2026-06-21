@@ -4,7 +4,15 @@ import { useState } from 'react';
 import { EnvelopeSimple, Sparkle, UsersThree } from '@phosphor-icons/react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { createCampaign, createLead, discoverLeads, generateCampaignEmails, sendCampaignEmails, type Campaign, type DesktopState } from '@/lib/desktop/runtime';
+import {
+  createCampaign,
+  createLead,
+  discoverLeads,
+  generateCampaignEmails,
+  sendCampaignEmails,
+  type Campaign,
+  type DesktopState,
+} from '@/lib/desktop/runtime';
 import { blankCampaign, blankLead, optionLabels } from '../constants';
 import { EmptyState, Field, PanelTitle, SegmentedControl, SelectField, TextArea } from '../shared';
 import { leadName } from '../utils';
@@ -87,7 +95,7 @@ export function OutreachPanel({
               </div>
               {!webSearchReady && (
                 <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                  Open Settings, choose Web search in Research, and save a web search key first.
+                  Open Settings and save a web search key first.
                 </p>
               )}
               <Button

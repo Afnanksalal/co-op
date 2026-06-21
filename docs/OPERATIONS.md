@@ -32,29 +32,29 @@ npm run tauri:dev
 
 Backend production:
 
-| Variable | Required | Notes |
-| --- | --- | --- |
-| `DATABASE_URL` | Yes | PostgreSQL connection string. |
-| `DATABASE_SSL_REJECT_UNAUTHORIZED` | Yes | Use `true` unless the provider requires a documented exception. |
-| `SUPABASE_URL` | Yes | Supabase project URL. |
-| `SUPABASE_ANON_KEY` | Yes | Used to verify browser and account sessions. |
-| `LICENSE_KEY_PEPPER` | Yes | At least 32 characters; keep private. |
-| `CORS_ORIGINS` | Yes | Comma-separated trusted origins. |
-| `LICENSE_OFFLINE_GRACE_DAYS` | No | Defaults to the configured backend value. |
-| `THROTTLE_TTL` | No | Rate-limit window. |
-| `THROTTLE_LIMIT` | No | Rate-limit request count. |
-| `APP_URL` | No | Public app URL for links and metadata. |
-| `SUPABASE_SERVICE_KEY` | Only for backfill | Never expose to browser or desktop clients. |
+| Variable                           | Required          | Notes                                                           |
+| ---------------------------------- | ----------------- | --------------------------------------------------------------- |
+| `DATABASE_URL`                     | Yes               | PostgreSQL connection string.                                   |
+| `DATABASE_SSL_REJECT_UNAUTHORIZED` | Yes               | Use `true` unless the provider requires a documented exception. |
+| `SUPABASE_URL`                     | Yes               | Supabase project URL.                                           |
+| `SUPABASE_ANON_KEY`                | Yes               | Used to verify browser and account sessions.                    |
+| `LICENSE_KEY_PEPPER`               | Yes               | At least 32 characters; keep private.                           |
+| `CORS_ORIGINS`                     | Yes               | Comma-separated trusted origins.                                |
+| `LICENSE_OFFLINE_GRACE_DAYS`       | No                | Defaults to the configured backend value.                       |
+| `THROTTLE_TTL`                     | No                | Rate-limit window.                                              |
+| `THROTTLE_LIMIT`                   | No                | Rate-limit request count.                                       |
+| `APP_URL`                          | No                | Public app URL for links and metadata.                          |
+| `SUPABASE_SERVICE_KEY`             | Only for backfill | Never expose to browser or desktop clients.                     |
 
 Frontend production:
 
-| Variable | Required | Notes |
-| --- | --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase browser URL. |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase browser anon key. |
-| `NEXT_PUBLIC_API_URL` | Yes | Backend API URL, normally ending in `/api/v1`. |
-| `NEXT_PUBLIC_APP_URL` | Yes | Hosted app URL for metadata and canonical links. |
-| `COOP_CLOUD_URL` | Desktop releases | Optional explicit cloud origin baked into the desktop binary. |
+| Variable                        | Required         | Notes                                                         |
+| ------------------------------- | ---------------- | ------------------------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Yes              | Supabase browser URL.                                         |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes              | Supabase browser anon key.                                    |
+| `NEXT_PUBLIC_API_URL`           | Yes              | Backend API URL, normally ending in `/api/v1`.                |
+| `NEXT_PUBLIC_APP_URL`           | Yes              | Hosted app URL for metadata and canonical links.              |
+| `COOP_CLOUD_URL`                | Desktop releases | Optional explicit cloud origin baked into the desktop binary. |
 
 `frontend/src-tauri/build.rs` embeds `COOP_CLOUD_URL` when set. If it is not set, it reads `NEXT_PUBLIC_API_URL` and strips `/api/v1` before embedding the origin. Business users should never be asked for a backend URL during activation.
 
@@ -110,11 +110,12 @@ npm run tauri:build
 5. Build desktop installers with `npm run tauri:build` when delivering software.
 6. Smoke test hosted web routes: `/`, `/login`, `/signup`, `/account`, `/download`, `/privacy`, `/terms`, `/security`, `/cookies`, and `/admin/licenses`.
 7. Confirm hosted production `/desktop` and `/local` return 404.
-8. Smoke test desktop first run: activate with a key, complete onboarding, open Today, ask a question, run a plan, add a file, and refresh license heartbeat.
+8. Smoke test desktop first run: activate with a key, complete onboarding, open Today, ask a question, run a plan, add a file, save/search memory, run web research, and refresh license heartbeat.
 9. Smoke test account key management: generate a key, copy it while visible, delete it, confirm it disappears from the account table, and confirm a fresh key can be generated.
 10. Confirm production CORS origins are restricted.
 11. Confirm `LICENSE_KEY_PEPPER` is strong and not reused from development.
-12. Clean generated folders that should not be committed.
+12. Confirm guardrails block prompt-injection, secret-disclosure, off-topic, and executable-code requests.
+13. Clean generated folders that should not be committed.
 
 ## Cleanup
 
@@ -164,7 +165,7 @@ For Render-style deployments, the Docker build runs `npm run build` and starts `
 3. Install the generated build on a clean machine or VM.
 4. Activate with a test license key.
 5. Verify only the activation key is requested.
-6. Verify heartbeat, onboarding, settings save, chat, plan, file import/search, research, customers, tools, and license refresh.
+6. Verify heartbeat, onboarding, settings save, chat, plan, file import/search, memory save/search, research, customers, tools, and license refresh.
 
 ## Existing User Backfill
 

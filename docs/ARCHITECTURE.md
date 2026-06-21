@@ -15,7 +15,7 @@ flowchart LR
   AppData["Local app data<br/>state and file index"]
   Keychain["OS credential store<br/>activation token and provider keys"]
   AI["Customer-selected AI<br/>Ollama or BYOK endpoint"]
-  Services["Optional customer services<br/>Firecrawl, email, integrations"]
+  Services["Customer services<br/>Firecrawl web sources, email, integrations"]
 
   Owner --> Browser
   Browser --> Supabase
@@ -34,13 +34,13 @@ The cloud license API does not store workflow prompts, model outputs, company fi
 
 ## Runtime Responsibilities
 
-| Runtime | Owns | Must not own |
-| --- | --- | --- |
-| Hosted web app | Landing page, login, account center, software download, legal pages, admin license console | Customer business workflow execution |
-| Cloud backend | Health checks, license creation, self-service license lookup, activation, heartbeat, deactivation, revocation hooks, payment entitlement hooks | Business prompts, files, outputs, provider keys, campaign content |
-| Desktop app | Company onboarding, profile, files, local search, advisor chat, plans, research, customers, outreach, tools, settings, local run history | Account identity or license generation authority |
-| Local storage | Entitlement snapshot, company state, file index, local business memory, provider settings summaries | Raw secrets in plaintext state files |
-| OS credential store | Activation token and customer provider keys | Searchable business data |
+| Runtime             | Owns                                                                                                                                           | Must not own                                                      |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Hosted web app      | Landing page, login, account center, software download, legal pages, admin license console                                                     | Customer business workflow execution                              |
+| Cloud backend       | Health checks, license creation, self-service license lookup, activation, heartbeat, deactivation, revocation hooks, payment entitlement hooks | Business prompts, files, outputs, provider keys, campaign content |
+| Desktop app         | Company onboarding, profile, files, local search, advisor chat, plans, research, customers, outreach, tools, settings, local run history       | Account identity or license generation authority                  |
+| Local storage       | Entitlement snapshot, company state, file index, local business memory, provider settings summaries                                            | Raw secrets in plaintext state files                              |
+| OS credential store | Activation token and customer provider keys                                                                                                    | Searchable business data                                          |
 
 ## Hosted Web Route Boundary
 
@@ -121,24 +121,27 @@ Desktop UI modules are under `frontend/src/components/desktop/`:
 
 Tauri commands are registered in `frontend/src-tauri/src/lib.rs` and delegated to focused modules:
 
-| Module | Responsibility |
-| --- | --- |
-| `license.rs` | Activation, heartbeat, deactivation, entitlement checks. |
-| `settings.rs` | Provider, research, email, and integration settings. |
-| `workspace.rs` | Company profile and onboarding state. |
-| `chat.rs` | Advisor chat, sessions, review gates, and prompt assembly. |
-| `rag.rs` | Local document sectioning and compact matching data. |
-| `knowledge_store/` | SQLite schema, migrations, document storage, search, and tests. |
-| `graph.rs` | Derived local business memory from profile, files, research, customers, and work. |
-| `research.rs` | Research jobs and source-backed summaries. |
-| `outreach.rs` | Leads, campaigns, personalization, and email sending. |
-| `tools.rs` | Calculators, pitch review, cap table, bookmarks, and local tools. |
-| `providers.rs` | Ollama, OpenAI-compatible, Firecrawl, Resend, and SendGrid adapters. |
-| `storage.rs` | Local state read/write and retention caps. |
-| `validation.rs` | Input, URL, provider, objective, email, and data validation. |
-| `security.rs` | Fingerprinting and safe serialization helpers. |
-| `secrets.rs` | OS credential storage. |
-| `types/` | Typed command payloads and state DTOs split by domain. |
+| Module             | Responsibility                                                                                    |
+| ------------------ | ------------------------------------------------------------------------------------------------- |
+| `license.rs`       | Activation, heartbeat, deactivation, entitlement checks.                                          |
+| `settings.rs`      | Provider, research, email, and integration settings.                                              |
+| `workspace.rs`     | Company profile and onboarding state.                                                             |
+| `chat.rs`          | Advisor chat, sessions, review gates, and prompt assembly.                                        |
+| `rag.rs`           | Local document sectioning and compact matching data.                                              |
+| `knowledge_store/` | SQLite schema, migrations, document storage, search, and tests.                                   |
+| `graph.rs`         | Derived local business memory from profile, files, research, customers, and work.                 |
+| `guardrails.rs`    | Business-topic, source, prompt-injection, secret-disclosure, no-code-execution, and output gates. |
+| `memory.rs`        | Memory commands, profile/work/research memory capture, redaction, and context retrieval.          |
+| `memory_store.rs`  | SQLite-backed business memory storage, full-text search, compact matching data, and tests.        |
+| `research.rs`      | Research jobs and source-backed summaries.                                                        |
+| `outreach.rs`      | Leads, campaigns, personalization, and email sending.                                             |
+| `tools.rs`         | Calculators, pitch review, cap table, bookmarks, and local tools.                                 |
+| `providers.rs`     | Ollama, OpenAI-compatible, Firecrawl, Resend, and SendGrid adapters.                              |
+| `storage.rs`       | Local state read/write and retention caps.                                                        |
+| `validation.rs`    | Input, URL, provider, objective, email, and data validation.                                      |
+| `security.rs`      | Fingerprinting and safe serialization helpers.                                                    |
+| `secrets.rs`       | OS credential storage.                                                                            |
+| `types/`           | Typed command payloads and state DTOs split by domain.                                            |
 
 ## Local Data Stores
 
@@ -148,12 +151,12 @@ flowchart TD
   SQLite["knowledge.sqlite3"]
   Secrets["OS credential store"]
   State -->|"profile, settings summaries, chats, runs, leads, campaigns"| Desktop["Desktop runtime"]
-  SQLite -->|"documents, sections, search rows, matching data"| Desktop
+  SQLite -->|"documents, memories, search rows, matching data"| Desktop
   Secrets -->|"activation token, provider keys"| Desktop
 ```
 
 - `state.json` stores lightweight local app state and excludes raw secrets.
-- `knowledge.sqlite3` stores local company documents, sections, search rows, and compact matching data.
+- `knowledge.sqlite3` stores local company documents, business memories, search rows, and compact matching data.
 - OS credential storage keeps activation and provider secrets out of plaintext state.
 
 ## Scaling Model
@@ -168,6 +171,9 @@ The desktop storage path is embedded by default so normal customers do not need 
 - Activation tokens are stored only as keyed hashes in the backend.
 - Machine fingerprints are hashed before leaving the desktop runtime.
 - Provider API keys are stored locally in OS credential storage.
+- Firecrawl is required for source-backed outside-fact workflows such as market, competitor, legal, customer, pricing, investor, risk, and prospect discovery.
+- Guardrails reject prompt-injection attempts, secret disclosure, executable code requests, and unsafe model outputs before results are saved.
+- The Tauri shell plugin is not enabled; the desktop app does not expose shell command execution.
 - Public insecure provider URLs are rejected outside localhost and private networks.
 - Production backend startup requires a strong `LICENSE_KEY_PEPPER` and explicit `CORS_ORIGINS`.
 - Hosted production web builds block desktop routes.

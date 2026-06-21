@@ -59,6 +59,7 @@ Use:
 - "Ask Co-Op"
 - "Company files"
 - "Business memory"
+- "Memory"
 - "Second look"
 - "Review level"
 - "AI setup"
@@ -129,6 +130,11 @@ mindmap
       Private storage
       Search
       Business memory
+    Memory
+      Decisions
+      Preferences
+      Risks
+      Customer notes
     Customers
       Leads
       Outreach
@@ -158,6 +164,7 @@ mindmap
 - Make every visible button perform a real action.
 - Use simple labels and consistent controls.
 - Keep scroll regions bounded so one panel does not move unrelated controls.
+- Let memory emerge from normal work; do not force owners into long maintenance forms.
 - Prefer compact, readable layouts over dense control panels.
 - Use motion only to orient the user: transitions, expansion, progress, and gentle state change.
 - Treat privacy as part of the product experience.
@@ -173,6 +180,7 @@ Before shipping a desktop UX change, verify:
 - Dashboard cards lead to working features.
 - Tables and long panels scroll inside their own bounds.
 - Technical terms are hidden from normal owner workflows.
+- The Memory tab uses business language and avoids vector/database wording.
 - Provider keys, license keys, prompts, outputs, and file content are not logged.
 
 ## Landing Page Bar

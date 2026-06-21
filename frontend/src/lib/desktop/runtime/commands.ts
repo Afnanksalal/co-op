@@ -16,6 +16,9 @@ import type {
   IntegrationRequest,
   KnowledgeGraphSnapshot,
   LeadRequest,
+  MemoryRequest,
+  MemorySearchRequest,
+  MemorySearchResult,
   ModelSettingsUpdate,
   PitchDeckRequest,
   ResearchRequest,
@@ -41,7 +44,7 @@ export function isTauriRuntime(): boolean {
   if (typeof window === 'undefined') return false;
   return Boolean(
     (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ ||
-      (window as unknown as { __TAURI__?: unknown }).__TAURI__
+    (window as unknown as { __TAURI__?: unknown }).__TAURI__
   );
 }
 
@@ -101,6 +104,18 @@ export async function addKnowledgeDocument(request: DocumentRequest): Promise<De
 export async function searchKnowledge(request: SearchRequest): Promise<SearchResult[]> {
   if (!isTauriRuntime()) throwDesktopOnly('Knowledge search');
   return invokeDesktop<SearchResult[]>('search_knowledge', { request });
+}
+
+export async function saveBusinessMemory(request: MemoryRequest): Promise<DesktopState> {
+  if (!isTauriRuntime()) throwDesktopOnly('Memory');
+  return invokeDesktop<DesktopState>('save_business_memory', { request });
+}
+
+export async function searchBusinessMemory(
+  request: MemorySearchRequest
+): Promise<MemorySearchResult[]> {
+  if (!isTauriRuntime()) throwDesktopOnly('Memory search');
+  return invokeDesktop<MemorySearchResult[]>('search_business_memory', { request });
 }
 
 export async function getKnowledgeGraph(): Promise<KnowledgeGraphSnapshot> {

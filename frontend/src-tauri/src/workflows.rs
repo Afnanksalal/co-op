@@ -4,8 +4,11 @@ use uuid::Uuid;
 
 use crate::constants::MAX_STORED_WORKFLOW_RUNS;
 use crate::graph::graph_context;
+use crate::guardrails::{guardrail_policy_prompt, validate_business_input, validate_model_output};
+use crate::memory::{memory_context_from_store, remember_business_event};
 use crate::providers::call_model;
 use crate::rag::document_context_from_store;
+use crate::research::{requires_live_web_research, research_context_for_business};
 use crate::storage::{load_or_create_state, require_usable_activation, save_state};
 use crate::types::{WorkflowRequest, WorkflowRun, WorkflowTraceEvent};
 use crate::validation::{validate_model_settings, validate_workflow_request};
@@ -19,6 +22,7 @@ pub async fn run_business_workflow(
     validate_workflow_request(&request)?;
     let workflow_type = request.workflow_type.trim().to_lowercase();
     let objective = request.objective.trim().to_string();
+    let guardrail_decision = validate_business_input("Plan", &workflow_type, &objective)?;
     require_usable_activation(&state)?;
 
     let mut model_settings = state.model_settings.clone();
@@ -26,9 +30,13 @@ pub async fn run_business_workflow(
     state.model_settings = model_settings.clone();
 
     let created_at = Utc::now().to_rfc3339();
-    let risk_level = workflow_risk_level(&workflow_type, &objective);
-    let approval_required =
-        should_run_review_gate(&model_settings.council_mode, &workflow_type, &objective);
+    let risk_level = if guardrail_decision.high_risk {
+        "high".to_string()
+    } else {
+        workflow_risk_level(&workflow_type, &objective)
+    };
+    let approval_required = guardrail_decision.high_risk
+        || should_run_review_gate(&model_settings.council_mode, &workflow_type, &objective);
     let mut run = WorkflowRun {
         id: Uuid::new_v4().to_string(),
         workflow_type,
@@ -88,13 +96,52 @@ pub async fn run_business_workflow(
             "No saved company file sections matched this work request.",
         );
     }
-    let system_prompt = business_system_prompt(&run.workflow_type, &model_settings.council_mode);
+    let memory = memory_context_from_store(&app, &run.objective)?;
+    if !memory.is_empty() {
+        push_trace(
+            &mut run,
+            "context",
+            "Attached business memory",
+            "completed",
+            "Relevant saved decisions and notes were added to this work plan.",
+        );
+    }
+    let web_required = guardrail_decision.web_required
+        || requires_live_web_research(&run.workflow_type, &run.objective);
+    let mut source_context_attached = false;
+    let web_context = if web_required {
+        let context = research_context_for_business(
+            &model_settings,
+            &state.workspace,
+            &run.objective,
+            &run.workflow_type,
+        )
+        .await?;
+        source_context_attached = !context.trim().is_empty();
+        push_trace(
+            &mut run,
+            "context",
+            "Attached web sources",
+            "completed",
+            "Live web sources were added because this work needs current outside facts.",
+        );
+        context
+    } else {
+        String::new()
+    };
+    let system_prompt = format!(
+        "{}\n\n{}",
+        business_system_prompt(&run.workflow_type, &model_settings.council_mode),
+        guardrail_policy_prompt(&run.workflow_type, web_required, source_context_attached)
+    );
     let prompt = format!(
-        "Startup workspace:\n{}\n{}\n\nObjective:\n{}\n{}",
+        "Startup workspace:\n{}\n{}\n{}\n\nObjective:\n{}\n{}\n\nWeb sources:\n{}",
         workspace_context(&state.workspace),
         graph_context(&state),
+        memory,
         run.objective,
-        rag
+        rag,
+        web_context
     );
     push_trace(
         &mut run,
@@ -121,7 +168,14 @@ pub async fn run_business_workflow(
                 "skipped",
                 "This request did not need an extra review step.",
             );
-            return finalize_workflow(app, state, run, output);
+            return finalize_workflow(
+                app,
+                state,
+                run,
+                output,
+                web_required,
+                source_context_attached,
+            );
         }
 
         let review_prompt = format!(
@@ -153,7 +207,14 @@ pub async fn run_business_workflow(
         }
     }
 
-    finalize_workflow(app, state, run, output)
+    finalize_workflow(
+        app,
+        state,
+        run,
+        output,
+        web_required,
+        source_context_attached,
+    )
 }
 
 fn finalize_workflow(
@@ -161,9 +222,12 @@ fn finalize_workflow(
     mut state: crate::types::DesktopState,
     mut run: WorkflowRun,
     output: Result<String, String>,
+    web_required: bool,
+    source_context_attached: bool,
 ) -> Result<WorkflowRun, String> {
     match output {
         Ok(content) => {
+            validate_model_output(&content, web_required, source_context_attached)?;
             run.status = "completed".to_string();
             run.output = Some(content);
             push_trace(
@@ -182,8 +246,20 @@ fn finalize_workflow(
     }
 
     run.completed_at = Some(Utc::now().to_rfc3339());
+    let memory_output = run.output.clone();
     state.workflow_runs.insert(0, run.clone());
     state.workflow_runs.truncate(MAX_STORED_WORKFLOW_RUNS);
+    if let Some(content) = memory_output {
+        let _ = remember_business_event(
+            &app,
+            &mut state,
+            "plan",
+            &run.objective,
+            &content,
+            "plans",
+            0.84,
+        );
+    }
     save_state(&app, &state)?;
     Ok(run)
 }
@@ -192,6 +268,7 @@ pub fn business_system_prompt(workflow_type: &str, council_mode: &str) -> String
     format!(
         "You are Co-Op, a local-first business management and operations harness. Workflow type: {workflow_type}. \
 Keep company data private, separate known facts from assumptions, and never fabricate company metrics. \
+Use live web sources when they are attached. Do not make competitor, legal, investor, pricing, or market claims without source evidence. \
 Use this production response contract: Decision, Evidence Used, Assumptions, Action Plan, Owners, Risks, Human Approval Required, Next Checkpoint. \
 When recommending external actions such as legal, payroll, payment, fundraising, security, or customer outreach, mark whether a human owner must approve before execution. \
 Review policy is {council_mode}; use critique only when configured."

@@ -16,6 +16,7 @@ pub const MAX_CHAT_HISTORY_MESSAGES: usize = 40;
 pub const MAX_STORED_WORKFLOW_RUNS: usize = 100;
 pub const MAX_CHAT_SESSIONS: usize = 200;
 pub const MAX_DOCUMENTS: usize = 500;
+pub const MAX_MEMORIES: usize = 2_000;
 pub const MAX_RESEARCH_RUNS: usize = 250;
 pub const MAX_LEADS: usize = 10_000;
 pub const MAX_CAMPAIGNS: usize = 500;

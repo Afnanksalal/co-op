@@ -5,7 +5,11 @@ import { Briefcase, CaretRight } from '@phosphor-icons/react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { saveWorkspaceProfile, type DesktopState, type StartupProfile } from '@/lib/desktop/runtime';
+import {
+  saveWorkspaceProfile,
+  type DesktopState,
+  type StartupProfile,
+} from '@/lib/desktop/runtime';
 import { ChoiceCard, Field, PanelTitle, TextArea } from '../shared';
 
 export function OnboardingPanel({

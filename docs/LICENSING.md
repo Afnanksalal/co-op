@@ -112,16 +112,16 @@ stateDiagram-v2
 
 ## Endpoints
 
-| Endpoint | Caller | Purpose |
-| --- | --- | --- |
-| `GET /api/v1/licenses` | Admin web user | List license records. |
-| `POST /api/v1/licenses` | Admin web user | Generate an admin-issued license. |
-| `GET /api/v1/licenses/mine` | Signed-in account user | Read account licenses. |
-| `POST /api/v1/licenses/self-service` | Signed-in account user | Create or retrieve an account activation key. |
-| `DELETE /api/v1/licenses/mine/:licenseId` | Signed-in account user | Delete an owned generated activation key. |
-| `POST /api/v1/licenses/activate` | Desktop app | Activate one installed device. |
-| `POST /api/v1/licenses/heartbeat` | Desktop app | Refresh entitlement and last-seen state. |
-| `POST /api/v1/licenses/deactivate` | Desktop app | Deactivate the current install. |
+| Endpoint                                  | Caller                 | Purpose                                       |
+| ----------------------------------------- | ---------------------- | --------------------------------------------- |
+| `GET /api/v1/licenses`                    | Admin web user         | List license records.                         |
+| `POST /api/v1/licenses`                   | Admin web user         | Generate an admin-issued license.             |
+| `GET /api/v1/licenses/mine`               | Signed-in account user | Read account licenses.                        |
+| `POST /api/v1/licenses/self-service`      | Signed-in account user | Create or retrieve an account activation key. |
+| `DELETE /api/v1/licenses/mine/:licenseId` | Signed-in account user | Delete an owned generated activation key.     |
+| `POST /api/v1/licenses/activate`          | Desktop app            | Activate one installed device.                |
+| `POST /api/v1/licenses/heartbeat`         | Desktop app            | Refresh entitlement and last-seen state.      |
+| `POST /api/v1/licenses/deactivate`        | Desktop app            | Deactivate the current install.               |
 
 Admin endpoints require a Supabase user whose `app_metadata.role` is `admin`. Account self-service endpoints require a valid signed-in Supabase user.
 

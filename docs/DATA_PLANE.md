@@ -1,6 +1,6 @@
 # Local Data Plane
 
-Co-Op ships as local-first desktop software. The cloud backend is the account and license control plane. Customer business memory lives on the installed machine unless the customer explicitly configures an external AI, research, email, or integration provider.
+Co-Op ships as local-first desktop software. The cloud backend is the account and license control plane. Customer business memory lives on the installed machine unless the customer explicitly configures an external AI, web-source, email, or integration provider.
 
 ## Default Storage Model
 
@@ -8,7 +8,7 @@ Co-Op ships as local-first desktop software. The cloud backend is the account an
 flowchart TD
   Desktop["Co-Op Desktop"]
   State["state.json<br/>profile, settings summaries, chats, plans, customers, history"]
-  Files["knowledge.sqlite3<br/>company files, sections, search rows, matching data"]
+  Files["knowledge.sqlite3<br/>company files, memories, search rows, matching data"]
   Secrets["OS credential store<br/>activation token and private keys"]
   Cloud["Cloud license API"]
   Provider["Customer-selected providers"]
@@ -39,11 +39,14 @@ The default build does not require Docker, Neo4j, Qdrant, LanceDB, Turbopuffer, 
 - Bookmarks.
 - Integrations.
 - Saved file summaries.
+- Saved business memory summaries.
 
-`knowledge.sqlite3` stores company file intelligence:
+`knowledge.sqlite3` stores company file and memory intelligence:
 
 - Documents.
 - Sections.
+- Business memories.
+- Memory types, sources, confidence, and pinned state.
 - Content hashes.
 - Content sizes.
 - Section order.
@@ -78,16 +81,64 @@ This is not a cloud vector database. It is an embedded local search layer design
 
 ## Local Business Memory
 
-`graph.rs` derives a local business memory snapshot from:
+Business memory is durable owner context that should improve future answers without asking the owner to repeat themselves.
+
+Stored memory types:
+
+- Profile.
+- Decision.
+- Risk.
+- Preference.
+- Customer.
+- Research.
+- Plan.
+- Conversation.
+- Note.
+
+Memory is written by:
+
+- The Memory tab.
+- Company profile saves.
+- Completed plans.
+- Advisor chat answers.
+- Research summaries.
+- Pitch deck reviews.
+
+`memory_store.rs` stores memories in SQLite with full-text search and compact deterministic matching data. `memory.rs` performs validation, secret redaction, state refresh, and bounded context retrieval.
+
+`graph.rs` derives a broader local business memory snapshot from:
 
 - Company profile.
 - Company files.
+- Saved memories.
 - Research runs.
 - Leads and campaigns.
 - Campaign emails.
 - Work history.
 
 The UI should call this "what Co-Op remembers" or "business memory." It should not expose graph terminology to normal owners.
+
+Memory must not store:
+
+- Raw provider keys.
+- Raw license keys.
+- Activation tokens.
+- Hidden prompts.
+- Full unbounded model traces.
+- Customer output that was blocked by guardrails.
+
+## Guardrail Storage Behavior
+
+Blocked requests and blocked model outputs should not be stored as successful business artifacts. Error messages should be short, owner-readable, and free of raw prompts or secrets.
+
+The local runtime validates:
+
+- Business-topic fit.
+- Prompt-injection patterns.
+- Secret disclosure attempts.
+- Code execution requests.
+- Outside-fact work that lacks web sources.
+- Model output containing executable code blocks or hidden-instruction leakage.
 
 ## Performance Rules
 
@@ -152,7 +203,7 @@ Turbopuffer or other managed cloud search should only be used when a customer in
 
 ## Failure Behavior
 
-If optional research, email, AI, or memory services are not configured:
+If required web sources for outside-fact work, or optional email, AI, or memory services, are not configured:
 
 - The feature should explain the missing setup in plain language.
 - The app should not pretend work succeeded.

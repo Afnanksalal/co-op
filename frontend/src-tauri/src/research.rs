@@ -3,11 +3,19 @@ use tauri::AppHandle;
 use uuid::Uuid;
 
 use crate::constants::MAX_RESEARCH_RUNS;
-use crate::providers::{call_model, search_firecrawl};
+use crate::guardrails::{guardrail_policy_prompt, validate_business_input, validate_model_output};
+use crate::memory::remember_business_event;
+use crate::providers::call_model;
 use crate::rag::add_knowledge_document;
+use crate::research_sources::{
+    collect_research_sources, ensure_web_search_ready, format_search_queries, format_sources,
+    require_sources,
+};
 use crate::storage::{load_or_create_state, require_usable_activation, save_state};
-use crate::types::{DocumentRequest, ResearchRequest, ResearchRun, ResearchSource};
+use crate::types::{DocumentRequest, ModelSettings, ResearchRequest, ResearchRun, StartupProfile};
 use crate::validation::{validate_model_settings, validate_objective};
+
+pub(crate) use crate::research_sources::requires_live_web_research;
 
 #[tauri::command]
 pub async fn run_research_query(
@@ -15,6 +23,7 @@ pub async fn run_research_query(
     request: ResearchRequest,
 ) -> Result<ResearchRun, String> {
     validate_objective("Research query", &request.query)?;
+    validate_business_input("Research", &request.research_type, &request.query)?;
     let mut state = load_or_create_state(&app)?;
     require_usable_activation(&state)?;
     let mut settings = state.model_settings.clone();
@@ -24,43 +33,54 @@ pub async fn run_research_query(
     let depth = normalize_research_depth(&request.depth);
     let source_limit = source_limit_for_depth(&depth);
     let prompt_profile = research_prompt_profile(&research_type, &depth);
+    ensure_web_search_ready(&settings)?;
 
-    let (provider, sources, summary) = if settings.research_provider == "firecrawl" {
-        let sources = search_firecrawl(&settings, &request.query, source_limit).await?;
-        let source_context = format_sources(&sources);
-        let summary = call_model(
-            &settings,
-            &prompt_profile,
-            &format!(
-                "Research brief: {}\n\nSources:\n{}",
-                request.query, source_context
-            ),
-        )
-        .await?;
-        ("firecrawl".to_string(), sources, summary)
-    } else {
-        let summary = call_model(
-            &settings,
-            &format!(
-                "{}\n\nNo live web source provider is configured. Use only model knowledge, clearly mark uncertainty, and do not invent citations.",
-                prompt_profile
-            ),
-            &format!("Research brief: {}", request.query),
-        )
-        .await?;
-        ("llm".to_string(), Vec::<ResearchSource>::new(), summary)
-    };
+    let (sources, search_queries) = collect_research_sources(
+        &settings,
+        &state.workspace,
+        &request.query,
+        &research_type,
+        source_limit,
+    )
+    .await?;
+    require_sources(&sources, "research")?;
+    let source_context = format_sources(&sources);
+    let search_context = format_search_queries(&search_queries);
+    let system_prompt = format!(
+        "{}\n\n{}",
+        prompt_profile,
+        guardrail_policy_prompt(&research_type, true, true)
+    );
+    let summary = call_model(
+        &settings,
+        &system_prompt,
+        &format!(
+            "Owner brief: {}\nWeb searches completed:\n{}\n\nSources:\n{}",
+            request.query, search_context, source_context
+        ),
+    )
+    .await?;
+    validate_model_output(&summary, true, true)?;
 
     let run = ResearchRun {
         id: Uuid::new_v4().to_string(),
         query: request.query.trim().to_string(),
-        provider,
+        provider: "firecrawl".to_string(),
         summary,
         sources,
         created_at: Utc::now().to_rfc3339(),
     };
     state.research_runs.insert(0, run.clone());
     state.research_runs.truncate(MAX_RESEARCH_RUNS);
+    let _ = remember_business_event(
+        &app,
+        &mut state,
+        "research",
+        &run.query,
+        &run.summary,
+        "research",
+        0.82,
+    );
     save_state(&app, &state)?;
 
     if request.save_to_rag {
@@ -84,43 +104,21 @@ pub async fn run_research_query(
     Ok(run)
 }
 
-pub async fn research_context(
-    settings: &crate::types::ModelSettings,
-    query: &str,
+pub async fn research_context_for_business(
+    settings: &ModelSettings,
+    profile: &StartupProfile,
+    owner_query: &str,
+    focus: &str,
 ) -> Result<String, String> {
-    if settings.research_provider == "firecrawl" {
-        let sources = search_firecrawl(settings, query, 3).await?;
-        Ok(format_sources(&sources))
-    } else {
-        Ok(String::new())
-    }
-}
-
-pub fn format_sources(sources: &[ResearchSource]) -> String {
-    if sources.is_empty() {
-        return "No live sources configured.".to_string();
-    }
-    sources
-        .iter()
-        .map(|source| {
-            format!(
-                "- {}\n  URL: {}\n  Description: {}\n  Content: {}",
-                source.title,
-                source.url,
-                source.description,
-                truncate(&source.content, 1500)
-            )
-        })
-        .collect::<Vec<String>>()
-        .join("\n")
-}
-
-fn truncate(value: &str, max: usize) -> String {
-    if value.chars().count() <= max {
-        value.to_string()
-    } else {
-        format!("{}...", value.chars().take(max).collect::<String>())
-    }
+    ensure_web_search_ready(settings)?;
+    let (sources, search_queries) =
+        collect_research_sources(settings, profile, owner_query, focus, 4).await?;
+    require_sources(&sources, "web context")?;
+    Ok(format!(
+        "Searches completed:\n{}\n\n{}",
+        format_search_queries(&search_queries),
+        format_sources(&sources)
+    ))
 }
 
 fn normalize_research_type(value: &str) -> String {
@@ -173,17 +171,7 @@ fn research_prompt_profile(research_type: &str, depth: &str) -> String {
     };
 
     format!(
-        "You are Co-Op's private research analyst for a business owner. Run {}. {} Write in plain business language. Structure the answer with: Quick answer, What matters, Evidence, Risks or unknowns, and Next moves. If sources are provided, cite source titles inline; if not, clearly say the answer is assistant-only.",
+        "You are Co-Op's private research analyst for a business owner. Run {}. {} Write in plain business language. Structure the answer with: Quick answer, What matters, Evidence, Risks or unknowns, and Next moves. Use only the supplied web sources for outside facts. Cite source titles inline. For competitor work, classify each named company as verified direct competitor, indirect alternative, or non-competitor, and explain why in one sentence. Do not say the owner should run another broad web search; Co-Op already completed the searches listed in the prompt. If evidence is still weak, state exactly what is weak and give the best supported candidate list.",
         job, depth_instruction
     )
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn truncate_handles_unicode_boundaries() {
-        assert_eq!(truncate("éééé", 2), "éé...");
-    }
 }
