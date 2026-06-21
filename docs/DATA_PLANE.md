@@ -97,7 +97,7 @@ Stored memory types:
 
 Memory is written by:
 
-- The Memory tab.
+- The Memory section inside Company.
 - Company profile saves.
 - Completed plans.
 - Advisor chat answers.

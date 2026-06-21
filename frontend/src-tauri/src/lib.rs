@@ -7,6 +7,7 @@ mod license;
 mod memory;
 mod memory_store;
 mod outreach;
+mod outreach_helpers;
 mod providers;
 mod rag;
 mod research;

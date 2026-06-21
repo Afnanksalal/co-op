@@ -181,7 +181,7 @@ export function MemoryPanel({
             <div className="mt-5 flex flex-wrap gap-2">
               {grouped.map(([type, count]) => (
                 <Badge key={type} variant="outline">
-                  {memoryTypeDisplay(type)} · {count}
+                  {memoryTypeDisplay(type)} - {count}
                 </Badge>
               ))}
             </div>
@@ -226,7 +226,7 @@ function MemoryCard({ memory }: { memory: BusinessMemory | MemorySearchResult })
           </div>
           <h3 className="mt-3 text-base font-semibold">{memory.title}</h3>
           <p className="mt-1 text-xs text-muted-foreground">
-            {memory.source || 'Saved memory'} · {formatDate(memory.updatedAt || memory.createdAt)}
+            {memory.source || 'Saved memory'} - {formatDate(memory.updatedAt || memory.createdAt)}
           </p>
         </div>
         <Badge variant="secondary">{Math.round(memory.confidence * 100)}%</Badge>

@@ -8,15 +8,19 @@ This audit records the maintainability boundaries for Co-Op. It is meant to keep
 flowchart TD
   Web["Next.js web app<br/>landing, auth, account, admin, legal"]
   DesktopShell["Desktop React shell<br/>thin route and state coordinator"]
-  DesktopPanels["Desktop panels<br/>Today, Ask, Plans, Company, Files, Research, Customers, Settings, License"]
-  Tools["Money & Tools modules<br/>calculators, pitch review, ownership, investors"]
+  DesktopChrome["Desktop chrome<br/>header, sidebar, navigation map"]
+  DesktopPanels["Desktop panels<br/>Today, Ask, Company, Customers, Money, Settings, License"]
+  Company["Company workspace<br/>profile, files, memory, research"]
+  Tools["Money modules<br/>calculators, pitch review, ownership, investors"]
   RuntimeClient["Runtime client<br/>commands, DTOs, preview state"]
   Tauri["Tauri Rust runtime<br/>local workflows and storage"]
   LocalStore["Local state<br/>SQLite file store, state file, credential store"]
   Cloud["NestJS backend<br/>identity, licenses, heartbeat"]
 
   Web --> Cloud
+  DesktopShell --> DesktopChrome
   DesktopShell --> DesktopPanels
+  DesktopPanels --> Company
   DesktopShell --> Tools
   DesktopPanels --> RuntimeClient
   Tools --> RuntimeClient
@@ -30,7 +34,9 @@ flowchart TD
 Completed:
 
 - Desktop shell split into a thin coordinator plus focused panel modules under `frontend/src/components/desktop/panels/`.
-- Money & Tools split into modules under `frontend/src/components/desktop/tools/`.
+- Desktop chrome split into `navigation.ts`, `desktop-header.tsx`, and `desktop-sidebar.tsx`.
+- Company profile, files, memory, and research grouped behind the Company workspace.
+- Money split into modules under `frontend/src/components/desktop/tools/`.
 - Desktop runtime client split into command wrappers, DTOs, and preview fallback state.
 - Tauri DTOs split into focused modules under `frontend/src-tauri/src/types/`.
 - Local knowledge store schema, migrations, and tests moved into a focused `knowledge_store/` module.
@@ -40,6 +46,8 @@ Completed:
 Watch:
 
 - `frontend/src/components/desktop/local-coop-shell.tsx` should remain a coordinator only.
+- Primary desktop navigation should remain owner-job based: Today, Ask, Company, Customers, Money.
+- Settings and License should remain account-menu destinations unless a product decision changes that.
 - `frontend/src-tauri/src/outreach.rs` should be split if more outreach providers or discovery flows are added.
 - `frontend/src-tauri/src/providers.rs` should be split before adding another provider family.
 - `frontend/src-tauri/src/tools.rs` should be split before adding more unrelated tools.

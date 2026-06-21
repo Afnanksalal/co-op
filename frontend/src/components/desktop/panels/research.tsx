@@ -12,7 +12,7 @@ import {
   type StartupProfile,
 } from '@/lib/desktop/runtime';
 import type { View } from '../shell-types';
-import { EmptyState, PanelTitle, SegmentedControl, TextArea, Toggle } from '../shared';
+import { EmptyState, PanelTitle, SegmentedControl, TextArea } from '../shared';
 import { MarkdownOutput } from '../markdown';
 import { errorMessage, labelOption, researchProviderDisplay } from '../utils';
 
@@ -34,7 +34,6 @@ export function ResearchPanel({
   onNavigate: (view: View) => void;
 }) {
   const [query, setQuery] = useState('');
-  const [saveToRag, setSaveToRag] = useState(true);
   const [researchType, setResearchType] = useState('market_scan');
   const [depth, setDepth] = useState('standard');
   const activePlaybook =
@@ -45,6 +44,12 @@ export function ResearchPanel({
   const sourceTotal = state.researchRuns.reduce((total, run) => total + run.sources.length, 0);
   const suggestions = researchSuggestions(researchType, state.workspace);
   const canResearch = query.trim().length > 0 && !providerBlocked && busyAction !== 'research';
+  const selectedSources = [
+    'Live web',
+    state.documents.length > 0 ? 'Company files' : null,
+    state.memories.length > 0 ? 'Memory' : null,
+    state.leads.length > 0 ? 'Customers' : null,
+  ].filter(Boolean) as string[];
 
   async function submitResearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -57,7 +62,7 @@ export function ResearchPanel({
         query: query.trim(),
         researchType,
         depth,
-        saveToRag,
+        saveToRag: true,
       });
       await refresh();
       setMessage('Research completed.');
@@ -72,7 +77,7 @@ export function ResearchPanel({
   return (
     <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-5 overflow-hidden xl:grid-cols-[420px_minmax(0,1fr)] xl:grid-rows-1">
       <form
-        className="coop-scrollbar max-h-80 overflow-y-auto rounded-lg border border-border/50 bg-card p-5 xl:max-h-none"
+        className="coop-scrollbar max-h-96 overflow-y-auto rounded-lg border border-border/50 bg-card p-5 xl:max-h-none"
         onSubmit={submitResearch}
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -82,31 +87,23 @@ export function ResearchPanel({
           </Badge>
         </div>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          Turn a market, customer, competitor, pricing, investor, or risk question into a usable
-          business brief.
+          Ask one focused question. Co-Op searches the web, uses saved company context when useful,
+          and keeps the finished brief in your company library.
         </p>
 
-        <div className="mt-5 grid gap-2">
+        <div className="mt-5 flex flex-wrap gap-2">
           {researchPlaybooks.map((playbook) => (
             <button
               key={playbook.id}
               type="button"
               onClick={() => setResearchType(playbook.id)}
-              className={`rounded-lg border p-3 text-left transition-colors ${
+              className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
                 researchType === playbook.id
                   ? 'border-primary/40 bg-primary/5'
                   : 'border-border/60 bg-background hover:bg-muted/40'
               }`}
             >
-              <span className="flex items-center justify-between gap-3">
-                <span className="text-sm font-semibold">{playbook.label}</span>
-                {researchType === playbook.id && (
-                  <span className="h-2.5 w-2.5 rounded-full bg-primary" />
-                )}
-              </span>
-              <span className="mt-1 block text-xs leading-5 text-muted-foreground">
-                {playbook.description}
-              </span>
+              {playbook.label}
             </button>
           ))}
         </div>
@@ -131,11 +128,20 @@ export function ResearchPanel({
               ]}
             />
           </div>
-          <Toggle label="Save to company files" checked={saveToRag} onChange={setSaveToRag} />
+          <div className="flex flex-wrap gap-2">
+            {selectedSources.map((source) => (
+              <span
+                key={source}
+                className="rounded-full border border-border/60 bg-card px-3 py-1 text-xs font-medium text-muted-foreground"
+              >
+                {source}
+              </span>
+            ))}
+          </div>
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border/60 bg-card/60 p-3 text-xs leading-5 text-muted-foreground">
             <span>
               {webSourcesReady
-                ? 'Uses live web sources, then saves the report locally.'
+                ? 'Briefs are saved locally after the research is complete.'
                 : 'Add a web search key before running source-backed research.'}
             </span>
             {!webSourcesReady && (
@@ -168,7 +174,7 @@ export function ResearchPanel({
           disabled={!canResearch}
           loading={busyAction === 'research'}
         >
-          Run research
+          Research this
         </Button>
       </form>
 
@@ -184,7 +190,7 @@ export function ResearchPanel({
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             <ResearchStat label="Source mode" value={providerLabel} />
             <ResearchStat label="Default depth" value={labelOption(depth)} />
-            <ResearchStat label="Company memory" value={saveToRag ? 'Saving on' : 'Saving off'} />
+            <ResearchStat label="Saved locally" value="On" />
           </div>
         </div>
 

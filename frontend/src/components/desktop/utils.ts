@@ -58,9 +58,6 @@ export function nextViewForState(
 ): View | null {
   if (!runtimeAvailable) return null;
   if (!next.activation) return currentView === 'activation' ? null : 'activation';
-  if (next.isUsable && !webSearchReady(next) && !['activation', 'settings'].includes(currentView)) {
-    return 'settings';
-  }
   if (
     next.isUsable &&
     onboardingRequired(next.workspace) &&
@@ -209,13 +206,10 @@ export function titleForView(view: View): string {
   if (view === 'dashboard') return 'Today';
   if (view === 'onboarding') return 'Welcome';
   if (view === 'activation') return 'License';
-  if (view === 'workspace') return 'Company';
+  if (['workspace', 'rag', 'memory', 'research'].includes(view)) return 'Company';
   if (view === 'chat') return 'Ask';
-  if (view === 'rag') return 'Files';
-  if (view === 'memory') return 'Memory';
-  if (view === 'research') return 'Research';
   if (view === 'outreach') return 'Customers';
-  if (view === 'tools') return 'Money & Tools';
+  if (view === 'tools') return 'Money';
   if (view === 'settings') return 'Settings';
   return 'Plans';
 }
@@ -225,14 +219,13 @@ export function subtitleForView(view: View, state: DesktopState | null): string 
   if (view === 'onboarding') return 'Three steps before the first plan';
   if (view === 'activation') return 'License check for this computer';
   if (view === 'settings') return 'Assistant, web sources, email, and local connections';
-  if (view === 'workspace') return 'The business context Co-Op should remember';
-  if (view === 'rag') return 'Private files saved on this computer';
-  if (view === 'memory') return 'Decisions, preferences, and context Co-Op remembers';
+  if (['workspace', 'rag', 'memory', 'research'].includes(view)) {
+    return 'Profile, files, memory, and research for this business';
+  }
   if (view === 'history') return 'Plans, decisions, risks, and next steps';
   if (view === 'chat') return 'Ask questions using your private business context';
-  if (view === 'research') return 'Market, competitor, and customer questions';
   if (view === 'outreach') return 'Prospects, outreach plans, and email drafts';
-  if (view === 'tools') return 'Money checks, pitch reviews, ownership, and investors';
+  if (view === 'tools') return 'Runway, pitch reviews, ownership, and investors';
   if (state.workspace.companyName.trim()) return state.workspace.companyName;
   return 'Private business workspace';
 }

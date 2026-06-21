@@ -110,7 +110,7 @@ npm run tauri:build
 5. Build desktop installers with `npm run tauri:build` when delivering software.
 6. Smoke test hosted web routes: `/`, `/login`, `/signup`, `/account`, `/download`, `/privacy`, `/terms`, `/security`, `/cookies`, and `/admin/licenses`.
 7. Confirm hosted production `/desktop` and `/local` return 404.
-8. Smoke test desktop first run: activate with a key, complete onboarding, open Today, ask a question, confirm the chat progress panel advances through context/source/review steps, run a plan, add a file, save/search memory, run web research, and refresh license heartbeat.
+8. Smoke test desktop first run: activate with a key, complete onboarding, open Today, ask a question, confirm the chat progress panel advances through context/source/review steps, open Company, complete profile, add a file, save/search memory, run web research, run a plan, and refresh license heartbeat.
 9. Smoke test account key management: generate a key, copy it while visible, delete it, confirm it disappears from the account table, and confirm a fresh key can be generated.
 10. Confirm production CORS origins are restricted.
 11. Confirm `LICENSE_KEY_PEPPER` is strong and not reused from development.
@@ -165,7 +165,7 @@ For Render-style deployments, the Docker build runs `npm run build` and starts `
 3. Install the generated build on a clean machine or VM.
 4. Activate with a test license key.
 5. Verify only the activation key is requested.
-6. Verify heartbeat, onboarding, settings save, chat progress feedback, plan, file import/search, memory save/search, research, customers, tools, and license refresh.
+6. Verify heartbeat, onboarding, settings save, chat progress feedback, plan, Company profile, file import/search, memory save/search, research, customers, money tools, and license refresh.
 
 ## Existing User Backfill
 

@@ -31,7 +31,8 @@ Cloud services are intentionally narrow. Customer prompts, outputs, company file
 
 - Public web site, login, account center, download page, legal pages, and admin license console.
 - NestJS license backend for license generation, customer key deletion, activation, heartbeat, deactivation, health checks, and existing-user backfill.
-- Tauri desktop app for onboarding, company profile, private files, local search, business memory, advisor chat, work plans, research, customers, outreach, pitch review, calculators, ownership tools, settings, and license status.
+- Tauri desktop app for onboarding, Today, Ask, a unified Company workspace, Customers, Money, account settings, license status, private files, local search, business memory, work plans, research, outreach, pitch review, calculators, and ownership tools.
+- Simplified desktop navigation built around owner jobs: Today, Ask, Company, Customers, and Money. Profile, files, memory, and research live together under Company; Settings and License live in the account menu.
 - Advisor chat with live, owner-facing progress feedback for context loading, file checks, memory lookup, source search, review, and local save steps. The UI shows workflow state, not hidden chain-of-thought.
 - Local-first model routing through Ollama or an OpenAI-compatible bring-your-own-key endpoint.
 - Required local Firecrawl configuration for source-backed market, competitor, legal, customer, pricing, investor, and risk research, plus optional Resend or SendGrid email sending.
@@ -65,6 +66,7 @@ Important implementation anchors:
 - `backend/src/database/schema/licenses.schema.ts` is the cloud license schema source of truth.
 - `frontend/src/app/` contains public web routes, account routes, admin routes, legal pages, and the desktop route.
 - `frontend/src/components/desktop/` contains the installed desktop UI modules.
+- `frontend/src/components/desktop/navigation.ts`, `desktop-header.tsx`, and `desktop-sidebar.tsx` define the simplified owner-facing shell.
 - `frontend/src/lib/desktop/runtime/` contains the typed client boundary between React and Tauri.
 - `frontend/src-tauri/src/` contains local runtime modules for licensing, settings, workspace, chat, files, research, source planning, outreach, tools, providers, storage, validation, security, and secrets.
 

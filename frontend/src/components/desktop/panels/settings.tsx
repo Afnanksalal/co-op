@@ -1,7 +1,14 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
-import { EnvelopeSimple, HardDrives, MagnifyingGlass, Plugs } from '@phosphor-icons/react';
+import {
+  CaretDown,
+  EnvelopeSimple,
+  HardDrives,
+  MagnifyingGlass,
+  Plugs,
+} from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import {
   saveIntegration,
@@ -35,6 +42,7 @@ export function SettingsPanel({
   const [settingsTab, setSettingsTab] = useState(
     settings.firecrawlApiKeySaved ? 'model' : 'research'
   );
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [integration, setIntegration] = useState({
     name: '',
     kind: 'mcp',
@@ -165,6 +173,10 @@ export function SettingsPanel({
         {settingsTab === 'model' && (
           <div className="space-y-5">
             <PanelTitle icon={HardDrives} title="Assistant settings" />
+            <p className="text-sm leading-6 text-muted-foreground">
+              Choose where Co-Op gets answers. Keep the everyday setup simple; service addresses and
+              model names live in Advanced.
+            </p>
             <div className="grid gap-4 md:grid-cols-2">
               <SelectField
                 label="Where answers come from"
@@ -183,53 +195,62 @@ export function SettingsPanel({
                 options={['off', 'review_only', 'high_risk_only', 'full_council']}
                 labels={reviewModeLabels}
               />
-              {settings.provider === 'ollama' ? (
-                <>
+              {settings.provider === 'openai_compatible' && (
+                <div className="md:col-span-2">
                   <Field
-                    label="Local assistant address"
-                    value={settings.ollamaBaseUrl}
-                    onChange={(ollamaBaseUrl) => update({ ollamaBaseUrl })}
+                    label={settings.openaiApiKeySaved ? 'Replace private key' : 'Private key'}
+                    value={openaiApiKey}
+                    type="password"
+                    onChange={setOpenaiApiKey}
                   />
-                  <Field
-                    label="Local assistant model"
-                    value={settings.ollamaModel}
-                    onChange={(ollamaModel) => update({ ollamaModel })}
+                  <SecretStatus
+                    saved={settings.openaiApiKeySaved}
+                    pending={openaiApiKey.trim().length > 0}
+                    required={needsModelKey}
                   />
-                </>
-              ) : (
-                <>
-                  <Field
-                    label="Assistant service address"
-                    value={settings.openaiBaseUrl}
-                    onChange={(openaiBaseUrl) => update({ openaiBaseUrl })}
-                  />
-                  <Field
-                    label="Assistant model"
-                    value={settings.openaiModel}
-                    onChange={(openaiModel) => update({ openaiModel })}
-                  />
-                  <div className="md:col-span-2">
-                    <Field
-                      label={settings.openaiApiKeySaved ? 'Replace private key' : 'Private key'}
-                      value={openaiApiKey}
-                      type="password"
-                      onChange={setOpenaiApiKey}
-                    />
-                    <SecretStatus
-                      saved={settings.openaiApiKeySaved}
-                      pending={openaiApiKey.trim().length > 0}
-                      required={needsModelKey}
-                    />
-                  </div>
-                </>
+                </div>
               )}
-              <Field
-                label="Response limit"
-                type="number"
-                value={String(settings.maxRunTokens)}
-                onChange={(value) => update({ maxRunTokens: Number(value) })}
-              />
             </div>
+            <AdvancedSection
+              open={advancedOpen}
+              onToggle={() => setAdvancedOpen((value) => !value)}
+            >
+              <div className="grid gap-4 md:grid-cols-2">
+                {settings.provider === 'ollama' ? (
+                  <>
+                    <Field
+                      label="Local assistant address"
+                      value={settings.ollamaBaseUrl}
+                      onChange={(ollamaBaseUrl) => update({ ollamaBaseUrl })}
+                    />
+                    <Field
+                      label="Local assistant model"
+                      value={settings.ollamaModel}
+                      onChange={(ollamaModel) => update({ ollamaModel })}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <Field
+                      label="Assistant service address"
+                      value={settings.openaiBaseUrl}
+                      onChange={(openaiBaseUrl) => update({ openaiBaseUrl })}
+                    />
+                    <Field
+                      label="Assistant model"
+                      value={settings.openaiModel}
+                      onChange={(openaiModel) => update({ openaiModel })}
+                    />
+                  </>
+                )}
+                <Field
+                  label="Response limit"
+                  type="number"
+                  value={String(settings.maxRunTokens)}
+                  onChange={(value) => update({ maxRunTokens: Number(value) })}
+                />
+              </div>
+            </AdvancedSection>
           </div>
         )}
 
@@ -241,11 +262,6 @@ export function SettingsPanel({
               risk answers. Keys stay on this computer.
             </p>
             <div className="grid gap-4 md:grid-cols-2">
-              <Field
-                label="Web search service address"
-                value={settings.firecrawlBaseUrl}
-                onChange={(firecrawlBaseUrl) => update({ firecrawlBaseUrl })}
-              />
               <div>
                 <Field
                   label={
@@ -262,6 +278,16 @@ export function SettingsPanel({
                 />
               </div>
             </div>
+            <AdvancedSection
+              open={advancedOpen}
+              onToggle={() => setAdvancedOpen((value) => !value)}
+            >
+              <Field
+                label="Web search service address"
+                value={settings.firecrawlBaseUrl}
+                onChange={(firecrawlBaseUrl) => update({ firecrawlBaseUrl })}
+              />
+            </AdvancedSection>
           </div>
         )}
 
@@ -335,6 +361,30 @@ function SettingsHeader({
         </p>
       </div>
       <SegmentedControl value={currentTab} options={options} onChange={onTabChange} />
+    </div>
+  );
+}
+
+function AdvancedSection({
+  open,
+  onToggle,
+  children,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="rounded-lg border border-border/60 bg-background">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-medium"
+      >
+        <span>Advanced</span>
+        <CaretDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && <div className="border-t border-border/60 p-4">{children}</div>}
     </div>
   );
 }

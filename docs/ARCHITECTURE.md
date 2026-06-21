@@ -38,7 +38,7 @@ The cloud license API does not store workflow prompts, model outputs, company fi
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
 | Hosted web app      | Landing page, login, account center, software download, legal pages, admin license console                                                     | Customer business workflow execution                              |
 | Cloud backend       | Health checks, license creation, self-service license lookup, activation, heartbeat, deactivation, revocation hooks, payment entitlement hooks | Business prompts, files, outputs, provider keys, campaign content |
-| Desktop app         | Company onboarding, profile, files, local search, advisor chat, plans, research, customers, outreach, tools, settings, local run history       | Account identity or license generation authority                  |
+| Desktop app         | Company onboarding, Today, Ask, Company workspace, customers, money tools, local search, plans, research, account settings, local run history  | Account identity or license generation authority                  |
 | Local storage       | Entitlement snapshot, company state, file index, local business memory, provider settings summaries                                            | Raw secrets in plaintext state files                              |
 | OS credential store | Activation token and customer provider keys                                                                                                    | Searchable business data                                          |
 
@@ -109,12 +109,16 @@ The desktop activation UI asks for the activation key only. The backend URL is e
 - `/privacy`, `/terms`, `/security`, and `/cookies` provide public legal and trust pages.
 - `/desktop` is for local development and Tauri rendering only, not hosted production access.
 
-Desktop UI modules are under `frontend/src/components/desktop/`:
+Desktop UI modules are under `frontend/src/components/desktop/`. The owner-facing shell intentionally exposes only Today, Ask, Company, Customers, and Money in the primary sidebar. Profile, files, memory, and research are grouped under Company. Settings and License are available through the account menu.
 
 - `local-coop-shell.tsx` is the thin shell and route/state coordinator.
-- `panels/` contains feature panels such as Today, Ask, Plans, Company, Files, Research, Customers, Settings, and License.
+- `navigation.ts` defines the owner-facing primary navigation and account menu destinations.
+- `desktop-header.tsx` and `desktop-sidebar.tsx` contain shell chrome.
+- `panels/` contains feature panels such as Today, Ask, Company, Customers, Money, Settings, License, and saved Plans.
+- `panels/company.tsx` composes the Company workspace.
+- `panels/company-overview.tsx` renders the Company overview.
 - `panels/chat-*.tsx` split the Ask surface into session navigation, header controls, message bubbles, composer, empty state, and live progress feedback.
-- `tools/` contains Money & Tools surfaces.
+- `tools/` contains Money surfaces.
 - `shared.tsx` contains reusable desktop UI primitives.
 - `markdown.tsx` renders owner-facing assistant output safely and consistently.
 

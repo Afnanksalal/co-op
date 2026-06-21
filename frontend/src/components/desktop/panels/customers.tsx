@@ -95,7 +95,7 @@ export function OutreachPanel({
               </div>
               {!webSearchReady && (
                 <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                  Open Settings and save a web search key first.
+                  Open Account, choose Settings, and save a web research key first.
                 </p>
               )}
               <Button

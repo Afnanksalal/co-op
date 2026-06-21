@@ -49,7 +49,7 @@ export function ToolTabs({
     <aside className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border/50 bg-card p-3">
       <div className="mb-3 px-1">
         <h2 className="font-serif text-lg font-semibold tracking-normal">Business tools</h2>
-        <p className="text-xs text-muted-foreground">Focused local operating surfaces</p>
+        <p className="text-xs text-muted-foreground">Checks, reviews, and useful lists</p>
       </div>
       <div className="coop-scrollbar flex min-h-0 flex-1 gap-2 overflow-x-auto pb-1 xl:block xl:space-y-2 xl:overflow-y-auto xl:overflow-x-hidden xl:pb-0">
         {toolTabs.map((tab) => (

@@ -14,6 +14,7 @@ mindmap
       Company profile
       Business memory
       Company files
+      Research library
     Ask
       Advisor chat
       Sessions
@@ -25,11 +26,11 @@ mindmap
       Risks
       Next steps
     Growth
-      Research
+      Source-backed research
       Leads
       Outreach
       Campaign email
-    Money and tools
+    Money
       Runway
       Pitch review
       Ownership
@@ -112,7 +113,12 @@ Tauri runtime modules:
 Frontend desktop modules:
 
 - `local-coop-shell.tsx`
+- `navigation.ts`
+- `desktop-header.tsx`
+- `desktop-sidebar.tsx`
 - `panels/`
+- `panels/company.tsx`
+- `panels/company-overview.tsx`
 - `tools/`
 - `shared.tsx`
 - `markdown.tsx`

@@ -19,15 +19,11 @@ Installed desktop UI:
 - Local onboarding.
 - Today dashboard.
 - Ask.
-- Plans.
-- Company profile.
-- Files.
-- Source-backed research.
+- Company workspace for profile, files, memory, and research.
 - Advisor chat progress feedback.
 - Customers.
-- Money & Tools.
-- Settings.
-- License.
+- Money.
+- Account menu for Settings and License.
 
 Hosted production builds must not expose the desktop shell. `/desktop` and `/local` are blocked in hosted production mode and are available only for local development or the Tauri static export.
 
@@ -81,7 +77,7 @@ Command notes:
 
 The installed desktop app requires a saved web search key before source-backed market, competitor, legal, customer, pricing, investor, risk, or prospect-discovery work can run. The key is stored on the user's computer by the Tauri runtime and is not sent to the Co-Op cloud license backend.
 
-Advisor chat shows safe progress feedback while work is running: context loading, file checks, memory lookup, source search, review, and local save. It does not expose hidden chain-of-thought, raw prompts, provider keys, or full retrieved documents.
+Advisor chat shows safe progress feedback while work is running: context loading, file checks, memory lookup, source search, review, and local save. It does not expose hidden chain-of-thought, raw prompts, provider keys, or full retrieved documents. Advanced answer controls are disclosed from the chat options menu instead of being permanently visible.
 
 Competitor work does not rely on one broad web query. The runtime builds a small set of business-specific searches from the saved company profile, owner question, offering, target buyers, and operating region, then filters unrelated sources before generating the answer.
 
@@ -91,6 +87,9 @@ Competitor work does not rely on one broad web query. The runtime builds a small
 - `src/components/marketing/` - landing page sections.
 - `src/components/legal/` - legal page layout helpers.
 - `src/components/desktop/` - installed desktop UI.
+- `src/components/desktop/navigation.ts` - owner-facing primary navigation and account menu destinations.
+- `src/components/desktop/desktop-header.tsx` and `desktop-sidebar.tsx` - shell chrome.
+- `src/components/desktop/panels/company*.tsx` - Company workspace composition for profile, files, memory, and research.
 - `src/lib/api/` - cloud API client.
 - `src/lib/desktop/runtime/` - typed React-to-Tauri command boundary.
 - `src-tauri/` - Rust desktop runtime.

@@ -1,6 +1,6 @@
 # Product Positioning
 
-Research baseline: 2026-06-12
+Research baseline: 2026-06-21
 
 Co-Op is local-first business management software for owners who want one private place to plan, decide, research, follow up, and keep company context useful. The cloud exists for account, license, entitlement, payment, and software distribution. Daily business work happens in the installed desktop app.
 
@@ -24,14 +24,20 @@ Comparable products show five buyer expectations:
 - Trust boundaries should be explicit and easy to understand.
 - Onboarding should reach first value quickly instead of requiring a long setup form.
 - Review and human approval matter more than unrestricted autonomy.
+- Powerful work software should use progressive disclosure instead of showing every control at once.
 
 Reference inputs:
 
 - [Notion Enterprise Search](https://www.notion.com/help/enterprise-search)
 - [ChatGPT Business](https://chatgpt.com/business/business-plan/)
+- [Microsoft 365 Copilot Business](https://www.microsoft.com/en-us/microsoft-365-copilot/business)
+- [Glean](https://www.glean.com/)
+- [Perplexity Internal Knowledge Search](https://www.perplexity.ai/help-center/en/articles/10352914-what-is-internal-knowledge-search)
 - [HubSpot Breeze AI Agents](https://www.hubspot.com/products/artificial-intelligence/breeze-ai-agents)
 - [Clay](https://www.clay.com/)
+- [Linear](https://linear.app/)
 - [NN/g Progressive Disclosure](https://www.nngroup.com/articles/progressive-disclosure/)
+- [NN/g Reducing Cognitive Load in Forms](https://www.nngroup.com/articles/4-principles-reduce-cognitive-load/)
 - [NN/g Onboarding Tutorials vs. Contextual Help](https://www.nngroup.com/articles/onboarding-tutorials/)
 - [LangGraph Human-in-the-Loop](https://docs.langchain.com/oss/python/langchain/human-in-the-loop)
 - [OpenAI Agents SDK guide](https://developers.openai.com/api/docs/guides/agents)
@@ -66,7 +72,8 @@ Use:
 - "Live research"
 - "Customer follow-up"
 - "Saved plans"
-- "Money & tools"
+- "Money"
+- "Account"
 
 Avoid in normal UI:
 
@@ -118,37 +125,28 @@ mindmap
       Recent plans
       Useful next action
     Ask
-      Advisor areas
+      Business questions
       Company files
+      Web research
       Second look
-    Plans
-      Decisions
-      Risks
-      Owners
-      Next steps
-    Company files
-      Private storage
-      Search
-      Business memory
-    Memory
-      Decisions
-      Preferences
-      Risks
-      Customer notes
+      Saved conversations
+    Company
+      Profile
+      Files
+      Memory
+      Research library
     Customers
-      Leads
+      Prospects
       Outreach
-      Campaigns
-    Research
-      Markets
-      Competitors
-      Customers
-      Pricing
-    Money and tools
+      Email drafts
+    Money
       Runway
       Pitch review
       Ownership
       Investors
+    Account
+      Settings
+      License
     Trust
       Local-first data
       Bring-your-own AI
@@ -158,9 +156,12 @@ mindmap
 ## UX Principles
 
 - Keep the dashboard focused on work, not setup status.
+- Keep the primary sidebar to owner jobs: Today, Ask, Company, Customers, and Money.
+- Put Settings and License behind the account menu instead of primary navigation.
+- Group company profile, files, memory, and research under Company.
 - Hide completed readiness checklists when everything is ready.
 - Use short interactive onboarding instead of long forms.
-- Show advanced setup only where it matters.
+- Show advanced setup only where it matters, behind explicit Advanced controls.
 - Make every visible button perform a real action.
 - Use simple labels and consistent controls.
 - Keep scroll regions bounded so one panel does not move unrelated controls.
@@ -177,10 +178,11 @@ Before shipping a desktop UX change, verify:
 - A new owner sees onboarding before the dashboard.
 - The first-run flow can be completed quickly.
 - The primary action on each screen is obvious.
+- The primary sidebar does not expose internal modules such as file indexing, memory storage, provider routing, or license internals.
 - Dashboard cards lead to working features.
 - Tables and long panels scroll inside their own bounds.
 - Technical terms are hidden from normal owner workflows.
-- The Memory tab uses business language and avoids vector/database wording.
+- The Company memory section uses business language and avoids vector/database wording.
 - Provider keys, license keys, prompts, outputs, and file content are not logged.
 
 ## Landing Page Bar

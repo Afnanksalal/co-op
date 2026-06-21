@@ -184,7 +184,7 @@ Co-Op stores two kinds of local context:
 - Company files: source documents and sections that can be searched.
 - Business memory: durable facts, decisions, preferences, risks, research findings, plan outcomes, and profile summaries.
 
-Memory is not a separate cloud service. It is stored in the local SQLite data plane and searched with full-text plus compact deterministic matching data. The UI exposes this as the Memory tab, not as vector infrastructure.
+Memory is not a separate cloud service. It is stored in the local SQLite data plane and searched with full-text plus compact deterministic matching data. The UI exposes this as the Memory section inside Company, not as vector infrastructure.
 
 The runtime may write memory after company profile saves, completed work plans, advisor chat answers, research summaries, pitch deck reviews, and manual owner notes.
 
@@ -201,7 +201,7 @@ Research inputs used for memory behavior:
 
 ## Research Jobs
 
-Research should return useful business material, not generic essays. The desktop Research tab maps simple owner choices to local runtime jobs:
+Research should return useful business material, not generic essays. The Company research surface maps simple owner choices to local runtime jobs:
 
 - Market scan: categories, demand signals, competitors, buyers, and openings.
 - Competitors: alternatives, positioning, strengths, weaknesses, and gaps.

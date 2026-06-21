@@ -1,5 +1,27 @@
 # Release Notes
 
+## 1.0.2 - 2026-06-21
+
+This release focuses on making Co-Op Desktop calmer, clearer, and easier to maintain as a sellable business product.
+
+### Highlights
+
+- Simplified the installed desktop navigation around owner jobs: Today, Ask, Company, Customers, Money, plus account settings and license access.
+- Consolidated profile, files, memory, and research into a single Company workspace with focused tabs and no dead-end overview actions.
+- Moved settings and license controls into an Account menu so the sidebar no longer feels like a control panel.
+- Hid advanced assistant/source configuration behind Advanced sections while keeping bring-your-own-key, Ollama, Firecrawl, email, and integration paths functional.
+- Improved research wording and defaults so every research brief is source-backed and saved into the local company library.
+- Reduced the desktop shell from a large monolithic file into focused header, sidebar, navigation, Company panel, and Company overview modules.
+- Split Tauri outreach helper logic and tests out of the command module to keep Rust modules under the repository size contract.
+- Updated product, architecture, orchestration, operations, audit, and frontend docs to match the simplified desktop information architecture.
+
+### Verification
+
+- Passed backend tests, backend build, and backend npm audit.
+- Passed frontend typecheck, hosted build, Tauri static export, frontend npm audit, and Rust advisory audit.
+- Passed Rust tests and Rust clippy with warnings denied after the outreach module split.
+- Built the Windows NSIS and MSI installers for Co-Op Desktop 1.0.2.
+
 ## 1.0.1 - 2026-06-21
 
 This release focuses on making Co-Op Desktop feel clearer and more trustworthy while business work is running.

@@ -162,7 +162,7 @@ export function RunCard({ run, compact = false }: { run: WorkflowRun; compact?: 
             <h2 className="truncate font-semibold">{advisorDisplay(run.workflowType)} plan</h2>
 
             <p className="mt-1 text-xs text-muted-foreground">
-              {riskDisplay(run.riskLevel)} · {trace.length} checks
+              {riskDisplay(run.riskLevel)} - {trace.length} checks
             </p>
           </div>
 
