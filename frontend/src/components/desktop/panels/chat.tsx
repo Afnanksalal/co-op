@@ -216,7 +216,7 @@ export function ChatPanel({
 
         <div
           ref={messageListRef}
-          className="coop-scrollbar min-h-0 flex-1 overflow-y-auto p-4 sm:p-6"
+          className="coop-scrollbar min-h-0 flex-1 overflow-y-auto p-4 pb-6 sm:p-6 sm:pb-8"
         >
           {hasMessages ? (
             <div className="mx-auto max-w-3xl space-y-5">

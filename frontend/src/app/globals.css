@@ -145,6 +145,8 @@
   .coop-scrollbar {
     -ms-overflow-style: auto !important;
     overscroll-behavior: contain;
+    scroll-behavior: auto;
+    scrollbar-gutter: stable;
     scrollbar-color: hsl(var(--muted-foreground) / 0.45) transparent;
     scrollbar-width: thin !important;
   }

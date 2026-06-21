@@ -1,5 +1,23 @@
 # Release Notes
 
+## 1.0.3 - 2026-06-22
+
+This release fixes dense desktop layout behavior so owner-facing work areas stay reachable inside constrained windows.
+
+### Highlights
+
+- Reworked the Company profile editor into fixed header, scrollable form, and pinned status/save regions so fields below the fold are no longer trapped.
+- Moved Ask options into a bounded overlay so model/review/source controls do not push the conversation body out of view.
+- Kept message history padding stable near the composer and reduced scroll jitter in desktop scroll regions.
+- Moved the custom date picker popup out of clipped form containers while preserving the custom calendar UI.
+
+### Verification
+
+- Passed backend tests, backend build, and backend npm audit.
+- Passed frontend typecheck, hosted build, Tauri static export, frontend npm audit, and Rust advisory audit.
+- Passed Rust tests and Rust clippy with warnings denied.
+- Built the Windows NSIS and MSI installers for Co-Op Desktop 1.0.3.
+
 ## 1.0.2 - 2026-06-21
 
 This release focuses on making Co-Op Desktop calmer, clearer, and easier to maintain as a sellable business product.

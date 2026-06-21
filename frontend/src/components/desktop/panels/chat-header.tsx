@@ -1,7 +1,7 @@
 'use client';
 
 import { CaretDown, Sparkle, SlidersHorizontal } from '@phosphor-icons/react';
-import { useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -41,16 +41,42 @@ export function ChatHeader({
   onResearchChange: (value: boolean) => void;
 }) {
   const [optionsOpen, setOptionsOpen] = useState(false);
+  const optionsId = useId();
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!optionsOpen) return;
+
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOptionsOpen(false);
+      }
+    };
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOptionsOpen(false);
+    };
+
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [optionsOpen]);
 
   return (
-    <div className="shrink-0 border-b border-border/50 p-4">
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+    <div ref={rootRef} className="relative shrink-0 border-b border-border/50 px-4 py-3">
+      <div className="flex min-h-12 flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <Sparkle className="h-5 w-5 text-muted-foreground" />
-            <h2 className="truncate font-serif text-xl font-semibold tracking-normal">{title}</h2>
+            <h2 className="truncate font-serif text-lg font-semibold tracking-normal sm:text-xl">
+              {title}
+            </h2>
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
             Ask for plans, drafts, risks, decisions, and next steps using your company context.
           </p>
         </div>
@@ -65,6 +91,7 @@ export function ChatHeader({
             size="sm"
             onClick={() => setOptionsOpen((value) => !value)}
             aria-expanded={optionsOpen}
+            aria-controls={optionsId}
           >
             <SlidersHorizontal className="h-4 w-4" />
             Options
@@ -75,10 +102,13 @@ export function ChatHeader({
         </div>
       </div>
       {optionsOpen && (
-        <div className="mt-4 rounded-lg border border-border/60 bg-background p-3">
-          <div className="grid gap-3 sm:grid-cols-2 xl:flex xl:items-center">
+        <div
+          id={optionsId}
+          className="absolute right-3 top-full z-50 mt-2 w-[calc(100%-1.5rem)] max-w-2xl rounded-lg border border-border/60 bg-popover p-3 text-popover-foreground shadow-xl sm:right-4 sm:w-[42rem]"
+        >
+          <div className="grid gap-3 sm:grid-cols-2">
             <Select value={agentType} onValueChange={onAgentTypeChange}>
-              <SelectTrigger className="h-9 min-w-40">
+              <SelectTrigger className="h-9 min-w-0">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -92,7 +122,7 @@ export function ChatHeader({
               </SelectContent>
             </Select>
             <Select value={councilMode} onValueChange={onCouncilModeChange}>
-              <SelectTrigger className="h-9 min-w-44">
+              <SelectTrigger className="h-9 min-w-0">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

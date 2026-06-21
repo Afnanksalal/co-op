@@ -63,7 +63,7 @@ export function WorkspacePanel({
 
   return (
     <form
-      className="coop-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto rounded-lg border border-border bg-card p-5 xl:overflow-hidden"
+      className="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card p-4 sm:p-5"
       onSubmit={(event) => {
         event.preventDefault();
         void runWithState(
@@ -73,26 +73,25 @@ export function WorkspacePanel({
         );
       }}
     >
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-        <div>
-          <PanelTitle icon={Briefcase} title="Company profile" compact />
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-            Keep the profile simple first. Add deeper market, money, and operating details only when
-            they help Co-Op make better work.
-          </p>
+      <div className="shrink-0 border-b border-border/60 pb-4">
+        <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-start 2xl:justify-between">
+          <div className="min-w-0">
+            <PanelTitle icon={Briefcase} title="Company profile" compact />
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+              Keep the profile simple first. Add deeper market, money, and operating details only
+              when they help Co-Op make better work.
+            </p>
+          </div>
+          <SegmentedControl
+            value={journey}
+            onChange={setJourney}
+            options={[
+              { id: 'idea', label: 'Idea to startup' },
+              { id: 'scale', label: 'Startup to scale' },
+            ]}
+          />
         </div>
-        <SegmentedControl
-          value={journey}
-          onChange={setJourney}
-          options={[
-            { id: 'idea', label: 'Idea to startup' },
-            { id: 'scale', label: 'Startup to scale' },
-          ]}
-        />
-      </div>
-
-      <div className="grid min-h-0 gap-5 xl:flex-1 xl:grid-cols-[minmax(0,1fr)_320px] xl:overflow-hidden">
-        <div className="coop-scrollbar space-y-6 xl:min-h-0 xl:overflow-y-auto xl:pr-1">
+        <div className="mt-4 flex max-w-full">
           <SegmentedControl
             value={profileTab}
             onChange={setProfileTab}
@@ -102,9 +101,13 @@ export function WorkspacePanel({
               { id: 'operations', label: 'Operations' },
             ]}
           />
+        </div>
+      </div>
 
+      <div className="grid min-h-0 flex-1 gap-5 pt-4 xl:grid-cols-[minmax(0,1fr)_300px] xl:overflow-hidden 2xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="coop-scrollbar min-h-0 space-y-6 overflow-y-auto pb-12 pr-1">
           {profileTab === 'essentials' && (
-            <section className="animate-fade-in space-y-4 border-t border-border pt-5">
+            <section className="animate-fade-in space-y-4">
               <SectionHeading
                 title="Basics"
                 detail="The short version Co-Op should remember first"
@@ -155,7 +158,7 @@ export function WorkspacePanel({
           )}
 
           {profileTab === 'market' && (
-            <section className="animate-fade-in space-y-4 border-t border-border pt-5">
+            <section className="animate-fade-in space-y-4">
               <SectionHeading
                 title="Customers and offer"
                 detail="Who buys, why they care, and how the business earns"
@@ -228,7 +231,7 @@ export function WorkspacePanel({
           )}
 
           {profileTab === 'operations' && (
-            <section className="animate-fade-in space-y-4 border-t border-border pt-5">
+            <section className="animate-fade-in space-y-4">
               <SectionHeading
                 title="Operating details"
                 detail="Team, geography, traction, funding, and dates"
@@ -307,32 +310,34 @@ export function WorkspacePanel({
           )}
         </div>
 
-        <aside className="h-fit rounded-lg border border-border/50 bg-background p-4">
+        <aside className="coop-scrollbar min-h-0 overflow-y-auto rounded-lg border border-border/50 bg-background p-4">
           <PanelTitle icon={ChartBar} title="Profile status" compact />
-          <div className="mt-4">
-            <div className="flex items-end justify-between gap-3">
-              <span className="text-sm text-muted-foreground">Profile completeness</span>
-              <span className="text-2xl font-semibold">{workspaceCompletion(profile)}%</span>
-            </div>
-            <div className="mt-3 h-2 rounded-full bg-muted">
-              <div
-                className="h-2 rounded-full bg-primary"
-                style={{ width: `${workspaceCompletion(profile)}%` }}
-              />
-            </div>
+          <div className="mt-4 flex items-end justify-between gap-3">
+            <span className="text-sm text-muted-foreground">Profile completeness</span>
+            <span className="text-2xl font-semibold">{workspaceCompletion(profile)}%</span>
           </div>
-          <Rows
-            rows={[
-              ['Journey', journey === 'idea' ? 'Idea to startup' : 'Startup to scale'],
-              ['Stage', labelOption(profile.stage)],
-              ['Sector', labelOption(profile.sector)],
-              ['Business type', labelOption(profile.businessModel) || '-'],
-              ['Updated', formatProfileUpdated(profile.updatedAt)],
-            ]}
-          />
-          <Button className="mt-5 w-full" type="submit" disabled={busyAction === 'workspace'}>
-            Save profile
-          </Button>
+          <div className="mt-3 h-2 rounded-full bg-muted">
+            <div
+              className="h-2 rounded-full bg-primary"
+              style={{ width: `${workspaceCompletion(profile)}%` }}
+            />
+          </div>
+          <div className="mt-4">
+            <Rows
+              rows={[
+                ['Journey', journey === 'idea' ? 'Idea to startup' : 'Startup to scale'],
+                ['Stage', labelOption(profile.stage)],
+                ['Sector', labelOption(profile.sector)],
+                ['Business type', labelOption(profile.businessModel) || '-'],
+                ['Updated', formatProfileUpdated(profile.updatedAt)],
+              ]}
+            />
+          </div>
+          <div className="sticky bottom-0 -mx-4 mt-5 border-t border-border/60 bg-background px-4 pb-1 pt-3">
+            <Button className="w-full" type="submit" disabled={busyAction === 'workspace'}>
+              Save profile
+            </Button>
+          </div>
         </aside>
       </div>
     </form>

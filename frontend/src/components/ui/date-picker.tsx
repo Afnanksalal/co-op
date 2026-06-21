@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { createPortal } from 'react-dom';
 import { CalendarBlank, CaretLeft, CaretRight } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
 
@@ -41,11 +42,18 @@ export function DatePicker({
   className,
 }: DatePickerProps) {
   const wrapperRef = React.useRef<HTMLDivElement>(null);
+  const triggerRef = React.useRef<HTMLButtonElement>(null);
+  const calendarRef = React.useRef<HTMLDivElement>(null);
   const selectedDate = React.useMemo(() => parseDateValue(value), [value]);
   const selectedTime = selectedDate?.getTime() ?? null;
   const today = React.useMemo(() => startOfDay(new Date()), []);
   const [open, setOpen] = React.useState(false);
   const [visibleMonth, setVisibleMonth] = React.useState(() => startOfMonth(selectedDate ?? today));
+  const [calendarPosition, setCalendarPosition] = React.useState({
+    left: 0,
+    top: 0,
+    width: 312,
+  });
 
   React.useEffect(() => {
     if (!open) return;
@@ -56,7 +64,8 @@ export function DatePicker({
     if (!open) return;
 
     const closeOnOutsideClick = (event: PointerEvent) => {
-      if (!wrapperRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (!wrapperRef.current?.contains(target) && !calendarRef.current?.contains(target)) {
         setOpen(false);
       }
     };
@@ -74,6 +83,34 @@ export function DatePicker({
     };
   }, [open]);
 
+  const updateCalendarPosition = React.useCallback(() => {
+    const trigger = triggerRef.current;
+    if (!trigger || typeof window === 'undefined') return;
+
+    const rect = trigger.getBoundingClientRect();
+    const width = Math.min(312, window.innerWidth - 24);
+    const left = Math.max(12, Math.min(rect.left, window.innerWidth - width - 12));
+
+    setCalendarPosition({
+      left,
+      top: rect.bottom + 8,
+      width,
+    });
+  }, []);
+
+  React.useLayoutEffect(() => {
+    if (!open) return;
+
+    updateCalendarPosition();
+    window.addEventListener('resize', updateCalendarPosition);
+    document.addEventListener('scroll', updateCalendarPosition, true);
+
+    return () => {
+      window.removeEventListener('resize', updateCalendarPosition);
+      document.removeEventListener('scroll', updateCalendarPosition, true);
+    };
+  }, [open, updateCalendarPosition]);
+
   const days = React.useMemo(() => buildMonthGrid(visibleMonth), [visibleMonth]);
   const displayValue = selectedDate ? displayFormatter.format(selectedDate) : '';
 
@@ -86,6 +123,7 @@ export function DatePicker({
   return (
     <div ref={wrapperRef} className="relative">
       <button
+        ref={triggerRef}
         id={id}
         type="button"
         disabled={disabled}
@@ -105,86 +143,95 @@ export function DatePicker({
         <CalendarBlank className="h-4 w-4 shrink-0 text-muted-foreground" />
       </button>
 
-      {open && (
-        <div
-          role="dialog"
-          aria-label="Choose date"
-          className="animate-in fade-in-0 zoom-in-98 slide-in-from-top-1 absolute left-0 top-full z-50 mt-2 w-[19.5rem] max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-popover p-3 text-popover-foreground shadow-xl"
-        >
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-semibold">{monthFormatter.format(visibleMonth)}</p>
-            <div className="flex items-center gap-1">
-              <CalendarNavButton
-                label="Previous month"
-                onClick={() => setVisibleMonth((current) => addMonths(current, -1))}
-              >
-                <CaretLeft weight="bold" className="h-4 w-4" />
-              </CalendarNavButton>
-              <CalendarNavButton
-                label="Next month"
-                onClick={() => setVisibleMonth((current) => addMonths(current, 1))}
-              >
-                <CaretRight weight="bold" className="h-4 w-4" />
-              </CalendarNavButton>
-            </div>
-          </div>
-
-          <div className="mt-3 grid grid-cols-7 gap-1 text-center text-xs font-medium text-muted-foreground">
-            {weekdays.map((weekday) => (
-              <span key={weekday} className="py-1">
-                {weekday}
-              </span>
-            ))}
-          </div>
-
-          <div className="mt-1 grid grid-cols-7 gap-1">
-            {days.map((day) => {
-              const selected = selectedDate ? isSameDay(day.date, selectedDate) : false;
-              const currentDay = isSameDay(day.date, today);
-
-              return (
-                <button
-                  key={day.key}
-                  type="button"
-                  aria-label={displayFormatter.format(day.date)}
-                  aria-pressed={selected}
-                  title={displayFormatter.format(day.date)}
-                  onClick={() => commitDate(day.date)}
-                  className={cn(
-                    'flex h-9 items-center justify-center rounded-md text-sm transition-colors',
-                    'hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-primary/20',
-                    day.inMonth ? 'text-foreground' : 'text-muted-foreground/45',
-                    currentDay && !selected && 'border border-primary/35 text-primary',
-                    selected && 'bg-primary text-primary-foreground hover:bg-primary/90'
-                  )}
+      {open &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            ref={calendarRef}
+            role="dialog"
+            aria-label="Choose date"
+            style={{
+              left: calendarPosition.left,
+              top: calendarPosition.top,
+              width: calendarPosition.width,
+            }}
+            className="animate-in fade-in-0 zoom-in-98 slide-in-from-top-1 fixed z-50 rounded-lg border border-border bg-popover p-3 text-popover-foreground shadow-xl"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold">{monthFormatter.format(visibleMonth)}</p>
+              <div className="flex items-center gap-1">
+                <CalendarNavButton
+                  label="Previous month"
+                  onClick={() => setVisibleMonth((current) => addMonths(current, -1))}
                 >
-                  {day.date.getDate()}
-                </button>
-              );
-            })}
-          </div>
+                  <CaretLeft weight="bold" className="h-4 w-4" />
+                </CalendarNavButton>
+                <CalendarNavButton
+                  label="Next month"
+                  onClick={() => setVisibleMonth((current) => addMonths(current, 1))}
+                >
+                  <CaretRight weight="bold" className="h-4 w-4" />
+                </CalendarNavButton>
+              </div>
+            </div>
 
-          <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
-            <button
-              type="button"
-              onClick={() => {
-                onChange('');
-                setOpen(false);
-              }}
-              className="rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-            >
-              Clear
-            </button>
-            <button
-              type="button"
-              onClick={() => commitDate(today)}
-              className="rounded-md px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
-            >
-              Today
-            </button>
-          </div>
-        </div>
-      )}
+            <div className="mt-3 grid grid-cols-7 gap-1 text-center text-xs font-medium text-muted-foreground">
+              {weekdays.map((weekday) => (
+                <span key={weekday} className="py-1">
+                  {weekday}
+                </span>
+              ))}
+            </div>
+
+            <div className="mt-1 grid grid-cols-7 gap-1">
+              {days.map((day) => {
+                const selected = selectedDate ? isSameDay(day.date, selectedDate) : false;
+                const currentDay = isSameDay(day.date, today);
+
+                return (
+                  <button
+                    key={day.key}
+                    type="button"
+                    aria-label={displayFormatter.format(day.date)}
+                    aria-pressed={selected}
+                    title={displayFormatter.format(day.date)}
+                    onClick={() => commitDate(day.date)}
+                    className={cn(
+                      'flex h-9 items-center justify-center rounded-md text-sm transition-colors',
+                      'hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-primary/20',
+                      day.inMonth ? 'text-foreground' : 'text-muted-foreground/45',
+                      currentDay && !selected && 'border border-primary/35 text-primary',
+                      selected && 'bg-primary text-primary-foreground hover:bg-primary/90'
+                    )}
+                  >
+                    {day.date.getDate()}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
+              <button
+                type="button"
+                onClick={() => {
+                  onChange('');
+                  setOpen(false);
+                }}
+                className="rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                onClick={() => commitDate(today)}
+                className="rounded-md px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+              >
+                Today
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

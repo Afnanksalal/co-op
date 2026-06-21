@@ -1,6 +1,6 @@
 [package]
 name = "co-op-desktop"
-version = "1.0.2"
+version = "1.0.3"
 description = "Co-Op local-first business orchestration desktop"
 authors = ["Co-Op Team"]
 license = "MIT"
