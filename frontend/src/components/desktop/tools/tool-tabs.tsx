@@ -46,12 +46,12 @@ export function ToolTabs({
   ];
 
   return (
-    <aside className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border/50 bg-card p-3">
+    <aside className="rounded-lg border border-border/50 bg-card p-3 xl:sticky xl:top-0">
       <div className="mb-3 px-1">
         <h2 className="font-serif text-lg font-semibold tracking-normal">Business tools</h2>
         <p className="text-xs text-muted-foreground">Checks, reviews, and useful lists</p>
       </div>
-      <div className="coop-scrollbar flex min-h-0 flex-1 gap-2 overflow-x-auto pb-1 xl:block xl:space-y-2 xl:overflow-y-auto xl:overflow-x-hidden xl:pb-0">
+      <div className="coop-scrollbar flex gap-2 overflow-x-auto pb-1 xl:block xl:max-h-[calc(100dvh-12rem)] xl:space-y-2 xl:overflow-y-auto xl:overflow-x-hidden xl:pb-0">
         {toolTabs.map((tab) => (
           <button
             key={tab.id}

@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { DesktopState, StartupProfile } from '@/lib/desktop/runtime';
 import type { View } from '../shell-types';
-import { SegmentedControl } from '../shared';
+import { DesktopPage, SegmentedControl } from '../shared';
 import { workspaceCompletion } from '../utils';
 import { CompanyOverview } from './company-overview';
 import { RagPanel } from './files';
@@ -78,52 +78,53 @@ export function CompanyPanel({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
-      <section className="rounded-lg border border-border/50 bg-card p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant={completion >= 70 ? 'success' : 'warning'}>
-                {completion >= 70 ? 'Ready' : 'Needs context'}
-              </Badge>
-              <Badge variant="outline">{state.documents.length} files</Badge>
-              <Badge variant="outline">{state.memories.length} memories</Badge>
-              <Badge variant="outline">{state.researchRuns.length} research notes</Badge>
+    <DesktopPage className="space-y-4">
+      <section className="sticky top-0 z-20 -mx-1 bg-background/95 px-1 pb-3 backdrop-blur">
+        <div className="rounded-lg border border-border/50 bg-card p-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant={completion >= 70 ? 'success' : 'warning'}>
+                  {completion >= 70 ? 'Ready' : 'Needs context'}
+                </Badge>
+                <Badge variant="outline">{state.documents.length} files</Badge>
+                <Badge variant="outline">{state.memories.length} memories</Badge>
+                <Badge variant="outline">{state.researchRuns.length} research notes</Badge>
+              </div>
+              <h2 className="mt-3 text-xl font-semibold tracking-normal sm:text-2xl">
+                {profile.companyName || 'Company'}
+              </h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+                Business context, files, memory, and research in one workspace.
+              </p>
             </div>
-            <h2 className="mt-3 text-2xl font-semibold tracking-normal">
-              {profile.companyName || 'Company'}
-            </h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Keep the business context, saved files, useful memory, and research in one place.
-              Co-Op uses this when it answers, plans, and prepares customer work.
-            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => onNavigate('chat')}>
+                <Sparkle className="h-4 w-4" weight="fill" />
+                Ask
+              </Button>
+              <Button variant="outline" onClick={() => openTab('files')}>
+                Add file
+              </Button>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={() => onNavigate('chat')}>
-              <Sparkle className="h-4 w-4" weight="fill" />
-              Ask with context
-            </Button>
-            <Button variant="outline" onClick={() => openTab('files')}>
-              Add file
-            </Button>
+          <div className="mt-4">
+            <SegmentedControl
+              value={activeTab}
+              onChange={openTab}
+              options={[
+                { id: 'overview', label: 'Overview' },
+                { id: 'profile', label: 'Profile' },
+                { id: 'files', label: 'Files' },
+                { id: 'memory', label: 'Memory' },
+                { id: 'research', label: 'Research' },
+              ]}
+            />
           </div>
-        </div>
-        <div className="mt-5">
-          <SegmentedControl
-            value={activeTab}
-            onChange={openTab}
-            options={[
-              { id: 'overview', label: 'Overview' },
-              { id: 'profile', label: 'Profile' },
-              { id: 'files', label: 'Files' },
-              { id: 'memory', label: 'Memory' },
-              { id: 'research', label: 'Research' },
-            ]}
-          />
         </div>
       </section>
 
-      <div className="min-h-0 flex-1 overflow-hidden">
+      <div className="min-w-0">
         {activeTab === 'overview' && (
           <CompanyOverview
             state={state}
@@ -160,6 +161,6 @@ export function CompanyPanel({
           />
         )}
       </div>
-    </div>
+    </DesktopPage>
   );
 }

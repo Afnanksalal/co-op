@@ -63,7 +63,7 @@ export function WorkspacePanel({
 
   return (
     <form
-      className="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card p-4 sm:p-5"
+      className="rounded-lg border border-border bg-card p-4 sm:p-5"
       onSubmit={(event) => {
         event.preventDefault();
         void runWithState(
@@ -104,15 +104,15 @@ export function WorkspacePanel({
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-5 pt-4 xl:grid-cols-[minmax(0,1fr)_300px] xl:overflow-hidden 2xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="coop-scrollbar min-h-0 space-y-6 overflow-y-auto pb-12 pr-1">
+      <div className="grid gap-6 pt-5 xl:grid-cols-[minmax(0,1fr)_280px] 2xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="min-w-0 space-y-8">
           {profileTab === 'essentials' && (
             <section className="animate-fade-in space-y-4">
               <SectionHeading
                 title="Basics"
                 detail="The short version Co-Op should remember first"
               />
-              <div className="grid gap-4 lg:grid-cols-3">
+              <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
                 <Field
                   label="Founder name"
                   value={profile.founderName}
@@ -163,7 +163,7 @@ export function WorkspacePanel({
                 title="Customers and offer"
                 detail="Who buys, why they care, and how the business earns"
               />
-              <div className="grid gap-4 lg:grid-cols-3">
+              <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
                 <Field
                   label="Industry"
                   value={profile.industry}
@@ -203,7 +203,7 @@ export function WorkspacePanel({
                   onChange={(targetCustomers) => update('targetCustomers', targetCustomers)}
                 />
               </div>
-              <div className="grid gap-4 lg:grid-cols-2">
+              <div className="grid gap-4 xl:grid-cols-2">
                 <TextArea
                   label="Problem"
                   value={profile.problem}
@@ -236,7 +236,7 @@ export function WorkspacePanel({
                 title="Operating details"
                 detail="Team, geography, traction, funding, and dates"
               />
-              <div className="grid gap-4 lg:grid-cols-4">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                 <SelectField
                   label="Team size"
                   value={profile.teamSize}
@@ -310,7 +310,7 @@ export function WorkspacePanel({
           )}
         </div>
 
-        <aside className="coop-scrollbar min-h-0 overflow-y-auto rounded-lg border border-border/50 bg-background p-4">
+        <aside className="h-fit rounded-lg border border-border/50 bg-background p-4 xl:sticky xl:top-28">
           <PanelTitle icon={ChartBar} title="Profile status" compact />
           <div className="mt-4 flex items-end justify-between gap-3">
             <span className="text-sm text-muted-foreground">Profile completeness</span>
@@ -333,7 +333,7 @@ export function WorkspacePanel({
               ]}
             />
           </div>
-          <div className="sticky bottom-0 -mx-4 mt-5 border-t border-border/60 bg-background px-4 pb-1 pt-3">
+          <div className="-mx-4 mt-5 border-t border-border/60 bg-background px-4 pt-3">
             <Button className="w-full" type="submit" disabled={busyAction === 'workspace'}>
               Save profile
             </Button>

@@ -9,6 +9,7 @@ import {
   type PitchDeckRequest,
 } from '@/lib/desktop/runtime';
 import { errorMessage, fileToDataUrl, formatBytes } from '../utils';
+import { DesktopPage } from '../shared';
 import { CalculatorSurface } from '../tools/calculators';
 import { InvestorsSurface } from '../tools/investors';
 import { OwnershipSurface } from '../tools/ownership';
@@ -118,10 +119,10 @@ export function ToolsPanel({
   }
 
   return (
-    <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-4 overflow-hidden xl:grid-cols-[280px_minmax(0,1fr)] xl:grid-rows-1">
-      <ToolTabs state={state} activeTab={toolTab} onSelect={setToolTab} />
-      <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border/50 bg-card">
-        <div className="coop-scrollbar min-h-0 flex-1 overflow-y-auto p-5">
+    <DesktopPage>
+      <div className="grid items-start gap-4 xl:grid-cols-[260px_minmax(0,1fr)] 2xl:grid-cols-[280px_minmax(0,1fr)]">
+        <ToolTabs state={state} activeTab={toolTab} onSelect={setToolTab} />
+        <section className="min-w-0 rounded-lg border border-border/50 bg-card p-5">
           {toolTab === 'calculators' && (
             <CalculatorSurface
               busyAction={busyAction}
@@ -168,8 +169,8 @@ export function ToolsPanel({
               onInvestorQueryChange={setInvestorQuery}
             />
           )}
-        </div>
-      </section>
-    </div>
+        </section>
+      </div>
+    </DesktopPage>
   );
 }

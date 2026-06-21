@@ -75,9 +75,9 @@ export function ResearchPanel({
   }
 
   return (
-    <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-5 overflow-hidden xl:grid-cols-[420px_minmax(0,1fr)] xl:grid-rows-1">
+    <div className="grid items-start gap-5 xl:grid-cols-[360px_minmax(0,1fr)] 2xl:grid-cols-[400px_minmax(0,1fr)]">
       <form
-        className="coop-scrollbar max-h-96 overflow-y-auto rounded-lg border border-border/50 bg-card p-5 xl:max-h-none"
+        className="rounded-lg border border-border/50 bg-card p-5 xl:sticky xl:top-28"
         onSubmit={submitResearch}
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -178,7 +178,7 @@ export function ResearchPanel({
         </Button>
       </form>
 
-      <section className="coop-scrollbar min-h-0 min-w-0 space-y-4 overflow-y-auto pr-1">
+      <section className="min-w-0 space-y-4">
         <div className="rounded-lg border border-border/50 bg-card p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <PanelTitle icon={BookBookmark} title="Research library" compact />

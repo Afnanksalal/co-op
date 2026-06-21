@@ -14,7 +14,15 @@ import {
   type DesktopState,
 } from '@/lib/desktop/runtime';
 import { blankCampaign, blankLead, optionLabels } from '../constants';
-import { EmptyState, Field, PanelTitle, SegmentedControl, SelectField, TextArea } from '../shared';
+import {
+  DesktopPage,
+  EmptyState,
+  Field,
+  PanelTitle,
+  SegmentedControl,
+  SelectField,
+  TextArea,
+} from '../shared';
 import { leadName } from '../utils';
 
 export function OutreachPanel({
@@ -44,12 +52,14 @@ export function OutreachPanel({
   ];
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
-      <SegmentedControl value={activeTab} onChange={setActiveTab} options={tabs} />
+    <DesktopPage>
+      <div className="sticky top-0 z-20 -mx-1 bg-background/95 px-1 pb-3 backdrop-blur">
+        <SegmentedControl value={activeTab} onChange={setActiveTab} options={tabs} />
+      </div>
 
       {activeTab === 'leads' && (
-        <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-5 overflow-hidden xl:grid-cols-[420px_minmax(0,1fr)] xl:grid-rows-1">
-          <div className="coop-scrollbar max-h-80 space-y-5 overflow-y-auto pr-1 xl:max-h-none">
+        <div className="grid items-start gap-5 xl:grid-cols-[360px_minmax(0,1fr)] 2xl:grid-cols-[400px_minmax(0,1fr)]">
+          <div className="space-y-5 xl:sticky xl:top-14">
             <form
               className="rounded-lg border border-border/50 bg-card p-5"
               onSubmit={(event) => {
@@ -154,7 +164,7 @@ export function OutreachPanel({
               </Button>
             </form>
           </div>
-          <section className="coop-scrollbar min-h-0 overflow-y-auto rounded-lg border border-border/50 bg-card p-5">
+          <section className="min-w-0 rounded-lg border border-border/50 bg-card p-5">
             <PanelTitle icon={UsersThree} title="Prospects" />
             <div className="grid gap-3">
               {state.leads.map((item) => (
@@ -194,9 +204,9 @@ export function OutreachPanel({
       )}
 
       {activeTab === 'campaigns' && (
-        <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-5 overflow-hidden xl:grid-cols-[minmax(0,1fr)_420px] xl:grid-rows-1">
+        <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_400px]">
           <form
-            className="coop-scrollbar max-h-80 overflow-y-auto rounded-lg border border-border/50 bg-card p-5 xl:max-h-none"
+            className="rounded-lg border border-border/50 bg-card p-5"
             onSubmit={(event) => {
               event.preventDefault();
               void runWithState(
@@ -266,7 +276,7 @@ export function OutreachPanel({
       )}
 
       {activeTab === 'emails' && (
-        <section className="coop-scrollbar min-h-0 flex-1 overflow-y-auto rounded-lg border border-border/50 bg-card p-5">
+        <section className="rounded-lg border border-border/50 bg-card p-5">
           <PanelTitle icon={EnvelopeSimple} title="Email drafts" />
           <div className="grid gap-3">
             {state.campaignEmails.map((item) => (
@@ -309,7 +319,7 @@ export function OutreachPanel({
           </div>
         </section>
       )}
-    </div>
+    </DesktopPage>
   );
 }
 
@@ -327,7 +337,7 @@ function CampaignList({
   ) => Promise<boolean>;
 }) {
   return (
-    <section className="coop-scrollbar min-h-0 overflow-y-auto rounded-lg border border-border bg-card p-5">
+    <section className="rounded-lg border border-border bg-card p-5 xl:sticky xl:top-14">
       <PanelTitle icon={EnvelopeSimple} title="Outreach plans" />
       <div className="grid gap-3">
         {campaigns.map((campaign) => (

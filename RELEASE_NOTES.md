@@ -1,5 +1,25 @@
 # Release Notes
 
+## 1.0.4 - 2026-06-22
+
+This release reworks the desktop page flow so Company and the other work surfaces scroll like a professional desktop workspace instead of a stack of competing panels.
+
+### Highlights
+
+- Added a shared desktop page scroll container used by dense work surfaces.
+- Rebuilt the Company workspace around one page scroll, a compact sticky company bar, and natural tab content.
+- Removed nested scroll traps from Company overview, profile, files, memory, and research tabs.
+- Made profile forms breathe better with responsive two-column layouts before expanding to denser grids on very wide screens.
+- Updated Plans, Customers, Money & tools, and Settings to use page-level scrolling with sticky action rails where helpful.
+- Kept Chat as the only intentionally fixed inner-scroll surface because message history and the composer need separate behavior.
+
+### Verification
+
+- Passed backend tests, backend build, and backend npm audit.
+- Passed frontend typecheck, hosted build, Tauri static export, frontend npm audit, and Rust advisory audit.
+- Passed Rust tests and Rust clippy with warnings denied.
+- Built the Windows NSIS and MSI installers for Co-Op Desktop 1.0.4.
+
 ## 1.0.3 - 2026-06-22
 
 This release fixes dense desktop layout behavior so owner-facing work areas stay reachable inside constrained windows.

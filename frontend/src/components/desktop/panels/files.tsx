@@ -111,9 +111,9 @@ export function RagPanel({
   }
 
   return (
-    <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-5 overflow-hidden xl:grid-cols-[400px_minmax(0,1fr)] xl:grid-rows-1">
+    <div className="grid items-start gap-5 xl:grid-cols-[360px_minmax(0,1fr)] 2xl:grid-cols-[400px_minmax(0,1fr)]">
       <form
-        className="coop-scrollbar max-h-80 overflow-y-auto rounded-lg border border-border bg-card p-5 xl:max-h-none"
+        className="rounded-lg border border-border bg-card p-5 xl:sticky xl:top-28"
         onSubmit={(event) => {
           event.preventDefault();
           void runWithState(
@@ -183,7 +183,7 @@ export function RagPanel({
         </Button>
       </form>
 
-      <div className="coop-scrollbar min-h-0 space-y-5 overflow-y-auto pr-1">
+      <div className="min-w-0 space-y-5">
         <section className="rounded-lg border border-border bg-card p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>

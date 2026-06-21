@@ -12,7 +12,7 @@ import { runBusinessWorkflow, type DesktopState, type WorkflowRun } from '@/lib/
 
 import { roleLabels } from '../constants';
 
-import { EmptyState, PanelTitle, SelectField, TextArea } from '../shared';
+import { DesktopPage, EmptyState, PanelTitle, SelectField, TextArea } from '../shared';
 
 import { MarkdownOutput, markdownToPlainText } from '../markdown';
 
@@ -61,75 +61,77 @@ export function HistoryPanel({
     : state.workflowRuns;
 
   return (
-    <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-5 overflow-hidden xl:grid-cols-[420px_minmax(0,1fr)] xl:grid-rows-1">
-      <form
-        className="coop-scrollbar max-h-72 overflow-y-auto rounded-lg border border-border bg-card p-5 xl:max-h-none"
-        onSubmit={async (event) => {
-          event.preventDefault();
+    <DesktopPage>
+      <div className="grid items-start gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <form
+          className="rounded-lg border border-border bg-card p-5 xl:sticky xl:top-0"
+          onSubmit={async (event) => {
+            event.preventDefault();
 
-          setBusyAction('workflow');
+            setBusyAction('workflow');
 
-          setError('');
+            setError('');
 
-          setMessage('');
+            setMessage('');
 
-          try {
-            const run = await runBusinessWorkflow({ workflowType, objective });
+            try {
+              const run = await runBusinessWorkflow({ workflowType, objective });
 
-            setLatestRun(run);
+              setLatestRun(run);
 
-            await refresh();
+              await refresh();
 
-            setMessage(run.status === 'completed' ? 'Plan completed.' : 'Plan needs attention.');
-          } catch (error) {
-            setError(errorMessage(error, 'Plan failed'));
-          } finally {
-            setBusyAction('');
-          }
-        }}
-      >
-        <PanelTitle icon={FlowArrow} title="Start a plan" />
-
-        <SelectField
-          label="Area"
-          value={workflowType}
-          onChange={setWorkflowType}
-          options={['operations', 'finance', 'legal', 'sales', 'strategy']}
-          labels={roleLabels}
-        />
-
-        <TextArea
-          label="What needs to be done?"
-          value={objective}
-          onChange={setObjective}
-          minHeight="min-h-40"
-        />
-
-        <Button
-          className="mt-5"
-          type="submit"
-          disabled={busyAction === 'workflow' || !objective.trim()}
+              setMessage(run.status === 'completed' ? 'Plan completed.' : 'Plan needs attention.');
+            } catch (error) {
+              setError(errorMessage(error, 'Plan failed'));
+            } finally {
+              setBusyAction('');
+            }
+          }}
         >
-          Start plan
-        </Button>
-      </form>
+          <PanelTitle icon={FlowArrow} title="Start a plan" />
 
-      <section className="coop-scrollbar min-h-0 space-y-4 overflow-y-auto pr-1">
-        {latestRun && <RunCard run={latestRun} />}
-
-        {visibleRuns.map((run) => (
-          <RunCard key={run.id} run={run} />
-        ))}
-
-        {!latestRun && visibleRuns.length === 0 && (
-          <EmptyState
-            icon={FlowArrow}
-            title="No plans yet"
-            text="Start with a decision, plan, review, or operating question."
+          <SelectField
+            label="Area"
+            value={workflowType}
+            onChange={setWorkflowType}
+            options={['operations', 'finance', 'legal', 'sales', 'strategy']}
+            labels={roleLabels}
           />
-        )}
-      </section>
-    </div>
+
+          <TextArea
+            label="What needs to be done?"
+            value={objective}
+            onChange={setObjective}
+            minHeight="min-h-40"
+          />
+
+          <Button
+            className="mt-5"
+            type="submit"
+            disabled={busyAction === 'workflow' || !objective.trim()}
+          >
+            Start plan
+          </Button>
+        </form>
+
+        <section className="min-w-0 space-y-4">
+          {latestRun && <RunCard run={latestRun} />}
+
+          {visibleRuns.map((run) => (
+            <RunCard key={run.id} run={run} />
+          ))}
+
+          {!latestRun && visibleRuns.length === 0 && (
+            <EmptyState
+              icon={FlowArrow}
+              title="No plans yet"
+              text="Start with a decision, plan, review, or operating question."
+            />
+          )}
+        </section>
+      </div>
+    </DesktopPage>
   );
 }
 

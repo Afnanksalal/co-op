@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { Warning } from '@phosphor-icons/react';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Input } from '@/components/ui/input';
@@ -14,8 +15,22 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { KnowledgeGraphSnapshot } from '@/lib/desktop/runtime';
+import { cn } from '@/lib/utils';
 import type { DesktopIcon } from './shell-types';
 import { graphLabel, labelOption, memoryRelationshipDisplay, memoryTypeDisplay } from './utils';
+
+export function DesktopPage({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <div
+      className={cn(
+        'coop-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-10 pr-1',
+        className
+      )}
+    >
+      {children}
+    </div>
+  );
+}
 
 export function MetricCard({
   icon: Icon,

@@ -18,7 +18,7 @@ import {
   type ModelSettingsUpdate,
 } from '@/lib/desktop/runtime';
 import { reviewModeLabels } from '../constants';
-import { Field, PanelTitle, SegmentedControl, SelectField } from '../shared';
+import { DesktopPage, Field, PanelTitle, SegmentedControl, SelectField } from '../shared';
 import { looksLikeEmail } from '../utils';
 
 export function SettingsPanel({
@@ -109,14 +109,14 @@ export function SettingsPanel({
 
   if (settingsTab === 'integrations') {
     return (
-      <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col gap-5 overflow-hidden">
+      <DesktopPage className="mx-auto w-full max-w-5xl space-y-5">
         <SettingsHeader
           currentTab={settingsTab}
           onTabChange={setSettingsTab}
           options={settingTabs}
         />
         <form
-          className="coop-scrollbar min-h-0 flex-1 overflow-y-auto rounded-lg border border-border bg-card p-5"
+          className="rounded-lg border border-border bg-card p-5"
           onSubmit={(event) => {
             event.preventDefault();
             void runWithState(
@@ -156,15 +156,15 @@ export function SettingsPanel({
             Save integration
           </Button>
         </form>
-      </div>
+      </DesktopPage>
     );
   }
 
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col gap-5 overflow-hidden">
+    <DesktopPage className="mx-auto w-full max-w-5xl space-y-5">
       <SettingsHeader currentTab={settingsTab} onTabChange={setSettingsTab} options={settingTabs} />
       <form
-        className="coop-scrollbar min-h-0 flex-1 overflow-y-auto rounded-lg border border-border bg-card p-5"
+        className="rounded-lg border border-border bg-card p-5"
         onSubmit={(event) => {
           event.preventDefault();
           void saveSettings();
@@ -339,7 +339,7 @@ export function SettingsPanel({
           {saveLabel}
         </Button>
       </form>
-    </div>
+    </DesktopPage>
   );
 }
 
@@ -353,7 +353,7 @@ function SettingsHeader({
   options: { id: string; label: string }[];
 }) {
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="sticky top-0 z-20 flex flex-col gap-3 rounded-lg border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h2 className="text-lg font-semibold tracking-normal">Settings</h2>
         <p className="mt-1 text-sm text-muted-foreground">

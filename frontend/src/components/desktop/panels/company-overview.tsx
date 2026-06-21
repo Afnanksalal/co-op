@@ -28,7 +28,7 @@ export function CompanyOverview({
   const latestFile = state.documents[0];
 
   return (
-    <div className="coop-scrollbar h-full min-h-0 overflow-y-auto pr-1">
+    <div className="space-y-4">
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <section className="rounded-lg border border-border/50 bg-card p-5">
           <PanelTitle icon={Briefcase} title="Business snapshot" compact />
@@ -62,7 +62,7 @@ export function CompanyOverview({
         </section>
       </div>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-3">
+      <div className="grid gap-4 xl:grid-cols-3">
         <RecentCard icon={HardDrives} title="Latest file" action="Files" onAction={onOpenFiles}>
           {latestFile ? (
             <>
