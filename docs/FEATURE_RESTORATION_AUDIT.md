@@ -42,11 +42,11 @@ mindmap
 | Old feature family               | Current local-first implementation                                                                                                                             |
 | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Startup workspace and onboarding | Stored locally through the desktop workspace profile and first-run onboarding.                                                                                 |
-| Advisor chat window              | Restored with session history, advisor area selection, second-look review, company files, live research option, and review level.                              |
+| Advisor chat window              | Restored with session history, advisor area selection, second-look review, company files, live research option, review level, and live progress feedback.      |
 | Review gate                      | Restored as bounded local orchestration with no extra review, standard review, sensitive-work review, and full review.                                         |
 | Company file intelligence        | Restored as local sectioning, SQLite-backed search, compact matching data, and bounded context assembly.                                                       |
 | Business memory                  | Restored as a local derived snapshot from profile, files, research, customers, campaigns, and work history.                                                    |
-| Web research                     | Restored through customer-configured Firecrawl. Outside-fact research fails closed when web sources are unavailable instead of producing model-only synthesis. |
+| Web research                     | Restored through customer-configured Firecrawl. Outside-fact research fails closed when web sources are unavailable instead of producing model-only synthesis. Competitor work uses multiple focused searches before summary. |
 | Lead discovery                   | Restored as a live-research workflow that requires source-backed extraction and local deduplication.                                                           |
 | Personalized outreach            | Restored with local leads, campaigns, AI-personalized draft generation, and send status.                                                                       |
 | Email sending                    | Restored through locally stored Resend or SendGrid keys.                                                                                                       |
@@ -94,7 +94,11 @@ Tauri runtime modules:
 - `rag.rs`
 - `knowledge_store/`
 - `graph.rs`
+- `guardrails.rs`
+- `memory.rs`
+- `memory_store.rs`
 - `research.rs`
+- `research_sources.rs`
 - `outreach.rs`
 - `tools.rs`
 - `providers.rs`

@@ -32,8 +32,10 @@ Cloud services are intentionally narrow. Customer prompts, outputs, company file
 - Public web site, login, account center, download page, legal pages, and admin license console.
 - NestJS license backend for license generation, customer key deletion, activation, heartbeat, deactivation, health checks, and existing-user backfill.
 - Tauri desktop app for onboarding, company profile, private files, local search, business memory, advisor chat, work plans, research, customers, outreach, pitch review, calculators, ownership tools, settings, and license status.
+- Advisor chat with live, owner-facing progress feedback for context loading, file checks, memory lookup, source search, review, and local save steps. The UI shows workflow state, not hidden chain-of-thought.
 - Local-first model routing through Ollama or an OpenAI-compatible bring-your-own-key endpoint.
 - Required local Firecrawl configuration for source-backed market, competitor, legal, customer, pricing, investor, and risk research, plus optional Resend or SendGrid email sending.
+- Multi-query competitor research that uses company, offering, buyer, and region context before summarizing source-backed direct competitors, indirect alternatives, and non-competitors.
 - Runtime guardrails for business-topic scope, source-backed outside facts, prompt-injection resistance, secret protection, no code execution, and output checks.
 - Documentation for architecture, licensing, orchestration, operations, data boundaries, positioning, audits, and contribution rules.
 
@@ -64,7 +66,7 @@ Important implementation anchors:
 - `frontend/src/app/` contains public web routes, account routes, admin routes, legal pages, and the desktop route.
 - `frontend/src/components/desktop/` contains the installed desktop UI modules.
 - `frontend/src/lib/desktop/runtime/` contains the typed client boundary between React and Tauri.
-- `frontend/src-tauri/src/` contains local runtime modules for licensing, settings, workspace, chat, files, research, outreach, tools, providers, storage, validation, security, and secrets.
+- `frontend/src-tauri/src/` contains local runtime modules for licensing, settings, workspace, chat, files, research, source planning, outreach, tools, providers, storage, validation, security, and secrets.
 
 ## Hosted Web And Desktop Separation
 

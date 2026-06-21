@@ -23,6 +23,7 @@ Installed desktop UI:
 - Company profile.
 - Files.
 - Source-backed research.
+- Advisor chat progress feedback.
 - Customers.
 - Money & Tools.
 - Settings.
@@ -79,6 +80,10 @@ Command notes:
 `frontend/src-tauri/build.rs` embeds `COOP_CLOUD_URL` when set. If it is not set, the desktop build reads `NEXT_PUBLIC_API_URL` and strips `/api/v1`. The activation screen should ask business users only for the activation key.
 
 The installed desktop app requires a saved web search key before source-backed market, competitor, legal, customer, pricing, investor, risk, or prospect-discovery work can run. The key is stored on the user's computer by the Tauri runtime and is not sent to the Co-Op cloud license backend.
+
+Advisor chat shows safe progress feedback while work is running: context loading, file checks, memory lookup, source search, review, and local save. It does not expose hidden chain-of-thought, raw prompts, provider keys, or full retrieved documents.
+
+Competitor work does not rely on one broad web query. The runtime builds a small set of business-specific searches from the saved company profile, owner question, offering, target buyers, and operating region, then filters unrelated sources before generating the answer.
 
 ## Code Map
 

@@ -113,6 +113,7 @@ Desktop UI modules are under `frontend/src/components/desktop/`:
 
 - `local-coop-shell.tsx` is the thin shell and route/state coordinator.
 - `panels/` contains feature panels such as Today, Ask, Plans, Company, Files, Research, Customers, Settings, and License.
+- `panels/chat-*.tsx` split the Ask surface into session navigation, header controls, message bubbles, composer, empty state, and live progress feedback.
 - `tools/` contains Money & Tools surfaces.
 - `shared.tsx` contains reusable desktop UI primitives.
 - `markdown.tsx` renders owner-facing assistant output safely and consistently.
@@ -126,14 +127,15 @@ Tauri commands are registered in `frontend/src-tauri/src/lib.rs` and delegated t
 | `license.rs`       | Activation, heartbeat, deactivation, entitlement checks.                                          |
 | `settings.rs`      | Provider, research, email, and integration settings.                                              |
 | `workspace.rs`     | Company profile and onboarding state.                                                             |
-| `chat.rs`          | Advisor chat, sessions, review gates, and prompt assembly.                                        |
+| `chat.rs`          | Advisor chat, sessions, review gates, prompt assembly, and safe progress events for the UI.        |
 | `rag.rs`           | Local document sectioning and compact matching data.                                              |
 | `knowledge_store/` | SQLite schema, migrations, document storage, search, and tests.                                   |
 | `graph.rs`         | Derived local business memory from profile, files, research, customers, and work.                 |
 | `guardrails.rs`    | Business-topic, source, prompt-injection, secret-disclosure, no-code-execution, and output gates. |
 | `memory.rs`        | Memory commands, profile/work/research memory capture, redaction, and context retrieval.          |
 | `memory_store.rs`  | SQLite-backed business memory storage, full-text search, compact matching data, and tests.        |
-| `research.rs`      | Research jobs and source-backed summaries.                                                        |
+| `research.rs`      | Research job orchestration and source-backed summaries.                                           |
+| `research_sources.rs` | Firecrawl source collection, multi-query planning, source filtering, and relevance tests.       |
 | `outreach.rs`      | Leads, campaigns, personalization, and email sending.                                             |
 | `tools.rs`         | Calculators, pitch review, cap table, bookmarks, and local tools.                                 |
 | `providers.rs`     | Ollama, OpenAI-compatible, Firecrawl, Resend, and SendGrid adapters.                              |
@@ -172,6 +174,7 @@ The desktop storage path is embedded by default so normal customers do not need 
 - Machine fingerprints are hashed before leaving the desktop runtime.
 - Provider API keys are stored locally in OS credential storage.
 - Firecrawl is required for source-backed outside-fact workflows such as market, competitor, legal, customer, pricing, investor, risk, and prospect discovery.
+- Chat progress events expose only operational state such as context loading, source search, review, and local save. They must not expose hidden prompts, raw retrieved content, provider keys, or model chain-of-thought.
 - Guardrails reject prompt-injection attempts, secret disclosure, executable code requests, and unsafe model outputs before results are saved.
 - The Tauri shell plugin is not enabled; the desktop app does not expose shell command execution.
 - Public insecure provider URLs are rejected outside localhost and private networks.

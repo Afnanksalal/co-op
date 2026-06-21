@@ -68,6 +68,19 @@ Advisor chat supports:
 - Competitor.
 - Sales.
 
+The desktop UI subscribes to safe `chat-progress` events while a chat run is executing. These events are owner-facing workflow status only:
+
+- Understand the request.
+- Load company context.
+- Check saved files when file context is enabled.
+- Check remembered facts.
+- Search and parse live sources when outside facts are needed.
+- Prepare the answer.
+- Run an extra check or review gate when enabled.
+- Save the answer locally.
+
+Progress events must never include raw provider keys, hidden prompts, full retrieved documents, raw model outputs, or chain-of-thought. They are a usability contract, not a debugging stream.
+
 Each run has:
 
 - A clear objective.
@@ -138,8 +151,10 @@ Rules:
 Implementation anchors:
 
 - `chat.rs` uses input guardrails, source-gated web research, memory context, and output checks.
+- `chat.rs` emits safe progress events so the UI can show what stage is running without exposing hidden reasoning.
 - `workflows.rs` uses the same guardrails for work plans and raises sensitivity for high-risk work.
 - `research.rs` always requires Firecrawl-backed sources and validates the sourced summary.
+- `research_sources.rs` plans and filters web sources, including multi-query competitor searches from company, offering, buyer, and region context.
 - `outreach.rs` requires source-backed lead discovery and blocks unsafe generated email output.
 - `tools.rs` applies the same model output gate to pitch review.
 
@@ -202,6 +217,15 @@ Depth controls the work:
 - Deep: broader evidence, tradeoffs, unknowns, and practical action plan.
 
 If live web sources are unavailable, these jobs must fail with a setup message instead of producing an unsourced answer.
+
+Competitor research must avoid one-shot generic searches. The runtime should build multiple focused searches from:
+
+- Company name and website.
+- Offering and category.
+- Target buyer and problem.
+- Operating region, country, or city.
+
+Answers should classify named companies as verified direct competitors, indirect alternatives, or non-competitors, and explain the basis from supplied sources. If evidence is weak, say what is weak and provide the best supported candidate list instead of asking the owner to run another broad search.
 
 ## Lead Discovery
 
