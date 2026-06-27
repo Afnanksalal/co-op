@@ -48,9 +48,11 @@ export function ChatHeader({
     if (!optionsOpen) return;
 
     const closeOnOutsideClick = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setOptionsOpen(false);
-      }
+      const target = event.target as Node;
+      if (rootRef.current?.contains(target)) return;
+      if (target instanceof Element && target.closest('[role="listbox"]')) return;
+      
+      setOptionsOpen(false);
     };
 
     const closeOnEscape = (event: KeyboardEvent) => {
