@@ -69,7 +69,10 @@ pub fn validate_model_output(
     if web_required && !source_context_attached {
         return Err("This work needs web sources before Co-Op can answer.".to_string());
     }
-    if output.contains("```") || contains_executable_instruction(&normalized) {
+    let has_dangerous_block = extract_code_blocks(output)
+        .iter()
+        .any(|(lang, content)| code_block_is_dangerous(lang, &normalize(content)));
+    if has_dangerous_block || contains_executable_instruction(&normalized) {
         return Err(
             "Co-Op blocked this answer because it included executable code or command steps."
                 .to_string(),
@@ -171,6 +174,44 @@ fn contains_executable_instruction(normalized: &str) -> bool {
     ]
     .iter()
     .any(|term| normalized.contains(term))
+}
+
+/// Extracts (language_tag, content) pairs from markdown fenced code blocks.
+fn extract_code_blocks(text: &str) -> Vec<(String, String)> {
+    let mut blocks = Vec::new();
+    let mut lines = text.lines().peekable();
+
+    while let Some(line) = lines.next() {
+        let trimmed = line.trim_start();
+        if let Some(after_fence) = trimmed.strip_prefix("```") {
+            let lang = after_fence.trim().to_lowercase();
+            let mut content = Vec::new();
+            for inner in lines.by_ref() {
+                if inner.trim_start().starts_with("```") {
+                    break;
+                }
+                content.push(inner);
+            }
+            blocks.push((lang, content.join("\n")));
+        }
+    }
+
+    blocks
+}
+
+const EXECUTABLE_LANG_TAGS: &[&str] = &[
+    "bash", "sh", "zsh", "shell", "powershell", "ps1", "cmd", "bat",
+    "python", "python3", "py", "rust", "javascript", "js",
+    "typescript", "ts", "ruby", "perl", "php", "sql",
+];
+
+/// Returns true if a code block should be blocked based on its language tag
+/// and/or content.
+fn code_block_is_dangerous(lang: &str, normalized_content: &str) -> bool {
+    if !lang.is_empty() && EXECUTABLE_LANG_TAGS.contains(&lang) {
+        return true;
+    }
+    contains_executable_instruction(normalized_content)
 }
 
 fn looks_like_prompt_attack(normalized: &str) -> bool {
@@ -336,5 +377,73 @@ mod tests {
         let result = validate_model_output("```bash\nrm -rf .\n```", false, false);
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn allows_json_code_blocks() {
+        let output = "Here is the data:\n\n```json\n{\"revenue\": 50000, \"expenses\": 32000}\n```";
+        let result = validate_model_output(output, false, false);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn allows_untagged_code_blocks() {
+        let output = "Contract clause:\n\n```\nThe vendor shall deliver within 30 days.\n```";
+        let result = validate_model_output(output, false, false);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn blocks_python_code_blocks() {
+        let output = "Try this:\n\n```python\nprint('hello')\n```";
+        let result = validate_model_output(output, false, false);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn blocks_dangerous_content_in_untagged_block() {
+        let output = "Do this:\n\n```\nsudo rm -rf /\n```";
+        let result = validate_model_output(output, false, false);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn allows_text_tagged_blocks() {
+        let output = "Error log:\n\n```text\nERROR 404: page not found\nERROR 500: server error\n```";
+        let result = validate_model_output(output, false, false);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn allows_xml_and_csv_blocks() {
+        let output = "Export:\n\n```csv\nName,Revenue\nAcme,50000\n```\n\nAnd XML:\n\n```xml\n<company>Acme</company>\n```";
+        let result = validate_model_output(output, false, false);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn blocks_executable_instruction_outside_fence() {
+        let output = "To fix this, open powershell and run the repair tool.";
+        let result = validate_model_output(output, false, false);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn extracts_code_blocks_correctly() {
+        let text = "Hello\n```json\n{\"a\": 1}\n```\nWorld\n```bash\necho hi\n```";
+        let blocks = extract_code_blocks(text);
+
+        assert_eq!(blocks.len(), 2);
+        assert_eq!(blocks[0].0, "json");
+        assert_eq!(blocks[0].1, "{\"a\": 1}");
+        assert_eq!(blocks[1].0, "bash");
+        assert_eq!(blocks[1].1, "echo hi");
     }
 }
