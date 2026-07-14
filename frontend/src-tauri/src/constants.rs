@@ -12,7 +12,6 @@ pub const MAX_MODEL_NAME_LENGTH: usize = 128;
 pub const MAX_OBJECTIVE_LENGTH: usize = 8000;
 pub const MAX_DOCUMENT_LENGTH: usize = 250_000;
 pub const RAG_VECTOR_DIMENSIONS: usize = 128;
-pub const MAX_CHAT_HISTORY_MESSAGES: usize = 40;
 pub const MAX_STORED_WORKFLOW_RUNS: usize = 100;
 pub const MAX_CHAT_SESSIONS: usize = 200;
 pub const MAX_DOCUMENTS: usize = 500;

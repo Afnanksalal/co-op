@@ -89,11 +89,27 @@ pub async fn run_agent_chat(
         created_at: now.clone(),
     });
 
-    let mut context = format!(
-        "Startup workspace:\n{}\n\n",
-        workspace_context(&state.workspace)
+    let conservative_system_prompt = format!(
+        "{}\n\n{}",
+        agent_prompt(&request.agent_type),
+        guardrail_policy_prompt(&request.agent_type, true, true)
     );
-    context.push_str(&graph_context(&state));
+    
+    let initial_budget = crate::context_manager::calculate_char_budget(
+        settings.max_run_tokens,
+        conservative_system_prompt.chars().count() + request.message.chars().count() + 100
+    );
+    
+    let max_web_chars = (initial_budget as f64 * 0.40) as usize;
+    let max_local_chars = (initial_budget as f64 * 0.20) as usize;
+    
+    let mut remaining_chars = initial_budget;
+
+    let workspace_text = workspace_context(&state.workspace);
+    let graph_text = graph_context(&state);
+    let mut context = format!("Startup workspace:\n{}\n\n{}", workspace_text, graph_text);
+    remaining_chars = remaining_chars.saturating_sub(context.chars().count());
+
     emit_chat_progress(
         &app,
         &session_id,
@@ -102,6 +118,8 @@ pub async fn run_agent_chat(
         "Loading company context",
         "Using the saved profile, recent work, and business memory.",
     );
+
+    let mut local_context = String::new();
     if request.rag_enabled {
         emit_chat_progress(
             &app,
@@ -113,9 +131,10 @@ pub async fn run_agent_chat(
         );
         let rag = document_context_from_store(&app, &request.message)?;
         if !rag.is_empty() {
-            context.push_str(&rag);
+            local_context.push_str(&rag);
         }
     }
+
     emit_chat_progress(
         &app,
         &session_id,
@@ -126,12 +145,23 @@ pub async fn run_agent_chat(
     );
     let memory = memory_context_from_store(&app, &request.message)?;
     if !memory.is_empty() {
-        context.push_str(&memory);
+        if !local_context.is_empty() {
+            local_context.push_str("\n\n");
+        }
+        local_context.push_str(&memory);
     }
+    
+    if !local_context.is_empty() {
+        let truncated_local = crate::context_manager::truncate_text_to_budget(&local_context, max_local_chars);
+        context.push_str(&truncated_local);
+        remaining_chars = remaining_chars.saturating_sub(truncated_local.chars().count());
+    }
+
     let web_required = guardrail_decision.web_required
         || requires_live_web_research(&request.agent_type, &request.message);
     let use_web = request.research_enabled || web_required;
     let mut source_context_attached = false;
+    
     if use_web {
         emit_chat_progress(
             &app,
@@ -148,7 +178,10 @@ pub async fn run_agent_chat(
             &request.agent_type,
         )
         .await?;
-        if !research.trim().is_empty() {
+        
+        let truncated_research = crate::context_manager::truncate_text_to_budget(&research, max_web_chars);
+        
+        if !truncated_research.trim().is_empty() {
             source_context_attached = true;
             emit_chat_progress(
                 &app,
@@ -159,11 +192,13 @@ pub async fn run_agent_chat(
                 "Attaching only sources that match the company and the question.",
             );
             context.push_str("\n\nLive research context:\n");
-            context.push_str(&research);
+            context.push_str(&truncated_research);
+            remaining_chars = remaining_chars.saturating_sub(truncated_research.chars().count() + 30);
         }
     }
 
-    let history = recent_history(&state.chat_sessions[index]);
+    let history = crate::context_manager::truncate_chat_history(&state.chat_sessions[index].messages, remaining_chars);
+    
     let prompt = format!(
         "{context}\n\nConversation:\n{history}\n\nUser: {}",
         request.message
@@ -301,19 +336,6 @@ fn agent_prompt(agent_type: &str) -> String {
     _ => "You are Co-Op Operations. Turn ambiguous business work into clear decisions, tasks, risks, and owners.",
   }
   .to_string()
-}
-
-fn recent_history(session: &ChatSession) -> String {
-    let mut messages = session.messages.clone();
-    let keep = crate::constants::MAX_CHAT_HISTORY_MESSAGES;
-    if messages.len() > keep {
-        messages = messages[messages.len() - keep..].to_vec();
-    }
-    messages
-        .iter()
-        .map(|message| format!("{}: {}", message.role, message.content))
-        .collect::<Vec<String>>()
-        .join("\n")
 }
 
 fn append_review_section(answer: String, heading: &str, addition: String) -> String {
