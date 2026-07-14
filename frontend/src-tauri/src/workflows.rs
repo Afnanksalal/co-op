@@ -78,6 +78,28 @@ pub async fn run_business_workflow(
         &routing_detail,
     );
 
+    let web_required = guardrail_decision.web_required
+        || requires_live_web_research(&run.workflow_type, &run.objective);
+    let mut source_context_attached = false;
+
+    let conservative_system_prompt = format!(
+        "{}\n\n{}",
+        business_system_prompt(&run.workflow_type, &model_settings.council_mode),
+        guardrail_policy_prompt(&run.workflow_type, true, true)
+    );
+    let initial_budget = crate::context_manager::calculate_char_budget(
+        model_settings.max_run_tokens,
+        conservative_system_prompt.chars().count() + run.objective.chars().count() + 100
+    );
+
+    let max_web_chars = (initial_budget as f64 * 0.60) as usize;
+    let max_local_chars = (initial_budget as f64 * 0.40) as usize;
+    
+    let workspace_text = workspace_context(&state.workspace);
+    let graph_text = graph_context(&state);
+    let prompt_prefix = format!("Startup workspace:\n{}\n{}", workspace_text, graph_text);
+
+    let mut local_context = String::new();
     let rag = document_context_from_store(&app, &run.objective)?;
     if !rag.is_empty() {
         push_trace(
@@ -87,6 +109,7 @@ pub async fn run_business_workflow(
             "completed",
             "Relevant saved company file sections were added to this work plan.",
         );
+        local_context.push_str(&rag);
     } else {
         push_trace(
             &mut run,
@@ -96,6 +119,7 @@ pub async fn run_business_workflow(
             "No saved company file sections matched this work request.",
         );
     }
+    
     let memory = memory_context_from_store(&app, &run.objective)?;
     if !memory.is_empty() {
         push_trace(
@@ -105,19 +129,24 @@ pub async fn run_business_workflow(
             "completed",
             "Relevant saved decisions and notes were added to this work plan.",
         );
+        if !local_context.is_empty() {
+            local_context.push_str("\n\n");
+        }
+        local_context.push_str(&memory);
     }
-    let web_required = guardrail_decision.web_required
-        || requires_live_web_research(&run.workflow_type, &run.objective);
-    let mut source_context_attached = false;
+    
+    let truncated_local = crate::context_manager::truncate_text_to_budget(&local_context, max_local_chars);
+
     let web_context = if web_required {
-        let context = research_context_for_business(
+        let raw_web = research_context_for_business(
             &model_settings,
             &state.workspace,
             &run.objective,
             &run.workflow_type,
         )
         .await?;
-        source_context_attached = !context.trim().is_empty();
+        let truncated_web = crate::context_manager::truncate_text_to_budget(&raw_web, max_web_chars);
+        source_context_attached = !truncated_web.trim().is_empty();
         push_trace(
             &mut run,
             "context",
@@ -125,23 +154,19 @@ pub async fn run_business_workflow(
             "completed",
             "Live web sources were added because this work needs current outside facts.",
         );
-        context
+        truncated_web
     } else {
         String::new()
     };
+    
     let system_prompt = format!(
         "{}\n\n{}",
         business_system_prompt(&run.workflow_type, &model_settings.council_mode),
         guardrail_policy_prompt(&run.workflow_type, web_required, source_context_attached)
     );
     let prompt = format!(
-        "Startup workspace:\n{}\n{}\n{}\n\nObjective:\n{}\n{}\n\nWeb sources:\n{}",
-        workspace_context(&state.workspace),
-        graph_context(&state),
-        memory,
-        run.objective,
-        rag,
-        web_context
+        "{}\n{}\n\nObjective:\n{}\n\nWeb sources:\n{}",
+        prompt_prefix, truncated_local, run.objective, web_context
     );
     push_trace(
         &mut run,

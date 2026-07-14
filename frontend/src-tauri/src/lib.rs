@@ -1,5 +1,6 @@
 mod chat;
 mod constants;
+mod context_manager;
 mod graph;
 mod guardrails;
 mod knowledge_store;
