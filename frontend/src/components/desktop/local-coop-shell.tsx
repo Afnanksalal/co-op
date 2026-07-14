@@ -187,7 +187,7 @@ export function LocalCoOpShell() {
               : 'coop-page-scroll coop-scrollbar flex-col gap-5'
           }`}
         >
-          {!runtimeAvailable && !screenshotMode && (
+          {state && !runtimeAvailable && !screenshotMode && (
             <Notice
               tone="warning"
               text="This preview can show the interface. Install or run Co-Op Desktop to use local business tools."
