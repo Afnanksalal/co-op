@@ -17,7 +17,7 @@ use crate::types::{
     Alert, AlertRequest, BusinessToolResult, CapTableRequest, CapTableScenario,
     DesktopStateResponse, PitchDeckAnalysis, PitchDeckRequest, ResearchRequest,
 };
-use crate::validation::{validate_cap_table, validate_model_settings, validate_objective};
+use crate::validation::{validate_cap_table, validate_read_only, validate_objective};
 use crate::workflows::workspace_context;
 
 const MAX_PITCH_DECK_UPLOAD_BYTES: usize = 25 * 1024 * 1024;
@@ -100,9 +100,7 @@ pub async fn analyze_pitch_deck(
     let mut state = load_or_create_state(&app)?;
     require_usable_activation(&state)?;
     let payload = pitch_deck_payload(&request)?;
-    let mut settings = state.model_settings.clone();
-    validate_model_settings(&mut settings)?;
-    state.model_settings = settings.clone();
+    let settings = validate_read_only(&state.model_settings)?;
     let prompt = format!(
         "Startup workspace:\n{}\n\nDeck title: {}\nSource file: {}\nDetected slides/pages: {}\n\nDeck content:\n{}\n\nReturn an investor-grade analysis with these sections:\n1. Score out of 100.\n2. One-paragraph verdict.\n3. Slide-by-slide or topic-by-topic critique.\n4. Missing proof, market, product, traction, GTM, financial, and team evidence.\n5. Diligence risks and questions an investor will ask.\n6. Concrete rewrite checklist for the next version.\nBe specific and do not invent metrics that are not present.",
         workspace_context(&state.workspace),
@@ -119,7 +117,7 @@ pub async fn analyze_pitch_deck(
         "You are a senior venture investor and pitch deck operator. You evaluate decks rigorously, preserve uncertainty, and produce actionable revision guidance.",
         guardrail_policy_prompt("pitch review", false, false)
     );
-    let analysis = call_model(&settings, &system_prompt, &prompt).await?;
+    let analysis = call_model(&settings, &system_prompt, &prompt, Some(0.2)).await?;
     validate_model_output(&analysis, false, false)?;
     let score = derive_score(&analysis);
     state.pitch_decks.insert(

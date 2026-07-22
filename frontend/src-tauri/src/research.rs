@@ -13,7 +13,7 @@ use crate::research_sources::{
 };
 use crate::storage::{load_or_create_state, require_usable_activation, save_state};
 use crate::types::{DocumentRequest, ModelSettings, ResearchRequest, ResearchRun, StartupProfile};
-use crate::validation::{validate_model_settings, validate_objective};
+use crate::validation::{validate_read_only, validate_objective};
 
 pub(crate) use crate::research_sources::requires_live_web_research;
 
@@ -26,9 +26,7 @@ pub async fn run_research_query(
     validate_business_input("Research", &request.research_type, &request.query)?;
     let mut state = load_or_create_state(&app)?;
     require_usable_activation(&state)?;
-    let mut settings = state.model_settings.clone();
-    validate_model_settings(&mut settings)?;
-    state.model_settings = settings.clone();
+    let settings = validate_read_only(&state.model_settings)?;
     let research_type = normalize_research_type(&request.research_type);
     let depth = normalize_research_depth(&request.depth);
     let source_limit = source_limit_for_depth(&depth);
@@ -58,6 +56,7 @@ pub async fn run_research_query(
             "Owner brief: {}\nWeb searches completed:\n{}\n\nSources:\n{}",
             request.query, search_context, source_context
         ),
+        Some(0.1),
     )
     .await?;
     validate_model_output(&summary, true, true)?;

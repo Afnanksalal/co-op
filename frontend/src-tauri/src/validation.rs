@@ -54,6 +54,12 @@ pub fn sanitize_http_base_url(
     Ok(rendered)
 }
 
+pub fn validate_read_only(settings: &ModelSettings) -> Result<ModelSettings, String> {
+    let mut cloned = settings.clone();
+    validate_model_settings(&mut cloned)?;
+    Ok(cloned)
+}
+
 pub fn validate_model_settings(settings: &mut ModelSettings) -> Result<(), String> {
     settings.provider = settings.provider.trim().to_string();
     settings.council_mode = settings.council_mode.trim().to_string();

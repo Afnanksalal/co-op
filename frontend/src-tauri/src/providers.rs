@@ -25,6 +25,8 @@ struct OllamaChatRequest<'a> {
 #[derive(Debug, Clone, Serialize)]
 struct OllamaOptions {
     num_predict: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    temperature: Option<f32>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -106,10 +108,11 @@ pub async fn call_model(
     settings: &ModelSettings,
     system_prompt: &str,
     user_prompt: &str,
+    temperature: Option<f32>,
 ) -> Result<String, String> {
     match settings.provider.as_str() {
-        "ollama" => call_ollama(settings, system_prompt, user_prompt).await,
-        "openai_compatible" => call_openai_compatible(settings, system_prompt, user_prompt).await,
+        "ollama" => call_ollama(settings, system_prompt, user_prompt, temperature).await,
+        "openai_compatible" => call_openai_compatible(settings, system_prompt, user_prompt, temperature).await,
         provider => Err(format!("Unsupported provider: {provider}")),
     }
 }
@@ -118,12 +121,14 @@ pub async fn call_ollama(
     settings: &ModelSettings,
     system_prompt: &str,
     user_prompt: &str,
+    temperature: Option<f32>,
 ) -> Result<String, String> {
     let request = OllamaChatRequest {
         model: &settings.ollama_model,
         stream: false,
         options: OllamaOptions {
             num_predict: settings.normalized_max_tokens() as i32,
+            temperature,
         },
         messages: vec![
             ChatMessage {
@@ -160,6 +165,7 @@ pub async fn call_openai_compatible(
     settings: &ModelSettings,
     system_prompt: &str,
     user_prompt: &str,
+    temperature: Option<f32>,
 ) -> Result<String, String> {
     let api_key = settings
         .openai_api_key
@@ -169,7 +175,7 @@ pub async fn call_openai_compatible(
 
     let request = OpenAiChatRequest {
         model: &settings.openai_model,
-        temperature: 0.2,
+        temperature: temperature.unwrap_or(0.2),
         max_tokens: settings.normalized_max_tokens(),
         messages: vec![
             ChatMessage {

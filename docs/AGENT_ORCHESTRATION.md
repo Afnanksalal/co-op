@@ -123,6 +123,7 @@ Review should reduce risk without wasting tokens or slowing every answer.
 High-risk triggers include contracts, compliance, payroll, payments, banking, investors, board decisions, acquisitions, terminations, security, privacy, legal commitments, and major customer promises.
 
 Co-Op must not fan out the same prompt to several providers by default.
+When reviewing output (A2A or full review), the engine must use dynamic temperature routing (e.g. 0.6 to 0.7) to ensure the review model is creative enough to spot missing risks and biases, rather than inheriting the primary model's low-temperature factual setting.
 
 ## Guardrails
 

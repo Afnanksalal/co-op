@@ -156,6 +156,22 @@ fn contains_executable_instruction(normalized: &str) -> bool {
         "paste this into terminal",
         "open powershell",
         "open terminal",
+        "launch terminal",
+        "start terminal",
+        "launch powershell",
+        "start powershell",
+        "open cmd",
+        "launch cmd",
+        "execute the following",
+        "copy and run",
+        "run this in",
+        "pip install",
+        "brew install",
+        "apt install",
+        "apt-get install",
+        "yum install",
+        "docker run",
+        "docker exec",
         "chmod +x",
         "sudo ",
         "rm -rf",
@@ -183,17 +199,23 @@ fn extract_code_blocks(text: &str) -> Vec<(String, String)> {
 
     while let Some(line) = lines.next() {
         let trimmed = line.trim_start();
-        if let Some(after_fence) = trimmed.strip_prefix("```") {
-            let lang = after_fence.trim().to_lowercase();
-            let mut content = Vec::new();
-            for inner in lines.by_ref() {
-                if inner.trim_start().starts_with("```") {
-                    break;
-                }
-                content.push(inner);
+        let (fence, after_fence) = if let Some(after) = trimmed.strip_prefix("```") {
+            ("```", after)
+        } else if let Some(after) = trimmed.strip_prefix("~~~") {
+            ("~~~", after)
+        } else {
+            continue;
+        };
+
+        let lang = after_fence.trim().to_lowercase();
+        let mut content = Vec::new();
+        for inner in lines.by_ref() {
+            if inner.trim_start().starts_with(fence) {
+                break;
             }
-            blocks.push((lang, content.join("\n")));
+            content.push(inner);
         }
+        blocks.push((lang, content.join("\n")));
     }
 
     blocks
@@ -332,17 +354,43 @@ fn leaks_guardrail_internals(normalized: &str) -> bool {
         "system prompt says",
         "developer instructions",
         "guardrails for",
+        "my instructions are",
+        "my system instructions",
+        "i was told to",
+        "i was instructed to",
+        "my hidden prompt",
+        "my rules are",
+        "internal instructions",
+        "confidential instructions",
+        "safety rules say",
+        "my guidelines say",
+        "i am programmed to",
     ]
     .iter()
     .any(|term| normalized.contains(term))
 }
 
 fn normalize(value: &str) -> String {
-    value
+    let no_homoglyphs = value
+        .replace('ρ', "p") // Greek rho
+        .replace('р', "p") // Cyrillic er
+        .replace('о', "o") // Cyrillic o
+        .replace('а', "a") // Cyrillic a
+        .replace('е', "e") // Cyrillic e
+        .replace('с', "c") // Cyrillic c
+        .replace('і', "i") // Cyrillic dotted i
+        .replace('х', "x"); // Cyrillic ha
+
+    no_homoglyphs
         .to_lowercase()
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+pub fn is_safe_context(content: &str) -> bool {
+    let normalized = normalize(content);
+    !looks_like_prompt_attack(&normalized) && !asks_for_secret_disclosure(&normalized)
 }
 
 #[cfg(test)]

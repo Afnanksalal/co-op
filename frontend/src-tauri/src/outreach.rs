@@ -20,7 +20,7 @@ use crate::types::{
     DiscoverLeadsRequest, Lead, LeadRequest, ResearchRun,
 };
 use crate::validation::{
-    looks_like_email, validate_campaign_request, validate_lead_request, validate_model_settings,
+    looks_like_email, validate_campaign_request, validate_lead_request, validate_read_only,
     validate_objective,
 };
 use crate::workflows::workspace_context;
@@ -47,8 +47,7 @@ pub async fn discover_leads(
     }
     let mut state = load_or_create_state(&app)?;
     require_usable_activation(&state)?;
-    let mut settings = state.model_settings.clone();
-    validate_model_settings(&mut settings)?;
+    let settings = validate_read_only(&state.model_settings)?;
     if settings.research_provider != "firecrawl" {
         return Err(
             "Lead discovery uses web search. Open Settings and save a web search key before discovering prospects."
@@ -93,6 +92,7 @@ pub async fn discover_leads(
         &settings,
         "You are Co-Op's lead discovery extractor. Use only supplied web evidence. Only output pipe-delimited lead rows.",
         &extraction_prompt,
+        Some(0.1),
     )
     .await?;
 
@@ -233,6 +233,7 @@ pub async fn generate_campaign_emails(
                 &settings,
                 "You write concise, personalized B2B outreach emails. No fake claims.",
                 &prompt,
+                Some(0.7),
             )
             .await?;
             validate_model_output(&output, false, false)?;
@@ -275,8 +276,7 @@ pub async fn send_campaign_emails(
 ) -> Result<DesktopStateResponse, String> {
     let mut state = load_or_create_state(&app)?;
     require_usable_activation(&state)?;
-    let mut settings = state.model_settings.clone();
-    validate_model_settings(&mut settings)?;
+    let settings = validate_read_only(&state.model_settings)?;
     let indexes: Vec<usize> = state
         .campaign_emails
         .iter()

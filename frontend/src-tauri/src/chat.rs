@@ -11,7 +11,7 @@ use crate::rag::document_context_from_store;
 use crate::research::{requires_live_web_research, research_context_for_business};
 use crate::storage::{load_or_create_state, require_usable_activation, save_state, to_response};
 use crate::types::{ChatMessageRecord, ChatRequest, ChatSession, DesktopStateResponse};
-use crate::validation::{validate_chat_request, validate_model_settings};
+use crate::validation::{validate_chat_request, validate_read_only};
 use crate::workflows::workspace_context;
 
 const CHAT_PROGRESS_EVENT: &str = "chat-progress";
@@ -37,8 +37,7 @@ pub async fn run_agent_chat(
         validate_business_input("Ask", &request.agent_type, request.message.trim())?;
     let mut state = load_or_create_state(&app)?;
     require_usable_activation(&state)?;
-    let mut settings = state.model_settings.clone();
-    validate_model_settings(&mut settings)?;
+    let settings = validate_read_only(&state.model_settings)?;
 
     let now = Utc::now().to_rfc3339();
     let session_id = request
@@ -130,7 +129,7 @@ pub async fn run_agent_chat(
             "Looking for private documents that match this question.",
         );
         let rag = document_context_from_store(&app, &request.message)?;
-        if !rag.is_empty() {
+        if !rag.is_empty() && crate::guardrails::is_safe_context(&rag) {
             local_context.push_str(&rag);
         }
     }
@@ -144,7 +143,7 @@ pub async fn run_agent_chat(
         "Finding useful local notes without exposing hidden prompts or keys.",
     );
     let memory = memory_context_from_store(&app, &request.message)?;
-    if !memory.is_empty() {
+    if !memory.is_empty() && crate::guardrails::is_safe_context(&memory) {
         if !local_context.is_empty() {
             local_context.push_str("\n\n");
         }
@@ -179,7 +178,8 @@ pub async fn run_agent_chat(
         )
         .await?;
         
-        let truncated_research = crate::context_manager::truncate_text_to_budget(&research, max_web_chars);
+        let safe_research = if crate::guardrails::is_safe_context(&research) { research } else { String::new() };
+        let truncated_research = crate::context_manager::truncate_text_to_budget(&safe_research, max_web_chars);
         
         if !truncated_research.trim().is_empty() {
             source_context_attached = true;
@@ -216,7 +216,7 @@ pub async fn run_agent_chat(
         "Preparing the answer",
         "Combining company context, sources, and the selected advisor style.",
     );
-    let mut answer = call_model(&settings, &system_prompt, &prompt).await?;
+    let mut answer = call_model(&settings, &system_prompt, &prompt, Some(0.2)).await?;
 
     if request.a2a_enabled {
         emit_chat_progress(
@@ -231,6 +231,7 @@ pub async fn run_agent_chat(
             &settings,
             "You are a second Co-Op advisor. Review the draft answer and return only material missing cross-functional concerns. Do not restate or rewrite the draft. If there are no material additions, answer exactly: No material additions.",
             &format!("Agent: {}\nDraft:\n{}", request.agent_type, answer),
+            Some(0.7),
         )
         .await?;
         answer = append_review_section(answer, "Additional checks", critique);
@@ -251,7 +252,8 @@ pub async fn run_agent_chat(
         let review = call_model(
             &settings,
             "You are Co-Op's final reviewer. Return only decision risks, missing facts, or concrete next actions that are not already covered. Do not restate the answer. If there are no material additions, answer exactly: No material additions.",
-            &answer,
+            &format!("Agent: {}\nDraft:\n{}", request.agent_type, answer),
+            Some(0.6),
         )
         .await?;
         answer = append_review_section(answer, "Review notes", review);

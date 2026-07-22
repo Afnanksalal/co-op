@@ -11,23 +11,21 @@ use crate::rag::document_context_from_store;
 use crate::research::{requires_live_web_research, research_context_for_business};
 use crate::storage::{load_or_create_state, require_usable_activation, save_state};
 use crate::types::{WorkflowRequest, WorkflowRun, WorkflowTraceEvent};
-use crate::validation::{validate_model_settings, validate_workflow_request};
+use crate::validation::{validate_read_only, validate_workflow_request};
 
 #[tauri::command]
 pub async fn run_business_workflow(
     app: AppHandle,
     request: WorkflowRequest,
 ) -> Result<WorkflowRun, String> {
-    let mut state = load_or_create_state(&app)?;
+    let state = load_or_create_state(&app)?;
     validate_workflow_request(&request)?;
     let workflow_type = request.workflow_type.trim().to_lowercase();
     let objective = request.objective.trim().to_string();
     let guardrail_decision = validate_business_input("Plan", &workflow_type, &objective)?;
     require_usable_activation(&state)?;
 
-    let mut model_settings = state.model_settings.clone();
-    validate_model_settings(&mut model_settings)?;
-    state.model_settings = model_settings.clone();
+    let model_settings = validate_read_only(&state.model_settings)?;
 
     let created_at = Utc::now().to_rfc3339();
     let risk_level = if guardrail_decision.high_risk {
@@ -101,7 +99,7 @@ pub async fn run_business_workflow(
 
     let mut local_context = String::new();
     let rag = document_context_from_store(&app, &run.objective)?;
-    if !rag.is_empty() {
+    if !rag.is_empty() && crate::guardrails::is_safe_context(&rag) {
         push_trace(
             &mut run,
             "context",
@@ -121,7 +119,7 @@ pub async fn run_business_workflow(
     }
     
     let memory = memory_context_from_store(&app, &run.objective)?;
-    if !memory.is_empty() {
+    if !memory.is_empty() && crate::guardrails::is_safe_context(&memory) {
         push_trace(
             &mut run,
             "context",
@@ -145,7 +143,8 @@ pub async fn run_business_workflow(
             &run.workflow_type,
         )
         .await?;
-        let truncated_web = crate::context_manager::truncate_text_to_budget(&raw_web, max_web_chars);
+        let safe_web = if crate::guardrails::is_safe_context(&raw_web) { raw_web } else { String::new() };
+        let truncated_web = crate::context_manager::truncate_text_to_budget(&safe_web, max_web_chars);
         source_context_attached = !truncated_web.trim().is_empty();
         push_trace(
             &mut run,
@@ -175,7 +174,7 @@ pub async fn run_business_workflow(
         "completed",
         "The request was prepared with company profile, memory, files, and objective.",
     );
-    let mut output = call_model(&model_settings, &system_prompt, &prompt).await;
+    let mut output = call_model(&model_settings, &system_prompt, &prompt, Some(0.2)).await;
 
     if let Ok(primary_output) = &output {
         push_trace(
@@ -218,6 +217,7 @@ pub async fn run_business_workflow(
             &model_settings,
             "You are a strict business risk reviewer.",
             &review_prompt,
+            Some(0.6),
         )
         .await;
         if let Ok(review_output) = review {
