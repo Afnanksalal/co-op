@@ -170,13 +170,20 @@ pub async fn run_agent_chat(
             "Searching live sources",
             "Finding current sources and filtering unrelated results.",
         );
-        let research = research_context_for_business(
+        let research = match research_context_for_business(
             &settings,
             &state.workspace,
             &request.message,
             &request.agent_type,
         )
-        .await?;
+        .await
+        {
+            Ok(res) => res,
+            Err(e) => {
+                eprintln!("Web research failed, continuing without context: {}", e);
+                String::new()
+            }
+        };
         
         let safe_research = if crate::guardrails::is_safe_context(&research) { research } else { String::new() };
         let truncated_research = crate::context_manager::truncate_text_to_budget(&safe_research, max_web_chars);

@@ -471,6 +471,44 @@ fn validate_finite_values(values: &[f64]) -> Result<(), String> {
 }
 
 fn derive_score(analysis: &str) -> u8 {
+    let lower = analysis.to_lowercase();
+    
+    if let Some(idx) = lower.find("/100") {
+        let before_slash = lower[..idx].trim_end();
+        let num_start = before_slash.rfind(|c: char| !c.is_ascii_digit()).map(|i| i + 1).unwrap_or(0);
+        if let Ok(val) = before_slash[num_start..].parse::<u8>() {
+            if val <= 100 {
+                return val;
+            }
+        }
+    }
+    
+    if let Some(score_idx) = lower.find("score") {
+        for line in lower[score_idx..].lines() {
+            if line.contains("score") {
+                let tokens: Vec<&str> = line.split(|c: char| !c.is_ascii_digit()).filter(|s| !s.is_empty()).collect();
+                let mut valid_scores = vec![];
+                for t in tokens {
+                    if let Ok(v) = t.parse::<u8>() {
+                        if v <= 100 {
+                            valid_scores.push(v);
+                        }
+                    }
+                }
+                if valid_scores.len() == 1 {
+                    return valid_scores[0];
+                } else if valid_scores.len() > 1 {
+                    for &v in &valid_scores {
+                        if v != 100 {
+                            return v;
+                        }
+                    }
+                    return 100;
+                }
+            }
+        }
+    }
+    
     for token in analysis.split(|char: char| !char.is_ascii_digit()) {
         if let Ok(value) = token.parse::<u8>() {
             if value <= 100 {
