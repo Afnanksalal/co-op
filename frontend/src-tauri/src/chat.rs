@@ -175,6 +175,7 @@ pub async fn run_agent_chat(
             &state.workspace,
             &request.message,
             &request.agent_type,
+            10,
         )
         .await
         {

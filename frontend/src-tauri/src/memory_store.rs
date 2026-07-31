@@ -163,7 +163,7 @@ fn search_memories_with_conn(
             let semantic_score = cosine_similarity(&query_vector, &vector).max(0.0);
             let lexical_score = lexical_memory_score(&query_terms, &candidate);
             let metadata_score = metadata_memory_score(&query_terms, &candidate);
-            let pin_score = if candidate.pinned { 0.05 } else { 0.0 };
+            let pin_score = if candidate.pinned { 0.20 } else { 0.0 };
             let fts_score = candidate.fts_rank.map(fts_rank_score).unwrap_or(0.0);
             let score = ((lexical_score * 0.38)
                 + (semantic_score * 0.34)
@@ -171,7 +171,7 @@ fn search_memories_with_conn(
                 + (fts_score * 0.08)
                 + pin_score)
                 .clamp(0.0, 1.0);
-            if score >= 0.05 {
+            if score >= 0.20 {
                 Some(MemorySearchResult {
                     id: candidate.id,
                     memory_type: candidate.memory_type,
@@ -444,10 +444,15 @@ fn blob_to_vector(blob: &[u8]) -> Result<Vec<f32>, String> {
 }
 
 fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
-    a.iter()
-        .zip(b.iter())
-        .map(|(left, right)| left * right)
-        .sum()
+    let dot_product: f32 = a.iter().zip(b.iter()).map(|(left, right)| left * right).sum();
+    let norm_a: f32 = a.iter().map(|val| val * val).sum::<f32>().sqrt();
+    let norm_b: f32 = b.iter().map(|val| val * val).sum::<f32>().sqrt();
+
+    if norm_a == 0.0 || norm_b == 0.0 {
+        0.0
+    } else {
+        dot_product / (norm_a * norm_b)
+    }
 }
 
 fn truncate_chars(content: &str, max_chars: usize) -> String {

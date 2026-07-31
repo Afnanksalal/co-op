@@ -108,10 +108,11 @@ pub async fn research_context_for_business(
     profile: &StartupProfile,
     owner_query: &str,
     focus: &str,
+    source_limit: usize,
 ) -> Result<String, String> {
     ensure_web_search_ready(settings)?;
     let (sources, search_queries) =
-        collect_research_sources(settings, profile, owner_query, focus, 4).await?;
+        collect_research_sources(settings, profile, owner_query, focus, source_limit).await?;
     require_sources(&sources, "web context")?;
     Ok(format!(
         "Searches completed:\n{}\n\n{}",

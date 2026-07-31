@@ -141,6 +141,7 @@ pub async fn run_business_workflow(
             &state.workspace,
             &run.objective,
             &run.workflow_type,
+            10,
         )
         .await?;
         let safe_web = if crate::guardrails::is_safe_context(&raw_web) { raw_web } else { String::new() };

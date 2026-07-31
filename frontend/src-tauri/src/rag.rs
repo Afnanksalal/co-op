@@ -299,10 +299,15 @@ fn normalize(mut vector: Vec<f32>) -> Vec<f32> {
 
 #[cfg(test)]
 fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
-    a.iter()
-        .zip(b.iter())
-        .map(|(left, right)| left * right)
-        .sum()
+    let dot_product: f32 = a.iter().zip(b.iter()).map(|(left, right)| left * right).sum();
+    let norm_a: f32 = a.iter().map(|val| val * val).sum::<f32>().sqrt();
+    let norm_b: f32 = b.iter().map(|val| val * val).sum::<f32>().sqrt();
+
+    if norm_a == 0.0 || norm_b == 0.0 {
+        0.0
+    } else {
+        dot_product / (norm_a * norm_b)
+    }
 }
 
 #[cfg(test)]
