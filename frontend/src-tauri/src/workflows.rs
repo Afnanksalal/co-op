@@ -80,6 +80,10 @@ pub async fn run_business_workflow(
         || requires_live_web_research(&run.workflow_type, &run.objective);
     let mut source_context_attached = false;
 
+    if web_required {
+        crate::research_sources::ensure_web_search_ready(&model_settings)?;
+    }
+
     let conservative_system_prompt = format!(
         "{}\n\n{}",
         business_system_prompt(&run.workflow_type, &model_settings.council_mode),

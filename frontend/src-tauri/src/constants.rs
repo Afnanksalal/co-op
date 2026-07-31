@@ -5,6 +5,8 @@ pub const DEFAULT_CLOUD_URL: &str = match option_env!("COOP_CLOUD_URL") {
     None => "https://co-op-80fi.onrender.com",
 };
 pub const DEFAULT_OLLAMA_URL: &str = "http://localhost:11434";
+/// The only currently supported web research provider.
+pub const DEFAULT_RESEARCH_PROVIDER: &str = "firecrawl";
 pub const REQUEST_TIMEOUT_SECS: u64 = 180;
 pub const MIN_RUN_TOKENS: u32 = 256;
 pub const MAX_RUN_TOKENS: u32 = 64000;

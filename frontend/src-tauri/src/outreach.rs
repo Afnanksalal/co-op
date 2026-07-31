@@ -97,7 +97,7 @@ pub async fn discover_leads(
     )
     .await?;
 
-    let mut leads = parse_generated_leads(&generated, &request.lead_type, max_leads);
+    let mut leads = parse_generated_leads(&generated, &request.lead_type, max_leads, &sources);
     if leads.is_empty() {
         leads = fallback_leads_from_sources(&sources, &request.lead_type, max_leads);
     }

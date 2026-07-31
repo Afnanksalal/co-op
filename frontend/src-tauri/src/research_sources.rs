@@ -1,3 +1,4 @@
+use crate::constants::DEFAULT_RESEARCH_PROVIDER;
 use crate::providers::search_firecrawl;
 use crate::types::{ModelSettings, ResearchSource, StartupProfile};
 
@@ -32,7 +33,7 @@ pub(crate) async fn collect_research_sources(
 }
 
 pub(crate) fn ensure_web_search_ready(settings: &ModelSettings) -> Result<(), String> {
-    if settings.research_provider != "firecrawl" {
+    if settings.research_provider != DEFAULT_RESEARCH_PROVIDER {
         return Err(
             "Web search is required for source-backed business research. Open Settings and save a web search key."
                 .to_string(),

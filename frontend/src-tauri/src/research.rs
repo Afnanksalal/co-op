@@ -64,7 +64,7 @@ pub async fn run_research_query(
     let run = ResearchRun {
         id: Uuid::new_v4().to_string(),
         query: request.query.trim().to_string(),
-        provider: "firecrawl".to_string(),
+        provider: settings.research_provider.clone(),
         summary,
         sources,
         created_at: Utc::now().to_rfc3339(),

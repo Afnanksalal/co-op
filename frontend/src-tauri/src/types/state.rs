@@ -1,7 +1,7 @@
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
-use crate::constants::{DEFAULT_OLLAMA_URL, MAX_RUN_TOKENS};
+use crate::constants::{DEFAULT_OLLAMA_URL, DEFAULT_RESEARCH_PROVIDER, MAX_RUN_TOKENS};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -100,7 +100,7 @@ impl Default for ModelSettings {
             openai_model: "gpt-4.1-mini".to_string(),
             council_mode: "review_only".to_string(),
             max_run_tokens: 12000,
-            research_provider: "firecrawl".to_string(),
+            research_provider: DEFAULT_RESEARCH_PROVIDER.to_string(),
             firecrawl_base_url: "https://api.firecrawl.dev".to_string(),
             firecrawl_api_key: None,
             email_provider: "none".to_string(),
