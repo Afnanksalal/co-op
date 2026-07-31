@@ -4,9 +4,9 @@ use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use tauri::AppHandle;
 
-use crate::constants::{MAX_DOCUMENTS, RAG_VECTOR_DIMENSIONS};
-use crate::rag::{chunk_text, embed_text, tokenize};
-use crate::types::{DesktopState, KnowledgeChunk, KnowledgeDocument, SearchResult};
+use crate::constants::MAX_DOCUMENTS;
+use crate::rag::{chunk_text, embed_text_local, tokenize};
+use crate::types::{DesktopState, KnowledgeChunk, KnowledgeDocument, ModelSettings, SearchResult};
 
 pub(crate) mod schema;
 
@@ -32,17 +32,19 @@ pub fn list_document_summaries(
     list_document_summaries_with_conn(&conn, limit)
 }
 
-pub fn search_store(
+pub async fn search_store(
     app: &AppHandle,
+    settings: &ModelSettings,
     query: &str,
     limit: usize,
 ) -> Result<Vec<SearchResult>, String> {
+    let query_vector = crate::rag::embed_text(settings, query).await;
     let conn = open_store(app)?;
-    search_with_conn(&conn, query, limit)
+    search_with_conn(&conn, query, &query_vector, limit)
 }
 
-pub fn document_context_for_app(app: &AppHandle, query: &str) -> Result<String, String> {
-    let results = search_store(app, query, 5)?;
+pub async fn document_context_for_app(app: &AppHandle, settings: &ModelSettings, query: &str) -> Result<String, String> {
+    let results = search_store(app, settings, query, 5).await?;
     Ok(document_context_from_results(results))
 }
 
@@ -166,9 +168,9 @@ fn store_document_with_conn(
         tx.execute(
             "
             INSERT INTO knowledge_chunks (
-              id, document_id, section_index, content, vector, token_start, token_end, token_count, created_at
+              id, document_id, section_index, content, vector, token_start, token_end, token_count, created_at, embedding_version
             )
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 1)
             ",
             params![
                 chunk.id,
@@ -239,10 +241,10 @@ fn list_document_summaries_with_conn(
 fn search_with_conn(
     conn: &Connection,
     query: &str,
+    query_vector: &[f32],
     limit: usize,
 ) -> Result<Vec<SearchResult>, String> {
     let query_terms = unique_tokens(query);
-    let query_vector = embed_text(query);
     let mut candidates = if let Some(fts_query) = build_fts_query(query) {
         search_candidates_with_fts(conn, &fts_query)?
     } else {
@@ -259,7 +261,7 @@ fn search_with_conn(
         .into_iter()
         .filter_map(|candidate| {
             let vector = blob_to_vector(&candidate.vector).ok()?;
-            let semantic_score = cosine_similarity(&query_vector, &vector).max(0.0);
+            let semantic_score = cosine_similarity(query_vector, &vector).max(0.0);
             let lexical_score = lexical_match_score(&query_terms, &candidate);
             let metadata_score = metadata_match_score(&query_terms, &candidate);
             let fts_score = candidate.fts_rank.map(fts_rank_score).unwrap_or(0.0);
@@ -384,7 +386,7 @@ fn normalize_document_for_store(mut document: KnowledgeDocument) -> KnowledgeDoc
             .map(|(index, content)| KnowledgeChunk {
                 id: format!("{}-{index}", document.id),
                 document_id: document.id.clone(),
-                vector: embed_text(&content),
+                vector: embed_text_local(&content),
                 content,
                 created_at: created_at.clone(),
             })
@@ -606,20 +608,19 @@ fn vector_to_blob(vector: &[f32]) -> Vec<u8> {
 }
 
 fn blob_to_vector(blob: &[u8]) -> Result<Vec<f32>, String> {
-    if blob.len() % std::mem::size_of::<f32>() != 0 {
+    if blob.len() % std::mem::size_of::<f32>() != 0 || blob.is_empty() {
         return Err("Stored vector has invalid byte length".to_string());
     }
-    let vector = blob
+    Ok(blob
         .chunks_exact(std::mem::size_of::<f32>())
-        .map(|bytes| f32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))
-        .collect::<Vec<_>>();
-    if vector.len() != RAG_VECTOR_DIMENSIONS {
-        return Err("Stored vector dimension does not match runtime configuration".to_string());
-    }
-    Ok(vector)
+        .map(|bytes| f32::from_le_bytes(bytes.try_into().unwrap()))
+        .collect())
 }
 
 fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
+    if a.len() != b.len() {
+        return 0.0;
+    }
     let dot_product: f32 = a.iter().zip(b.iter()).map(|(left, right)| left * right).sum();
     let norm_a: f32 = a.iter().map(|val| val * val).sum::<f32>().sqrt();
     let norm_b: f32 = b.iter().map(|val| val * val).sum::<f32>().sqrt();
@@ -647,6 +648,95 @@ struct SearchCandidate {
 struct ExistingDocument {
     id: String,
     created_at: String,
+}
+
+/// Re-embed all knowledge chunks and business memories that still have old
+/// hash-based vectors (embedding_version = 0). Runs in batches of 5 with a
+/// 200ms throttle between batches. Skips silently if the provider is unavailable.
+pub async fn reindex_stale_embeddings(app: &AppHandle, settings: &ModelSettings) {
+    let conn = match open_store(app) {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+
+    // Test one embedding call first — bail early if provider has no embeddings
+    if crate::providers::call_embedding(settings, "test").await.is_err() {
+        eprintln!("Embedding provider unavailable — skipping re-index");
+        return;
+    }
+
+    // Re-index knowledge chunks
+    let stale_chunks: Vec<(String, String)> = {
+        let mut stmt = match conn.prepare(
+            "SELECT id, content FROM knowledge_chunks WHERE embedding_version = 0 LIMIT 500",
+        ) {
+            Ok(s) => s,
+            Err(_) => return,
+        };
+        let rows = match stmt.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        }) {
+            Ok(rows) => rows.filter_map(|r| r.ok()).collect(),
+            Err(_) => return,
+        };
+        rows
+    };
+
+    for batch in stale_chunks.chunks(5) {
+        for (id, content) in batch {
+            let vector = crate::rag::embed_text(settings, content).await;
+            let blob = vector_to_blob(&vector);
+            let _ = conn.execute(
+                "UPDATE knowledge_chunks SET vector = ?1, embedding_version = 1 WHERE id = ?2",
+                rusqlite::params![blob, id],
+            );
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
+
+    // Re-index business memories
+    let stale_memories: Vec<(String, String, String, String)> = {
+        let mut stmt = match conn.prepare(
+            "SELECT id, title, memory_type, content FROM business_memories WHERE embedding_version = 0 LIMIT 500",
+        ) {
+            Ok(s) => s,
+            Err(_) => return,
+        };
+        let rows = match stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+            ))
+        }) {
+            Ok(rows) => rows.filter_map(|r| r.ok()).collect(),
+            Err(_) => return,
+        };
+        rows
+    };
+
+    for batch in stale_memories.chunks(5) {
+        for (id, title, memory_type, content) in batch {
+            let combined = format!("{} {} {}", title, memory_type, content);
+            let vector = crate::rag::embed_text(settings, &combined).await;
+            let blob = vector_to_blob(&vector);
+            let _ = conn.execute(
+                "UPDATE business_memories SET vector = ?1, embedding_version = 1 WHERE id = ?2",
+                rusqlite::params![blob, id],
+            );
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
+
+    let chunk_count = stale_chunks.len();
+    let memory_count = stale_memories.len();
+    if chunk_count > 0 || memory_count > 0 {
+        eprintln!(
+            "Re-indexed {} chunks and {} memories with provider embeddings",
+            chunk_count, memory_count
+        );
+    }
 }
 
 #[cfg(test)]

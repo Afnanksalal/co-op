@@ -3,13 +3,13 @@ use uuid::Uuid;
 
 #[test]
 fn vector_blob_round_trips_without_json_expansion() {
-    let vector = embed_text("runway revenue sales pipeline");
+    let vector = crate::rag::embed_text_local("runway revenue sales pipeline");
     let blob = vector_to_blob(&vector);
     let decoded = blob_to_vector(&blob).expect("valid vector blob");
 
     assert_eq!(
         blob.len(),
-        RAG_VECTOR_DIMENSIONS * std::mem::size_of::<f32>()
+        crate::constants::LOCAL_FALLBACK_DIMENSIONS * std::mem::size_of::<f32>()
     );
     assert_eq!(decoded.len(), vector.len());
     assert_eq!(decoded, vector);
@@ -31,7 +31,7 @@ fn sqlite_store_uses_fts_candidates_and_vector_ranking() {
             id: Uuid::new_v4().to_string(),
             document_id: "doc".to_string(),
             content: "Monthly burn and runway planning".to_string(),
-            vector: embed_text("Monthly burn and runway planning"),
+            vector: crate::rag::embed_text_local("Monthly burn and runway planning"),
             created_at: created_at.clone(),
         }],
         created_at,
@@ -41,7 +41,7 @@ fn sqlite_store_uses_fts_candidates_and_vector_ranking() {
 
     store_document_with_conn(&mut conn, &document).expect("store document");
     let summaries = list_document_summaries_with_conn(&conn, 10).expect("summaries");
-    let results = search_with_conn(&conn, "runway burn", 5).expect("search");
+    let results = search_with_conn(&conn, "runway burn", &crate::rag::embed_text_local("runway burn"), 5).expect("search");
 
     assert_eq!(summaries.len(), 1);
     assert_eq!(summaries[0].chunk_count, 1);
@@ -91,7 +91,7 @@ fn init_schema_upgrades_legacy_tables_before_creating_indexes() {
 
     let document = test_document("Migrated file", "Cash runway and sales pipeline context");
     store_document_with_conn(&mut conn, &document).expect("store after migration");
-    let results = search_with_conn(&conn, "cash runway", 5).expect("search after migration");
+    let results = search_with_conn(&conn, "cash runway", &crate::rag::embed_text_local("cash runway"), 5).expect("search after migration");
 
     assert_eq!(results.len(), 1);
 }
@@ -125,7 +125,7 @@ fn duplicate_file_content_updates_existing_document_instead_of_bloating_index() 
     store_document_with_conn(&mut conn, &first).expect("store first");
     store_document_with_conn(&mut conn, &second).expect("store duplicate");
     let summaries = list_document_summaries_with_conn(&conn, 10).expect("summaries");
-    let results = search_with_conn(&conn, "refund contracts", 10).expect("search");
+    let results = search_with_conn(&conn, "refund contracts", &crate::rag::embed_text_local("refund contracts"), 10).expect("search");
 
     assert_eq!(summaries.len(), 1);
     assert_eq!(summaries[0].title, "Updated policy name");
@@ -140,7 +140,7 @@ fn hybrid_search_rejects_unrelated_recent_files() {
     let document = test_document("Hiring notes", "Interview loop and onboarding checklist");
 
     store_document_with_conn(&mut conn, &document).expect("store document");
-    let results = search_with_conn(&conn, "runway burn cash", 5).expect("search");
+    let results = search_with_conn(&conn, "runway burn cash", &crate::rag::embed_text_local("runway burn cash"), 5).expect("search");
 
     assert!(results.is_empty());
 }
@@ -161,7 +161,7 @@ fn hybrid_search_uses_title_and_content_signals() {
 
     store_document_with_conn(&mut conn, &sales).expect("store sales");
     store_document_with_conn(&mut conn, &runway).expect("store runway");
-    let results = search_with_conn(&conn, "cash runway", 5).expect("search");
+    let results = search_with_conn(&conn, "cash runway", &crate::rag::embed_text_local("cash runway"), 5).expect("search");
 
     assert!(!results.is_empty());
     assert_eq!(results[0].title, "Runway board memo");
@@ -176,7 +176,7 @@ fn test_document(title: &str, content: &str) -> KnowledgeDocument {
         .map(|chunk| KnowledgeChunk {
             id: Uuid::new_v4().to_string(),
             document_id: id.clone(),
-            vector: embed_text(&chunk),
+            vector: crate::rag::embed_text_local(&chunk),
             content: chunk,
             created_at: created_at.clone(),
         })

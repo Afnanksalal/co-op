@@ -97,7 +97,7 @@ pub async fn run_research_query(
                 source: run.provider.clone(),
                 content,
             },
-        )?;
+        ).await?;
     }
 
     Ok(run)

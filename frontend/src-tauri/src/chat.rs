@@ -7,7 +7,7 @@ use crate::graph::graph_context;
 use crate::guardrails::{guardrail_policy_prompt, validate_business_input, validate_model_output};
 use crate::memory::{memory_context_from_store, remember_business_event};
 use crate::providers::call_model;
-use crate::rag::document_context_from_store;
+use crate::knowledge_store::document_context_for_app;
 use crate::research::{requires_live_web_research, research_context_for_business};
 use crate::storage::{load_or_create_state, require_usable_activation, save_state, to_response};
 use crate::types::{ChatMessageRecord, ChatRequest, ChatSession, DesktopStateResponse};
@@ -128,7 +128,7 @@ pub async fn run_agent_chat(
             "Checking saved files",
             "Looking for private documents that match this question.",
         );
-        let rag = document_context_from_store(&app, &request.message)?;
+        let rag = document_context_for_app(&app, &settings, &request.message).await?;
         if !rag.is_empty() && crate::guardrails::is_safe_context(&rag) {
             local_context.push_str(&rag);
         }
@@ -142,7 +142,7 @@ pub async fn run_agent_chat(
         "Checking remembered facts",
         "Finding useful local notes without exposing hidden prompts or keys.",
     );
-    let memory = memory_context_from_store(&app, &request.message)?;
+    let memory = memory_context_from_store(&app, &settings, &request.message).await?;
     if !memory.is_empty() && crate::guardrails::is_safe_context(&memory) {
         if !local_context.is_empty() {
             local_context.push_str("\n\n");

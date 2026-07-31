@@ -80,6 +80,14 @@ pub fn run() {
                         .build(),
                 )?;
             }
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                if let Ok(state) = crate::storage::load_or_create_state(&handle) {
+                    if let Ok(settings) = crate::validation::validate_read_only(&state.model_settings) {
+                        crate::knowledge_store::reindex_stale_embeddings(&handle, &settings).await;
+                    }
+                }
+            });
             Ok(())
         })
         .run(tauri::generate_context!())

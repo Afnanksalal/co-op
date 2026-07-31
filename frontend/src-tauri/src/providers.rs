@@ -241,6 +241,113 @@ pub async fn call_openai_compatible(
         .ok_or_else(|| "OpenAI-compatible provider returned no content".to_string())
 }
 
+// ── Embedding endpoints ──────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize)]
+struct OllamaEmbeddingRequest<'a> {
+    model: &'a str,
+    prompt: &'a str,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct OllamaEmbeddingResponse {
+    embedding: Vec<f32>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct OpenAiEmbeddingRequest<'a> {
+    model: &'a str,
+    input: &'a str,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct OpenAiEmbeddingData {
+    embedding: Vec<f32>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct OpenAiEmbeddingResponse {
+    data: Vec<OpenAiEmbeddingData>,
+}
+
+pub async fn call_embedding(
+    settings: &ModelSettings,
+    text: &str,
+) -> Result<Vec<f32>, String> {
+    match settings.provider.as_str() {
+        "ollama" => embed_ollama(settings, text).await,
+        "openai_compatible" => embed_openai_compatible(settings, text).await,
+        provider => Err(format!("Unsupported embedding provider: {provider}")),
+    }
+}
+
+async fn embed_ollama(
+    settings: &ModelSettings,
+    text: &str,
+) -> Result<Vec<f32>, String> {
+    let request = OllamaEmbeddingRequest {
+        model: &settings.ollama_model,
+        prompt: text,
+    };
+    let ollama_base_url =
+        sanitize_http_base_url(&settings.ollama_base_url, true, false, "Ollama URL")?;
+    let response = http_client()?
+        .post(format!("{}/api/embeddings", ollama_base_url))
+        .json(&request)
+        .send()
+        .await
+        .map_err(|error| format!("Ollama embedding request failed: {error}"))?;
+    let response = ensure_success(response, "Ollama embeddings").await?;
+    let body = response
+        .json::<OllamaEmbeddingResponse>()
+        .await
+        .map_err(|error| format!("Ollama embedding response was not valid JSON: {error}"))?;
+    if body.embedding.is_empty() {
+        return Err("Ollama returned an empty embedding vector".to_string());
+    }
+    Ok(body.embedding)
+}
+
+async fn embed_openai_compatible(
+    settings: &ModelSettings,
+    text: &str,
+) -> Result<Vec<f32>, String> {
+    let api_key = settings
+        .openai_api_key
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| "OpenAI-compatible provider selected but no API key is saved".to_string())?;
+    let request = OpenAiEmbeddingRequest {
+        model: &settings.openai_model,
+        input: text,
+    };
+    let openai_base_url = sanitize_http_base_url(
+        &settings.openai_base_url,
+        true,
+        false,
+        "OpenAI-compatible URL",
+    )?;
+    let response = http_client()?
+        .post(format!("{}/embeddings", openai_base_url))
+        .bearer_auth(api_key)
+        .json(&request)
+        .send()
+        .await
+        .map_err(|error| format!("OpenAI-compatible embedding request failed: {error}"))?;
+    let response = ensure_success(response, "OpenAI-compatible embeddings").await?;
+    let body = response
+        .json::<OpenAiEmbeddingResponse>()
+        .await
+        .map_err(|error| {
+            format!("OpenAI-compatible embedding response was not valid JSON: {error}")
+        })?;
+    body.data
+        .first()
+        .map(|entry| entry.embedding.clone())
+        .filter(|vector| !vector.is_empty())
+        .ok_or_else(|| "OpenAI-compatible provider returned no embedding".to_string())
+}
+
 pub async fn search_firecrawl(
     settings: &ModelSettings,
     query: &str,

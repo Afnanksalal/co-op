@@ -7,7 +7,7 @@ use crate::graph::graph_context;
 use crate::guardrails::{guardrail_policy_prompt, validate_business_input, validate_model_output};
 use crate::memory::{memory_context_from_store, remember_business_event};
 use crate::providers::call_model;
-use crate::rag::document_context_from_store;
+use crate::knowledge_store::document_context_for_app;
 use crate::research::{requires_live_web_research, research_context_for_business};
 use crate::storage::{load_or_create_state, require_usable_activation, save_state};
 use crate::types::{WorkflowRequest, WorkflowRun, WorkflowTraceEvent};
@@ -98,7 +98,7 @@ pub async fn run_business_workflow(
     let prompt_prefix = format!("Startup workspace:\n{}\n{}", workspace_text, graph_text);
 
     let mut local_context = String::new();
-    let rag = document_context_from_store(&app, &run.objective)?;
+    let rag = document_context_for_app(&app, &model_settings, &run.objective).await?;
     if !rag.is_empty() && crate::guardrails::is_safe_context(&rag) {
         push_trace(
             &mut run,
@@ -118,7 +118,7 @@ pub async fn run_business_workflow(
         );
     }
     
-    let memory = memory_context_from_store(&app, &run.objective)?;
+    let memory = memory_context_from_store(&app, &model_settings, &run.objective).await?;
     if !memory.is_empty() && crate::guardrails::is_safe_context(&memory) {
         push_trace(
             &mut run,

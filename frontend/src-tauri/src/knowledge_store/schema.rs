@@ -4,7 +4,7 @@ use tauri::{AppHandle, Manager};
 use super::legacy_hash_marker;
 
 const KNOWLEDGE_DB_FILE: &str = "knowledge.sqlite3";
-const KNOWLEDGE_DB_SCHEMA_VERSION: i64 = 3;
+const KNOWLEDGE_DB_SCHEMA_VERSION: i64 = 4;
 
 pub(crate) fn open_store(app: &AppHandle) -> Result<Connection, String> {
     let dir = app
@@ -186,6 +186,18 @@ fn ensure_schema_upgrades(conn: &Connection) -> Result<(), String> {
         [],
     )
     .map_err(|error| format!("Failed to backfill file update times: {error}"))?;
+    ensure_column(
+        conn,
+        "knowledge_chunks",
+        "embedding_version",
+        "INTEGER NOT NULL DEFAULT 0",
+    )?;
+    ensure_column(
+        conn,
+        "business_memories",
+        "embedding_version",
+        "INTEGER NOT NULL DEFAULT 0",
+    )?;
     Ok(())
 }
 

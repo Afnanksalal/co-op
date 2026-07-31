@@ -109,6 +109,16 @@ Supported email sending modes:
 
 Provider keys are stored in OS credential storage. The cloud license backend never receives provider keys, prompts, outputs, files, campaign content, or local run history.
 
+## RAG Architecture
+
+Co-Op uses a hybrid embedding architecture to stay completely local and fast, avoiding external vector databases:
+
+- **Provider Embeddings:** If the configured provider (Ollama or OpenAI-compatible) supports an embedding endpoint (`/api/embeddings` or `/v1/embeddings`), Co-Op automatically generates dense vector embeddings for company files and business memories.
+- **Enhanced Local Fallback:** If the provider lacks an embedding endpoint (e.g., Groq) or is unreachable, Co-Op falls back to a 128-dimension lexical hash vector algorithm. This fallback includes suffix-stripping stemming, bigram generation, and a dictionary of 150+ business synonym clusters to map related concepts without needing a language model.
+- **Background Re-indexing:** When a user switches to a provider that supports true embeddings, Co-Op automatically upgrades any legacy hash-based vectors to dense semantic vectors in a background task on the next app startup.
+
+All embeddings (whether dense provider vectors or local fallback hashes) are stored directly inside the local SQLite database alongside the text chunks.
+
 ## Review Policy
 
 Review should reduce risk without wasting tokens or slowing every answer.

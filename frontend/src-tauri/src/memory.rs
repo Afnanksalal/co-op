@@ -10,7 +10,7 @@ use crate::memory_store::{
 use crate::storage::{load_or_create_state, require_usable_activation, save_state, to_response};
 use crate::types::{
     BusinessMemory, DesktopState, DesktopStateResponse, MemoryRequest, MemorySearchRequest,
-    MemorySearchResult, StartupProfile,
+    MemorySearchResult, ModelSettings, StartupProfile,
 };
 use crate::validation::validate_objective;
 
@@ -38,18 +38,19 @@ pub fn save_business_memory(
 }
 
 #[tauri::command]
-pub fn search_business_memory(
+pub async fn search_business_memory(
     app: AppHandle,
     request: MemorySearchRequest,
 ) -> Result<Vec<MemorySearchResult>, String> {
     validate_objective("Memory search", &request.query)?;
     let state = load_or_create_state(&app)?;
     require_usable_activation(&state)?;
-    search_business_memories(&app, &request.query, request.limit.unwrap_or(8))
+    let settings = crate::validation::validate_read_only(&state.model_settings)?;
+    search_business_memories(&app, &settings, &request.query, request.limit.unwrap_or(8)).await
 }
 
-pub fn memory_context_from_store(app: &AppHandle, query: &str) -> Result<String, String> {
-    memory_context_for_app(app, query)
+pub async fn memory_context_from_store(app: &AppHandle, settings: &ModelSettings, query: &str) -> Result<String, String> {
+    memory_context_for_app(app, settings, query).await
 }
 
 pub fn remember_business_event(

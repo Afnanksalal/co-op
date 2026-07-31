@@ -4,34 +4,41 @@ use std::hash::{Hash, Hasher};
 use tauri::AppHandle;
 use uuid::Uuid;
 
-use crate::constants::RAG_VECTOR_DIMENSIONS;
+use crate::constants::LOCAL_FALLBACK_DIMENSIONS;
 use crate::knowledge_store::{
     document_context_for_app, list_document_summaries, search_store, store_document,
     to_document_summary,
 };
+use crate::providers::call_embedding;
 use crate::storage::{load_or_create_state, require_usable_activation, save_state, to_response};
 use crate::types::{
-    DesktopStateResponse, DocumentRequest, KnowledgeChunk, KnowledgeDocument, SearchRequest,
-    SearchResult,
+    DesktopStateResponse, DocumentRequest, KnowledgeChunk, KnowledgeDocument, ModelSettings,
+    SearchRequest, SearchResult,
 };
 use crate::validation::{validate_document_request, validate_objective};
 
 #[tauri::command]
-pub fn add_knowledge_document(
+pub async fn add_knowledge_document(
     app: AppHandle,
     request: DocumentRequest,
 ) -> Result<DesktopStateResponse, String> {
     validate_document_request(&request)?;
     let mut state = load_or_create_state(&app)?;
     require_usable_activation(&state)?;
+    let settings = crate::validation::validate_read_only(&state.model_settings)?;
     let document_id = Uuid::new_v4().to_string();
     let created_at = Utc::now().to_rfc3339();
-    let chunks: Vec<KnowledgeChunk> = chunk_text(&request.content)
+    let texts = chunk_text(&request.content);
+    let vectors: Vec<Vec<f32>> = futures::future::join_all(
+        texts.iter().map(|text| embed_text(&settings, text))
+    ).await;
+    let chunks: Vec<KnowledgeChunk> = texts
         .into_iter()
-        .map(|content| KnowledgeChunk {
+        .zip(vectors)
+        .map(|(content, vector)| KnowledgeChunk {
             id: Uuid::new_v4().to_string(),
             document_id: document_id.clone(),
-            vector: embed_text(&content),
+            vector,
             content,
             created_at: created_at.clone(),
         })
@@ -53,14 +60,15 @@ pub fn add_knowledge_document(
 }
 
 #[tauri::command]
-pub fn search_knowledge(
+pub async fn search_knowledge(
     app: AppHandle,
     request: SearchRequest,
 ) -> Result<Vec<SearchResult>, String> {
     validate_objective("Search query", &request.query)?;
     let state = load_or_create_state(&app)?;
     require_usable_activation(&state)?;
-    search_store(&app, &request.query, request.limit.unwrap_or(5))
+    let settings = crate::validation::validate_read_only(&state.model_settings)?;
+    search_store(&app, &settings, &request.query, request.limit.unwrap_or(5)).await
 }
 
 #[cfg(test)]
@@ -69,7 +77,7 @@ pub fn search_documents(
     query: &str,
     limit: usize,
 ) -> Vec<SearchResult> {
-    let query_vector = embed_text(query);
+    let query_vector = embed_text_local(query);
     let mut results = Vec::new();
     for document in documents {
         for chunk in &document.chunks {
@@ -95,9 +103,6 @@ pub fn search_documents(
     results
 }
 
-pub fn document_context_from_store(app: &AppHandle, query: &str) -> Result<String, String> {
-    document_context_for_app(app, query)
-}
 
 pub fn chunk_text(content: &str) -> Vec<String> {
     const TARGET_WORDS: usize = 180;
@@ -160,33 +165,47 @@ pub fn chunk_text(content: &str) -> Vec<String> {
     chunks
 }
 
-pub fn embed_text(content: &str) -> Vec<f32> {
-    let mut vector = vec![0.0; RAG_VECTOR_DIMENSIONS];
+pub async fn embed_text(settings: &ModelSettings, content: &str) -> Vec<f32> {
+    match call_embedding(settings, content).await {
+        Ok(vector) => vector,
+        Err(e) => {
+            eprintln!("Embedding provider unavailable ({}), using local fallback", e);
+            embed_text_local(content)
+        }
+    }
+}
+
+pub fn embed_text_local(content: &str) -> Vec<f32> {
+    let mut vector = vec![0.0; LOCAL_FALLBACK_DIMENSIONS];
     for token in tokenize(content) {
         let mut hasher = DefaultHasher::new();
         token.hash(&mut hasher);
-        let index = (hasher.finish() as usize) % RAG_VECTOR_DIMENSIONS;
+        let index = (hasher.finish() as usize) % LOCAL_FALLBACK_DIMENSIONS;
         vector[index] += 1.0;
     }
     normalize(vector)
 }
 
 pub(crate) fn tokenize(content: &str) -> Vec<String> {
-    let base_tokens = content
+    let base_tokens: Vec<String> = content
         .to_lowercase()
         .split(|char: char| !char.is_ascii_alphanumeric())
         .filter(|token| token.len() > 2 && !is_stop_word(token))
-        .map(ToString::to_string)
-        .collect::<Vec<_>>();
+        .map(|t| stem(t))
+        .collect();
 
-    let mut tokens = Vec::with_capacity(base_tokens.len() * 2);
-    for token in base_tokens {
+    let mut tokens = Vec::with_capacity(base_tokens.len() * 3);
+    for token in &base_tokens {
         tokens.push(token.clone());
         tokens.extend(
-            business_synonyms(&token)
+            business_synonyms(token)
                 .iter()
                 .map(|value| value.to_string()),
         );
+    }
+    // Add bigrams
+    for pair in base_tokens.windows(2) {
+        tokens.push(format!("{}_{}", pair[0], pair[1]));
     }
     tokens
 }
@@ -266,23 +285,199 @@ fn is_stop_word(token: &str) -> bool {
     )
 }
 
+fn stem(token: &str) -> String {
+    let s = token.to_lowercase();
+    // Order matters — check longest suffixes first
+    if s.len() > 5 {
+        if s.ends_with("ation") { return s[..s.len()-5].to_string(); }
+        if s.ends_with("ment") { return s[..s.len()-4].to_string(); }
+        if s.ends_with("ness") { return s[..s.len()-4].to_string(); }
+        if s.ends_with("able") { return s[..s.len()-4].to_string(); }
+        if s.ends_with("ible") { return s[..s.len()-4].to_string(); }
+        if s.ends_with("tion") { return s[..s.len()-4].to_string(); }
+        if s.ends_with("sion") { return s[..s.len()-4].to_string(); }
+        if s.ends_with("ious") { return s[..s.len()-4].to_string(); }
+        if s.ends_with("eous") { return s[..s.len()-4].to_string(); }
+    }
+    if s.len() > 4 {
+        if s.ends_with("ive") { return s[..s.len()-3].to_string(); }
+        if s.ends_with("ous") { return s[..s.len()-3].to_string(); }
+        if s.ends_with("ies") { return format!("{}y", &s[..s.len()-3]); }
+        if s.ends_with("ing") { return s[..s.len()-3].to_string(); }
+        if s.ends_with("ful") { return s[..s.len()-3].to_string(); }
+    }
+    if s.len() > 3 {
+        if s.ends_with("ly") { return s[..s.len()-2].to_string(); }
+        if s.ends_with("ed") { return s[..s.len()-2].to_string(); }
+        if s.ends_with("er") { return s[..s.len()-2].to_string(); }
+        if s.ends_with("es") { return s[..s.len()-2].to_string(); }
+        if s.ends_with("al") { return s[..s.len()-2].to_string(); }
+    }
+    if s.len() > 3 && s.ends_with('s') && !s.ends_with("ss") {
+        return s[..s.len()-1].to_string();
+    }
+    s
+}
+
 fn business_synonyms(token: &str) -> &'static [&'static str] {
     match token {
-        "cash" => &["runway", "burn", "finance"],
-        "runway" => &["cash", "burn", "finance"],
-        "burn" => &["runway", "cash", "spend"],
-        "sales" => &["pipeline", "revenue", "customers"],
-        "pipeline" => &["sales", "leads", "deals"],
-        "customer" | "customers" => &["buyer", "buyers", "client", "clients"],
-        "client" | "clients" => &["customer", "customers", "buyer"],
-        "pricing" => &["price", "revenue", "monetization"],
-        "legal" => &["contract", "compliance", "risk"],
-        "contract" | "contracts" => &["legal", "agreement", "compliance"],
-        "investor" | "investors" => &["fundraising", "capital", "diligence"],
-        "fundraising" => &["investor", "capital", "raise"],
-        "marketing" => &["positioning", "campaign", "growth"],
-        "outreach" => &["email", "campaign", "prospecting"],
-        "operations" => &["process", "workflow", "sop"],
+        // Finance & Metrics
+        "cash" => &["runway", "burn", "finance", "capital", "liquidity"],
+        "runway" => &["cash", "burn", "finance", "month", "surviv"],
+        "burn" => &["runway", "cash", "spend", "rate", "expens"],
+        "revenue" => &["income", "sales", "earn", "topline", "monetiz"],
+        "profit" => &["margin", "earn", "ebitda", "bottom", "net"],
+        "margin" => &["profit", "gross", "net", "percent"],
+        "expens" | "expense" => &["cost", "spend", "overhead", "opex", "budget"],
+        "cost" => &["expens", "spend", "price", "overhead", "budget"],
+        "spend" => &["cost", "expens", "budget", "burn", "outlay"],
+        "budget" => &["cost", "spend", "forecast", "plan", "allocat"],
+        "forecast" => &["project", "predict", "estimat", "plan", "model"],
+        "valuat" | "valuation" => &["worth", "multipl", "enterpris", "cap", "price"],
+        "roi" => &["return", "invest", "yield", "payback"],
+        "kpi" => &["metric", "indicat", "measur", "target", "goal"],
+        "metric" => &["kpi", "measur", "indicat", "benchmark", "data"],
+        "cac" => &["acquisit", "cost", "customer", "spend"],
+        "ltv" => &["lifetim", "valu", "revenue", "retent"],
+        "mrr" => &["recurr", "revenue", "month", "subscript"],
+        "arr" => &["annual", "recurr", "revenue", "subscript"],
+        "ebitda" => &["earn", "profit", "operat", "margin"],
+        "arpu" => &["revenue", "user", "averag", "unit"],
+        "gmv" => &["gross", "merchandis", "volume", "transact"],
+
+        // Sales & Pipeline
+        "sales" | "sale" => &["pipeline", "revenue", "customer", "deal", "close"],
+        "pipeline" => &["funnel", "deal", "opportun", "stage", "sales"],
+        "funnel" => &["pipeline", "stage", "convers", "lead", "prospect"],
+        "lead" => &["prospect", "opportun", "potenti", "qualif"],
+        "prospect" => &["lead", "potenti", "target", "outreach"],
+        "deal" => &["opportun", "contract", "close", "sales", "pipeline"],
+        "close" | "closing" => &["deal", "win", "convers", "sign", "sales"],
+        "convers" | "conversion" => &["convert", "close", "win", "rate", "funnel"],
+        "qualif" | "qualification" => &["lead", "prospect", "fit", "criteria"],
+        "object" | "objection" => &["concern", "pushback", "resist", "handl"],
+        "upsell" => &["cross", "expand", "revenue", "grow"],
+        "churn" => &["attrit", "retent", "cancel", "leav", "turnov", "lost"],
+        "retent" | "retention" => &["churn", "loyal", "renew", "keep", "engag"],
+        "loyal" | "loyalty" => &["retent", "engag", "repeat", "brand"],
+
+        // Marketing & Growth
+        "market" | "marketing" => &["position", "campaign", "growth", "brand", "promot"],
+        "brand" => &["market", "position", "identit", "reput", "aware"],
+        "campaign" => &["market", "promot", "advertis", "outreach", "launch"],
+        "position" | "positioning" => &["messag", "narrat", "differenti", "brand"],
+        "outreach" => &["email", "campaign", "prospect", "cold", "contact"],
+        "content" => &["blog", "articl", "media", "publish", "write"],
+        "seo" => &["search", "organic", "rank", "traffic", "keyword"],
+        "gtm" => &["market", "launch", "strateg", "distribut", "channel"],
+        "growth" => &["scale", "expand", "acquir", "market", "tract"],
+        "icp" => &["ideal", "customer", "profil", "target", "persona"],
+        "persona" => &["icp", "target", "customer", "segment", "buyer"],
+
+        // Customers
+        "customer" | "customers" => &["buyer", "client", "user", "account", "patron"],
+        "client" | "clients" => &["customer", "buyer", "account", "patron"],
+        "buyer" | "buyers" => &["customer", "client", "purchas", "prospect"],
+        "user" | "users" => &["customer", "client", "member", "subscrib"],
+        "segment" => &["group", "cohort", "target", "tier", "category"],
+
+        // Pricing
+        "pricing" | "price" => &["cost", "revenue", "monetiz", "tier", "plan"],
+        "monetiz" | "monetization" => &["revenue", "pricing", "model", "income"],
+        "subscript" | "subscription" => &["recurr", "plan", "tier", "saas", "mrr"],
+        "tier" => &["plan", "pricing", "level", "package"],
+        "discount" => &["promot", "offer", "deal", "coupon", "rebat"],
+
+        // Legal & Compliance
+        "legal" => &["contract", "complianc", "risk", "regulat", "law"],
+        "contract" | "contracts" => &["legal", "agreement", "complianc", "term", "sign"],
+        "complianc" | "compliance" => &["legal", "regulat", "audit", "risk", "policy"],
+        "regulat" | "regulation" => &["complianc", "legal", "law", "rule", "policy"],
+        "ip" => &["intellectu", "property", "patent", "trademark", "copyright"],
+        "patent" => &["ip", "intellectu", "invent", "protect"],
+        "trademark" => &["ip", "brand", "register", "protect"],
+        "gdpr" => &["privacy", "data", "protect", "complianc", "consent"],
+        "privacy" => &["gdpr", "data", "protect", "consent", "policy"],
+        "nda" => &["confidenti", "agreement", "disclos", "secret"],
+        "tos" => &["term", "servic", "agreement", "policy", "legal"],
+        "soc2" => &["security", "complianc", "audit", "control"],
+        "liability" => &["risk", "legal", "insur", "protect"],
+
+        // Fundraising & Investors
+        "investor" | "investors" => &["fundrais", "capital", "diligenc", "vc", "angel"],
+        "fundrais" | "fundraising" => &["investor", "capital", "raise", "round", "seed"],
+        "vc" => &["ventur", "capital", "investor", "fund", "partner"],
+        "angel" => &["investor", "seed", "early", "fund"],
+        "seed" => &["angel", "early", "round", "pre", "fundrais"],
+        "series" => &["round", "fundrais", "stage", "growth"],
+        "diligenc" | "diligence" => &["investig", "review", "audit", "risk", "check"],
+        "term" | "termsheet" => &["deal", "valuat", "dilut", "prefer", "negoti"],
+        "dilut" | "dilution" => &["equity", "share", "own", "round", "cap"],
+        "pitch" => &["deck", "present", "narrat", "investor", "demo"],
+        "deck" => &["pitch", "present", "slide", "investor"],
+        "tract" | "traction" => &["growth", "metric", "progress", "momentum"],
+
+        // Team & HR
+        "hire" | "hiring" => &["recruit", "talent", "headcount", "onboard", "staff"],
+        "recruit" | "recruiting" => &["hire", "talent", "sourc", "candid"],
+        "talent" => &["hire", "recruit", "team", "skill", "peopl"],
+        "terminat" | "fire" => &["layoff", "offboard", "separat", "exit"],
+        "layoff" => &["terminat", "restructur", "downsize", "reduc"],
+        "equity" => &["stock", "option", "vest", "share", "cap", "esop"],
+        "vest" | "vesting" => &["equity", "stock", "option", "cliff", "schedul"],
+        "esop" => &["equity", "stock", "option", "employe", "plan"],
+        "culture" => &["valu", "team", "environ", "morale", "mission"],
+        "compensat" | "compensation" => &["salary", "pay", "benefit", "bonus", "equity"],
+        "salary" => &["compensat", "pay", "wage", "income"],
+        "onboard" | "onboarding" => &["hire", "train", "orient", "ramp"],
+
+        // Operations & Process
+        "operations" | "operat" => &["process", "workflow", "sop", "efficien"],
+        "process" => &["workflow", "operat", "sop", "procedur", "system"],
+        "workflow" => &["process", "operat", "automat", "sop", "pipeline"],
+        "sop" => &["procedur", "process", "standard", "protocol", "guidelin"],
+        "automat" | "automation" => &["workflow", "efficien", "tool", "system"],
+        "efficien" | "efficiency" => &["product", "optimiz", "streamlin", "perform"],
+        "strateg" | "strategy" => &["plan", "approach", "roadmap", "vision", "tactic"],
+        "plan" => &["strateg", "roadmap", "action", "objectiv", "goal"],
+        "goal" => &["objectiv", "target", "kpi", "mileston", "aim"],
+        "risk" => &["threat", "vulnerab", "mitigat", "exposur", "liabil"],
+
+        // Product & Engineering
+        "product" => &["feature", "roadmap", "build", "ship", "release"],
+        "feature" => &["product", "function", "capabil", "releas"],
+        "mvp" => &["prototyp", "minimum", "viabl", "beta", "v1"],
+        "roadmap" => &["plan", "timeline", "mileston", "backlog", "priorit"],
+        "backlog" => &["roadmap", "priorit", "ticket", "task", "sprint"],
+        "technic" | "technical" => &["engineer", "architectur", "infrastructur", "stack"],
+        "scalab" | "scalability" => &["scale", "growth", "capac", "perform", "load"],
+        "infra" | "infrastructure" => &["system", "architectur", "platform", "devop"],
+        "api" => &["integrat", "endpoint", "interfac", "connect"],
+        "integrat" | "integration" => &["api", "connect", "sync", "third", "partner"],
+        "saas" => &["software", "subscript", "cloud", "platform", "recurr"],
+        "platform" => &["product", "system", "saas", "infra", "ecosyst"],
+        "deploy" => &["releas", "ship", "launch", "rollout", "publish"],
+
+        // Competition & Market
+        "competitor" | "competitors" => &["rival", "alternativ", "market", "landscap"],
+        "alternativ" | "alternative" | "alternatives" => &["competitor", "option", "substitut", "rival"],
+        "differenti" | "differentiation" => &["competit", "advantage", "unique", "moat"],
+        "moat" => &["differenti", "advantage", "barrier", "defend"],
+        "landscap" | "landscape" => &["market", "competitor", "industry", "sector"],
+        "trend" => &["market", "shift", "emerg", "pattern", "direct"],
+
+        // Board & Governance
+        "board" => &["director", "governance", "advisor", "meet", "vote"],
+        "advisor" => &["board", "mentor", "consult", "guid", "expert"],
+        "governance" => &["board", "policy", "oversigh", "control", "complianc"],
+        "stakeholder" => &["investor", "board", "partner", "interest"],
+
+        // Partnerships & Distribution
+        "partner" | "partnership" => &["collabor", "allianc", "channel", "joint", "integrat"],
+        "channel" => &["distribut", "partner", "sales", "gtm", "direct"],
+        "distribut" | "distribution" => &["channel", "reach", "market", "partner"],
+        "vendor" => &["supplier", "partner", "provid", "third"],
+
         _ => &[],
     }
 }
@@ -326,7 +521,7 @@ mod tests {
                 id: "chunk".to_string(),
                 document_id: "doc".to_string(),
                 content: "Monthly burn and runway planning".to_string(),
-                vector: embed_text("Monthly burn and runway planning"),
+                vector: embed_text_local("Monthly burn and runway planning"),
                 created_at: Utc::now().to_rfc3339(),
             }],
             created_at: Utc::now().to_rfc3339(),
