@@ -5,7 +5,7 @@ pub const DEFAULT_CLOUD_URL: &str = match option_env!("COOP_CLOUD_URL") {
     None => "https://co-op-80fi.onrender.com",
 };
 pub const DEFAULT_OLLAMA_URL: &str = "http://localhost:11434";
-pub const REQUEST_TIMEOUT_SECS: u64 = 30;
+pub const REQUEST_TIMEOUT_SECS: u64 = 180;
 pub const MIN_RUN_TOKENS: u32 = 256;
 pub const MAX_RUN_TOKENS: u32 = 64000;
 pub const MAX_MODEL_NAME_LENGTH: usize = 128;

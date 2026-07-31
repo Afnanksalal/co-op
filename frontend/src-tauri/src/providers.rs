@@ -144,21 +144,45 @@ pub async fn call_ollama(
 
     let ollama_base_url =
         sanitize_http_base_url(&settings.ollama_base_url, true, false, "Ollama URL")?;
-    let response = http_client()?
-        .post(format!("{}/api/chat", ollama_base_url))
-        .json(&request)
-        .send()
-        .await
-        .map_err(|error| format!("Ollama request failed: {error}"))?;
+        
+    let mut attempt = 0;
+    const MAX_ATTEMPTS: u8 = 3;
 
-    let response = ensure_success(response, "Ollama").await?;
+    loop {
+        attempt += 1;
+        
+        let result = http_client()?
+            .post(format!("{}/api/chat", ollama_base_url))
+            .json(&request)
+            .send()
+            .await;
 
-    let body = response
-        .json::<OllamaChatResponse>()
-        .await
-        .map_err(|error| format!("Ollama response was not valid JSON: {error}"))?;
-
-    Ok(body.message.content)
+        match result {
+            Ok(response) => {
+                match ensure_success(response, "Ollama").await {
+                    Ok(success_res) => {
+                        let body = success_res
+                            .json::<OllamaChatResponse>()
+                            .await
+                            .map_err(|error| format!("Ollama response was not valid JSON: {error}"))?;
+                        return Ok(body.message.content);
+                    }
+                    Err(e) => {
+                        if attempt >= MAX_ATTEMPTS {
+                            return Err(e);
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                if attempt >= MAX_ATTEMPTS {
+                    return Err(format!("Ollama request failed: {e}"));
+                }
+            }
+        }
+        
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    }
 }
 
 pub async fn call_openai_compatible(
@@ -419,9 +443,13 @@ fn parse_firecrawl_sources(payload: Value) -> Vec<ResearchSource> {
             let description =
                 string_field(&item, &["description", "snippet", "metadata.description"])
                     .unwrap_or_default();
-            let content = string_field(&item, &["markdown", "content", "text", "summary"])
+            
+            let raw_content = string_field(&item, &["content", "text", "summary", "markdown"])
                 .unwrap_or_else(|| description.clone());
-            if url.is_empty() && content.is_empty() {
+                
+            let content = clean_markdown(&raw_content);
+            
+            if url.is_empty() && content.trim().is_empty() {
                 return None;
             }
             Some(ResearchSource {
@@ -432,6 +460,23 @@ fn parse_firecrawl_sources(payload: Value) -> Vec<ResearchSource> {
             })
         })
         .collect()
+}
+
+fn clean_markdown(input: &str) -> String {
+    use std::sync::OnceLock;
+    static RE_IMAGES: OnceLock<regex::Regex> = OnceLock::new();
+    static RE_LINKS: OnceLock<regex::Regex> = OnceLock::new();
+    static RE_FORMATTING: OnceLock<regex::Regex> = OnceLock::new();
+
+    let re_images = RE_IMAGES.get_or_init(|| regex::Regex::new(r"!\[[^\]]*\]\([^)]+\)").unwrap());
+    let re_links = RE_LINKS.get_or_init(|| regex::Regex::new(r"\[([^\]]+)\]\([^)]+\)").unwrap());
+    let re_formatting = RE_FORMATTING.get_or_init(|| regex::Regex::new(r"(\*\*\*+|---+|===+|###+)").unwrap());
+
+    let no_images = re_images.replace_all(input, "");
+    let no_links = re_links.replace_all(&no_images, "$1");
+    let no_formatting = re_formatting.replace_all(&no_links, "");
+    
+    no_formatting.to_string()
 }
 
 fn firecrawl_result_items(payload: &Value) -> Vec<Value> {
@@ -647,5 +692,23 @@ mod tests {
         assert_eq!(sources.len(), 1);
         assert_eq!(sources[0].title, "Legacy title");
         assert_eq!(sources[0].url, "https://legacy.example.com");
+    }
+
+    #[test]
+    fn strips_markdown_noise_from_firecrawl_results() {
+        let input = "---
+### Header
+[Contact Us](https://example.com)
+![Logo](https://example.com/logo.png)
+Useful text
+---";
+        let cleaned = super::clean_markdown(input);
+        
+        assert!(!cleaned.contains("Contact Us](https://example.com)"));
+        assert!(cleaned.contains("Contact Us"));
+        assert!(!cleaned.contains("![Logo]"));
+        assert!(!cleaned.contains("---"));
+        assert!(!cleaned.contains("###"));
+        assert!(cleaned.contains("Useful text"));
     }
 }

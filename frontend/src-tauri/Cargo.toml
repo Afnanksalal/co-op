@@ -34,3 +34,5 @@ quick-xml = "0.39"
 zip = { version = "4.2", default-features = false, features = ["deflate"] }
 rusqlite = { version = "0.32.1", features = ["bundled"] }
 futures = "0.3.33"
+regex = "1.13.1"
+tokio = { version = "1.53.1", features = ["time"] }
