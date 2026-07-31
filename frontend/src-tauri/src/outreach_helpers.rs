@@ -42,22 +42,22 @@ pub(crate) fn parse_generated_leads(output: &str, lead_type: &str, max: usize) -
         .lines()
         .filter_map(|line| {
             let parts: Vec<&str> = line.split('|').map(str::trim).collect();
-            if parts.len() < 10 {
+            if parts.len() < 9 {
                 return None;
             }
-            let score = parts[9].parse::<u8>().unwrap_or(50).min(100);
+            let score = parts[8].parse::<u8>().unwrap_or(50).min(100);
             let lead = Lead {
                 id: Uuid::new_v4().to_string(),
                 lead_type: lead_type.to_string(),
                 name: parts[0].to_string(),
                 company_name: parts[1].to_string(),
-                email: parts[2].to_string(),
-                website: parts[3].to_string(),
-                profile_url: parts[4].to_string(),
-                platform: parts[5].to_string(),
-                niche: parts[6].to_string(),
-                location: parts[7].to_string(),
-                description: parts[8].to_string(),
+                email: String::new(),
+                website: parts[2].to_string(),
+                profile_url: parts[3].to_string(),
+                platform: parts[4].to_string(),
+                niche: parts[5].to_string(),
+                location: parts[6].to_string(),
+                description: parts[7].to_string(),
                 lead_score: score,
                 status: "new".to_string(),
                 source: "web discovery".to_string(),
@@ -321,7 +321,7 @@ mod tests {
 
     #[test]
     fn generated_leads_without_identity_are_rejected() {
-        let output = " | | | | | web | finance | | interesting but anonymous | 70";
+        let output = " | | | | web | finance | | interesting but anonymous | 70";
 
         assert!(parse_generated_leads(output, "company", 5).is_empty());
     }

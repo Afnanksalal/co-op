@@ -33,3 +33,4 @@ pdf-extract = "0.10"
 quick-xml = "0.39"
 zip = { version = "4.2", default-features = false, features = ["deflate"] }
 rusqlite = { version = "0.32.1", features = ["bundled"] }
+futures = "0.3.33"

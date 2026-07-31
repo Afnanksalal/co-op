@@ -337,22 +337,70 @@ fn emit_chat_progress(
 
 fn agent_prompt(agent_type: &str) -> String {
     match agent_type {
-    "legal" => "You are Co-Op Legal. Give business-friendly legal operations guidance, mark attorney-review items, and avoid pretending to be counsel.",
-    "finance" => "You are Co-Op Finance. Focus on runway, unit economics, forecasting, cash controls, and investor-grade assumptions.",
-    "investor" => "You are Co-Op Investor. Focus on fundraising strategy, investor fit, narratives, diligence, and term risks.",
-    "competitor" => "You are Co-Op Market. Use live web evidence for competitors and alternatives. Separate direct competitors, indirect alternatives, and irrelevant companies.",
-    "sales" => "You are Co-Op Sales. Focus on ICP, outreach, pipeline, objections, qualification, and conversion.",
-    _ => "You are Co-Op Operations. Turn ambiguous business work into clear decisions, tasks, risks, and owners.",
+    "legal" => "\
+You are Co-Op Legal, the owner's business-legal operations advisor. \
+Give practical, business-friendly guidance on contracts, compliance, IP, employment, and regulatory questions. \
+You are not a licensed attorney — clearly flag items that require attorney review with [ATTORNEY REVIEW]. \
+Structure your answer with: Quick Answer, Legal Considerations, Attorney-Review Items, Risks, and Recommended Actions. \
+For short questions, use only the sections that apply.",
+
+    "finance" => "\
+You are Co-Op Finance, the owner's financial operations advisor. \
+Focus on runway, burn rate, unit economics, forecasting, cash controls, and investor-grade assumptions. \
+Show your math when numbers are involved. Separate confirmed metrics from estimates. \
+Structure your answer with: Quick Answer, Numbers and Assumptions, Cash Impact, Risks, and Next Step. \
+For short questions, use only the sections that apply.",
+
+    "investor" => "\
+You are Co-Op Investor, the owner's fundraising strategy advisor. \
+Focus on fundraising readiness, investor fit, narrative construction, diligence preparation, and term sheet risks. \
+Separate what the company can prove today from what still needs evidence. \
+Structure your answer with: Quick Answer, Investor Fit, Narrative Gaps, Diligence Risks, and Recommended Actions. \
+For short questions, use only the sections that apply.",
+
+    "competitor" => "\
+You are Co-Op Market, the owner's competitive intelligence advisor. \
+Use attached web evidence to identify and classify competitors. For each named company, state whether it is a direct competitor, indirect alternative, or not a real competitor, and explain why in one sentence. \
+Do not list companies without evidence from the attached sources. \
+Structure your answer with: Quick Answer, Direct Competitors, Indirect Alternatives, Positioning Gaps, and Next Step. \
+For short questions, use only the sections that apply.",
+
+    "sales" => "\
+You are Co-Op Sales, the owner's sales and pipeline advisor. \
+Focus on ideal customer profile, outreach strategy, pipeline health, objection handling, qualification criteria, and conversion tactics. \
+Ground advice in the company's actual stage, product, and target market. \
+Structure your answer with: Quick Answer, ICP Fit, Pipeline Assessment, Objections and Responses, and Recommended Actions. \
+For short questions, use only the sections that apply.",
+
+    _ => "\
+You are Co-Op Operations, the owner's general business advisor. \
+Turn ambiguous business questions into clear decisions, tasks, and owners. \
+When multiple paths exist, compare tradeoffs and recommend one. \
+Structure your answer with: Quick Answer, Key Decisions, Tasks and Owners, Risks, and Next Step. \
+For short questions, use only the sections that apply.",
   }
   .to_string()
 }
 
 fn append_review_section(answer: String, heading: &str, addition: String) -> String {
     let trimmed = addition.trim();
-    if trimmed.is_empty()
-        || trimmed.eq_ignore_ascii_case("no material additions")
-        || trimmed.eq_ignore_ascii_case("no material additions.")
-    {
+    let lower = trimmed.to_lowercase();
+    
+    let is_empty_review = trimmed.is_empty()
+        || lower.contains("no material additions")
+        || lower.contains("nothing to add")
+        || lower.contains("no additions")
+        || lower.contains("the answer is comprehensive")
+        || lower.contains("no further additions")
+        || lower.contains("no additional notes")
+        || lower.contains("no missing facts")
+        || lower.contains("no modifications")
+        || lower.contains("no changes needed")
+        || (lower.len() < 25 && (
+            lower.contains("looks good") || lower.contains("looks great") || lower.contains("looks fine")
+        ));
+
+    if is_empty_review {
         return answer;
     }
 
@@ -375,6 +423,30 @@ mod tests {
         );
         assert_eq!(
             append_review_section("Answer".to_string(), "Review notes", "  ".to_string()),
+            "Answer"
+        );
+        assert_eq!(
+            append_review_section(
+                "Answer".to_string(),
+                "Review notes",
+                "I have nothing to add at this time.".to_string()
+            ),
+            "Answer"
+        );
+        assert_eq!(
+            append_review_section(
+                "Answer".to_string(),
+                "Review notes",
+                "Looks good!".to_string()
+            ),
+            "Answer"
+        );
+        assert_eq!(
+            append_review_section(
+                "Answer".to_string(),
+                "Review notes",
+                "The answer is comprehensive and covers all points.".to_string()
+            ),
             "Answer"
         );
     }

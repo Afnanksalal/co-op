@@ -372,8 +372,7 @@ fn leaks_guardrail_internals(normalized: &str) -> bool {
 
 fn normalize(value: &str) -> String {
     let no_homoglyphs = value
-        .replace('ρ', "p") // Greek rho
-        .replace('р', "p") // Cyrillic er
+        .replace(['ρ', 'р'], "p") // Greek rho, Cyrillic er
         .replace('о', "o") // Cyrillic o
         .replace('а', "a") // Cyrillic a
         .replace('е', "e") // Cyrillic e
