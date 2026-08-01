@@ -15,7 +15,7 @@ use crate::storage::{load_or_create_state, require_usable_activation, save_state
 use crate::types::{DocumentRequest, ModelSettings, ResearchRequest, ResearchRun, StartupProfile};
 use crate::validation::{validate_read_only, validate_objective};
 
-pub(crate) use crate::research_sources::requires_live_web_research;
+
 
 #[tauri::command]
 pub async fn run_research_query(

@@ -8,7 +8,7 @@ use crate::guardrails::{guardrail_policy_prompt, validate_business_input, valida
 use crate::memory::{memory_context_from_store, remember_business_event};
 use crate::providers::call_model;
 use crate::knowledge_store::document_context_for_app;
-use crate::research::{requires_live_web_research, research_context_for_business};
+use crate::research::research_context_for_business;
 use crate::storage::{load_or_create_state, require_usable_activation, save_state};
 use crate::types::{WorkflowRequest, WorkflowRun, WorkflowTraceEvent};
 use crate::validation::{validate_read_only, validate_workflow_request};
@@ -76,8 +76,13 @@ pub async fn run_business_workflow(
         &routing_detail,
     );
 
-    let web_required = guardrail_decision.web_required
-        || requires_live_web_research(&run.workflow_type, &run.objective);
+    let web_required = match guardrail_decision.web_intent {
+        crate::guardrails::WebIntent::Yes => true,
+        crate::guardrails::WebIntent::No => false,
+        crate::guardrails::WebIntent::Uncertain => {
+            crate::guardrails::resolve_web_intent(&model_settings, &run.objective).await
+        }
+    };
     let mut source_context_attached = false;
 
     if web_required {

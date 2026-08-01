@@ -561,6 +561,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-log",
  "tokio",
+ "unicode-normalization",
  "uuid",
  "zip",
 ]

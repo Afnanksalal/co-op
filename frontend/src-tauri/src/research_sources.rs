@@ -152,43 +152,7 @@ pub(crate) fn filter_business_sources(
         .collect()
 }
 
-pub fn requires_live_web_research(area: &str, objective: &str) -> bool {
-    let area = area.trim().to_lowercase();
-    if matches!(area.as_str(), "competitor" | "legal" | "investor") {
-        return true;
-    }
 
-    let objective = objective.to_lowercase();
-    let web_terms = [
-        "competitor",
-        "competitors",
-        "alternative",
-        "alternatives",
-        "market",
-        "trend",
-        "pricing",
-        "price",
-        "legal",
-        "law",
-        "regulation",
-        "compliance",
-        "contract",
-        "investor",
-        "funding",
-        "customer segment",
-        "lead",
-        "prospect",
-        "outreach angle",
-        "who are",
-        "find",
-        "current",
-        "latest",
-        "recent",
-        "today",
-    ];
-
-    web_terms.iter().any(|term| objective.contains(term))
-}
 
 fn competitor_search_queries(profile: &StartupProfile, owner_query: &str) -> Vec<String> {
     let business_context = compact_context(&[
@@ -472,22 +436,7 @@ mod tests {
         assert!(queries.iter().any(|query| query.contains("government")));
     }
 
-    #[test]
-    fn live_web_research_is_required_for_external_fact_work() {
-        assert!(requires_live_web_research(
-            "competitor",
-            "who are my competitors"
-        ));
-        assert!(requires_live_web_research(
-            "legal",
-            "review privacy compliance"
-        ));
-        assert!(requires_live_web_research("operations", "find competitors"));
-        assert!(!requires_live_web_research(
-            "operations",
-            "summarize my saved notes"
-        ));
-    }
+
 
     #[test]
     fn competitor_sources_must_match_business_context() {

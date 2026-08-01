@@ -8,7 +8,7 @@ use crate::guardrails::{guardrail_policy_prompt, validate_business_input, valida
 use crate::memory::{memory_context_from_store, remember_business_event};
 use crate::providers::call_model;
 use crate::knowledge_store::document_context_for_app;
-use crate::research::{requires_live_web_research, research_context_for_business};
+use crate::research::research_context_for_business;
 use crate::storage::{load_or_create_state, require_usable_activation, save_state, to_response};
 use crate::types::{ChatMessageRecord, ChatRequest, ChatSession, DesktopStateResponse};
 use crate::validation::{validate_chat_request, validate_read_only};
@@ -156,8 +156,13 @@ pub async fn run_agent_chat(
         remaining_chars = remaining_chars.saturating_sub(truncated_local.chars().count());
     }
 
-    let web_required = guardrail_decision.web_required
-        || requires_live_web_research(&request.agent_type, &request.message);
+    let web_required = match guardrail_decision.web_intent {
+        crate::guardrails::WebIntent::Yes => true,
+        crate::guardrails::WebIntent::No => false,
+        crate::guardrails::WebIntent::Uncertain => {
+            crate::guardrails::resolve_web_intent(&settings, &request.message).await
+        }
+    };
     let use_web = request.research_enabled || web_required;
     let mut source_context_attached = false;
     
