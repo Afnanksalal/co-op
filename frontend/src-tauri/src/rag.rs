@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::constants::LOCAL_FALLBACK_DIMENSIONS;
 use crate::knowledge_store::{
-    document_context_for_app, list_document_summaries, search_store, store_document,
+    list_document_summaries, search_store, store_document,
     to_document_summary,
 };
 use crate::providers::call_embedding;
@@ -191,7 +191,7 @@ pub(crate) fn tokenize(content: &str) -> Vec<String> {
         .to_lowercase()
         .split(|char: char| !char.is_ascii_alphanumeric())
         .filter(|token| token.len() > 2 && !is_stop_word(token))
-        .map(|t| stem(t))
+        .map(stem)
         .collect();
 
     let mut tokens = Vec::with_capacity(base_tokens.len() * 3);

@@ -304,7 +304,8 @@ fn extract_pptx_text(bytes: &[u8]) -> Result<ExtractedDeckText, String> {
             .by_name(&name)
             .map_err(|error| format!("Failed to read PPTX slide: {error}"))?;
         let mut xml = String::new();
-        file.read_to_string(&mut xml)
+        std::io::Read::take(&mut file, 50_000_000)
+            .read_to_string(&mut xml)
             .map_err(|error| format!("Failed to decode PPTX slide XML: {error}"))?;
         let slide_text = extract_text_from_slide_xml(&xml);
         if !slide_text.trim().is_empty() {
