@@ -1,4 +1,4 @@
-use std::sync::LazyLock;
+use std::sync::OnceLock;
 use regex::RegexSet;
 use unicode_normalization::UnicodeNormalization;
 
@@ -183,109 +183,104 @@ pub fn classify_web_intent(area: &str, normalized: &str) -> WebIntent {
     }
 }
 
-pub async fn resolve_web_intent(
-    settings: &crate::types::ModelSettings,
-    user_message: &str,
-) -> bool {
-    let result = crate::providers::call_model(
-        settings,
-        "You are a classifier. Does this business question require CURRENT information from the internet (competitor data, market trends, regulations, funding, pricing benchmarks)? Answer only YES or NO. No explanation.",
-        user_message,
-        Some(0.0),
-    ).await;
-
-    match result {
-        Ok(response) => parse_yes_no(&response),
-        Err(e) => {
-            log::warn!("guardrail/web_intent_model: failed, defaulting to NO: {e}");
-            false
-        }
-    }
-}
-
 fn parse_yes_no(response: &str) -> bool {
     let trimmed = response.trim().to_lowercase();
     let first_word = trimmed.split_whitespace().next().unwrap_or("");
     matches!(first_word, "yes" | "yes." | "yes," | "y" | "true")
 }
 
-static PROMPT_ATTACK: LazyLock<RegexSet> = LazyLock::new(|| {
-    RegexSet::new(&[
-        r"ignore\s+(all\s+)?(previous|prior|above|earlier)\s+(instructions|rules|prompts|directives)",
-        r"\b(developer|debug|god|admin|sudo|maintenance)\s+mode\b",
-        r"\bjailbreak\b",
-        r"bypass\s+(guardrails?|safety|filter|rules?|restrictions?|protections?)",
-        r"\bact\s+as\s+(dan|dude|evil|unrestricted|unfiltered)\b",
-        r"(system|hidden|internal|secret)\s+prompt",
-        r"(reveal|print|show|repeat|output|display)\s+(your|the|my)\s+(instructions|prompt|rules)",
-        r"(pretend|imagine|roleplay)\s+.*\b(no\s+rules|unrestricted|without\s+limits)\b",
-        r"(forget|disregard|override)\s+(your|all|the)\s+(rules|instructions|training|guidelines)",
-        r"you\s+are\s+now\s+(free|unrestricted|unfiltered|liberated)",
-    ]).expect("prompt attack patterns must compile")
-});
+static PROMPT_ATTACK: OnceLock<RegexSet> = OnceLock::new();
 
 fn looks_like_prompt_attack(normalized: &str) -> bool {
-    PROMPT_ATTACK.is_match(normalized)
+    PROMPT_ATTACK
+        .get_or_init(|| {
+            RegexSet::new([
+                r"ignore\s+(all\s+)?(previous|prior|above|earlier)\s+(instructions|rules|prompts|directives)",
+                r"\b(developer|debug|god|admin|sudo|maintenance)\s+mode\b",
+                r"\bjailbreak\b",
+                r"bypass\s+(guardrails?|safety|filter|rules?|restrictions?|protections?)",
+                r"\bact\s+as\s+(dan|dude|evil|unrestricted|unfiltered)\b",
+                r"(system|hidden|internal|secret)\s+prompt",
+                r"(reveal|print|show|repeat|output|display)\s+(your|the|my)\s+(instructions|prompt|rules)",
+                r"(pretend|imagine|roleplay)\s+.*\b(no\s+rules|unrestricted|without\s+limits)\b",
+                r"(forget|disregard|override)\s+(your|all|the)\s+(rules|instructions|training|guidelines)",
+                r"you\s+are\s+now\s+(free|unrestricted|unfiltered|liberated)",
+            ])
+            .expect("prompt attack patterns must compile")
+        })
+        .is_match(normalized)
 }
 
-static CODE_EXEC_REQUEST: LazyLock<RegexSet> = LazyLock::new(|| {
-    RegexSet::new(&[
-        r"\b(run|execute|write|create|build)\s+(a\s+)?(script|code|program|command)\b",
-        r"\b(shell\s+script|powershell|cmd\.exe|terminal\s+command|bash\s+command)\b",
-        r"\b(npm\s+install|cargo\s+run|python\s+script)\b",
-        r"\beval\s*\(",
-        r"\b(drop\s+table|delete\s+database)\b",
-        r"\b(reverse\s*shell|malware|exploit|credential\s*dump)\b",
-    ]).expect("code exec patterns must compile")
-});
+static CODE_EXEC_REQUEST: OnceLock<RegexSet> = OnceLock::new();
 
 fn asks_for_code_execution(normalized: &str) -> bool {
-    CODE_EXEC_REQUEST.is_match(normalized)
+    CODE_EXEC_REQUEST
+        .get_or_init(|| {
+            RegexSet::new([
+                r"\b(run|execute|write|create|build)\s+(a\s+)?(script|code|program|command)\b",
+                r"\b(shell\s+script|powershell|cmd\.exe|terminal\s+command|bash\s+command)\b",
+                r"\b(npm\s+install|cargo\s+run|python\s+script)\b",
+                r"\beval\s*\(",
+                r"\b(drop\s+table|delete\s+database)\b",
+                r"\b(reverse\s*shell|malware|exploit|credential\s*dump)\b",
+            ])
+            .expect("code exec patterns must compile")
+        })
+        .is_match(normalized)
 }
 
-static SECRET_DISCLOSURE: LazyLock<RegexSet> = LazyLock::new(|| {
-    RegexSet::new(&[
-        r"(show|reveal|print|dump|export|display|give|tell)\s+.{0,50}(api\s*key|secret\s*key|activation\s*token|license\s*token|env\s*var|environment\s*variable)",
-        r"(what\s+(is|are)\s+(your|the))\s+.{0,30}(api\s*key|secret|token|password|credentials?)",
-        r"(show|reveal|print|dump|export|display|give|repeat)\s+.{0,50}(system\s*prompt|hidden\s*prompt|internal\s*prompt)",
-    ]).expect("secret disclosure patterns must compile")
-});
+static SECRET_DISCLOSURE: OnceLock<RegexSet> = OnceLock::new();
 
 fn asks_for_secret_disclosure(normalized: &str) -> bool {
-    SECRET_DISCLOSURE.is_match(normalized)
+    SECRET_DISCLOSURE
+        .get_or_init(|| {
+            RegexSet::new([
+                r"(show|reveal|print|dump|export|display|give|tell)\s+.{0,50}(api\s*key|secret\s*key|activation\s*token|license\s*token|env\s*var|environment\s*variable)",
+                r"(what\s+(is|are)\s+(your|the))\s+.{0,30}(api\s*key|secret|token|password|credentials?)",
+                r"(show|reveal|print|dump|export|display|give|repeat)\s+.{0,50}(system\s*prompt|hidden\s*prompt|internal\s*prompt)",
+            ])
+            .expect("secret disclosure patterns must compile")
+        })
+        .is_match(normalized)
 }
 
-static EXEC_INSTRUCTION: LazyLock<RegexSet> = LazyLock::new(|| {
-    RegexSet::new(&[
-        r"(open|launch|start|fire\s*up|boot)\s+(a\s+)?(terminal|powershell|cmd|shell|console|command\s*prompt)",
-        r"(run|execute|paste|enter|type)\s+(this|the\s+following|these|it)\s+(in|into|at|on)",
-        r"\b(pip|npm|yarn|pnpm|brew|apt|apt-get|yum|dnf|pacman|cargo|gem|go\s+get)\s+install\b",
-        r"\b(sudo\s|chmod\s+\+x|rm\s+-rf|curl\s+-|wget\s+|docker\s+(run|exec))\b",
-        r"\b(cargo\s+(run|build)|npm\s+run|python3?\s+-|python\.exe|node\s+-e)\b",
-        r"\b(drop\s+table|delete\s+from|truncate\s+table)\b",
-        r"\b(reverse\s*shell|credential\s*dump|malware|exploit\s*(code|kit)|payload|backdoor|rootkit)\b",
-        r"\b(powershell|cmd\.exe|bash\s+-c)\b",
-    ]).expect("exec instruction patterns must compile")
-});
+static EXEC_INSTRUCTION: OnceLock<RegexSet> = OnceLock::new();
 
 fn contains_executable_instruction(normalized: &str) -> bool {
-    EXEC_INSTRUCTION.is_match(normalized)
+    EXEC_INSTRUCTION
+        .get_or_init(|| {
+            RegexSet::new([
+                r"(open|launch|start|fire\s*up|boot)\s+(a\s+)?(terminal|powershell|cmd|shell|console|command\s*prompt)",
+                r"(run|execute|paste|enter|type)\s+(this|the\s+following|these|it)\s+(in|into|at|on)",
+                r"\b(pip|npm|yarn|pnpm|brew|apt|apt-get|yum|dnf|pacman|cargo|gem|go\s+get)\s+install\b",
+                r"\b(sudo\s|chmod\s+\+x|rm\s+-rf|curl\s+-|wget\s+|docker\s+(run|exec))\b",
+                r"\b(cargo\s+(run|build)|npm\s+run|python3?\s+-|python\.exe|node\s+-e)\b",
+                r"\b(drop\s+table|delete\s+from|truncate\s+table)\b",
+                r"\b(reverse\s*shell|credential\s*dump|malware|exploit\s*(code|kit)|payload|backdoor|rootkit)\b",
+                r"\b(powershell|cmd\.exe|bash\s+-c)\b",
+            ])
+            .expect("exec instruction patterns must compile")
+        })
+        .is_match(normalized)
 }
 
-static LEAK_INTERNALS: LazyLock<RegexSet> = LazyLock::new(|| {
-    RegexSet::new(&[
-        r"(my|the|these|our)\s+(system|hidden|internal|confidential|secret)\s+(prompt|instruction|rule|guideline)",
-        r"i\s+(was|am)\s+(told|instructed|programmed|designed|built|configured)\s+to",
-        r"guardrails?\s+for\b",
-        r"safety\s+rules?\s+say",
-        r"(reveal|show|print|dump|repeat|echo)\s+(your|my|the)\s+(instructions|prompt|rules|guidelines)",
-        r"system\s+prompt\s+(says|is|reads|contains|states)",
-        r"(my|the)\s+(guidelines?|rules?|instructions?)\s+(say|are|state|read|include)",
-    ]).expect("leak patterns must compile")
-});
+static LEAK_INTERNALS: OnceLock<RegexSet> = OnceLock::new();
 
 fn leaks_guardrail_internals(normalized: &str) -> bool {
-    LEAK_INTERNALS.is_match(normalized)
+    LEAK_INTERNALS
+        .get_or_init(|| {
+            RegexSet::new([
+                r"(my|the|these|our)\s+(system|hidden|internal|confidential|secret)\s+(prompt|instruction|rule|guideline)",
+                r"i\s+(was|am)\s+(told|instructed|programmed|designed|built|configured)\s+to",
+                r"guardrails?\s+for\b",
+                r"safety\s+rules?\s+say",
+                r"(reveal|show|print|dump|repeat|echo)\s+(your|my|the)\s+(instructions|prompt|rules|guidelines)",
+                r"system\s+prompt\s+(says|is|reads|contains|states)",
+                r"(my|the)\s+(guidelines?|rules?|instructions?)\s+(say|are|state|read|include)",
+            ])
+            .expect("leak patterns must compile")
+        })
+        .is_match(normalized)
 }
 
 fn extract_code_blocks(text: &str) -> Vec<(String, String)> {
@@ -387,9 +382,10 @@ pub async fn resolve_off_topic(
 ) -> bool {
     let result = crate::providers::call_model(
         settings,
-        "You are a classifier. Is this message a business operations question \
-         (e.g., company planning, sales, finance, legal, marketing, hiring, product, \
-         customers, strategy, research)? Answer only YES or NO. No explanation.",
+        "You are a classifier for a business operating system assistant. Is this message a business operations question \
+         (e.g., company planning, sales, finance, legal, marketing, hiring, product, customers, strategy, research) \
+         OR a conversational inquiry/summary regarding the ongoing chat session (e.g. \"what did I ask\", \"summarize our chat\", \"what was my first question\")? \
+         Answer only YES or NO. No explanation.",
         user_message,
         Some(0.0),
     ).await;
@@ -397,7 +393,7 @@ pub async fn resolve_off_topic(
     match result {
         Ok(response) => {
             let answer = response.trim().to_lowercase();
-            // If it's NOT a business question, it IS off-topic
+            // If it's NOT a business/conversation question, it IS off-topic
             !answer.contains("yes")
         },
         Err(e) => {
@@ -407,7 +403,27 @@ pub async fn resolve_off_topic(
     }
 }
 
-fn message_has_business_context(normalized: &str) -> bool {
+pub async fn resolve_web_intent(
+    settings: &crate::types::ModelSettings,
+    objective: &str,
+) -> bool {
+    let result = crate::providers::call_model(
+        settings,
+        "You are an intent classifier for a business operating system. Determine if answering this request requires searching the live web for current facts (e.g. competitor pricing, latest funding rounds, market trends, recent news) or if it can be answered using general business knowledge. Reply ONLY with 'YES' if web search is strictly required, or 'NO' if internal knowledge is sufficient.",
+        objective,
+        Some(0.0),
+    ).await;
+
+    match result {
+        Ok(response) => parse_yes_no(&response),
+        Err(e) => {
+            log::warn!("guardrail/web_intent_model: failed, defaulting to NO: {e}");
+            false
+        }
+    }
+}
+
+pub fn message_has_business_context(normalized: &str) -> bool {
     [
         "business", "company", "customer", "sales", "market",
         "pricing", "revenue", "runway", "contract", "compliance",
@@ -416,6 +432,10 @@ fn message_has_business_context(normalized: &str) -> bool {
         "budget", "forecast", "quarterly", "roi", "kpi",
         "stakeholder", "vendor", "partner", "board",
         "product", "onboarding", "retention", "churn",
+        "conversation", "chat", "asked", "earlier", "previous",
+        "first thing", "first question", "summarize", "summary",
+        "what did i ask", "what have i asked", "so far", "follow up",
+        "recall", "repeat", "you said", "my question", "we discussed",
     ]
     .iter()
     .any(|term| normalized.contains(term))
@@ -872,5 +892,14 @@ mod tests {
     fn blocks_chatbot_sentience_queries() {
         let result = validate_business_input("chat", "operations", "are you alive?");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_message_has_business_context() {
+        assert!(message_has_business_context("how should we price our b2b saas product?"));
+        assert!(message_has_business_context("create a hiring plan for engineers"));
+        assert!(message_has_business_context("what is our current runway and burn rate?"));
+        assert!(!message_has_business_context("what is the weather in tokyo?"));
+        assert!(!message_has_business_context("tell me a bedtime story about dragons"));
     }
 }

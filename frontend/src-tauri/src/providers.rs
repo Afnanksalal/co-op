@@ -219,26 +219,52 @@ pub async fn call_openai_compatible(
         false,
         "OpenAI-compatible URL",
     )?;
-    let response = http_client()?
-        .post(format!("{}/chat/completions", openai_base_url))
-        .bearer_auth(api_key)
-        .json(&request)
-        .send()
-        .await
-        .map_err(|error| format!("OpenAI-compatible request failed: {error}"))?;
 
-    let response = ensure_success(response, "OpenAI-compatible provider").await?;
+    let mut attempt = 0;
+    const MAX_ATTEMPTS: u8 = 3;
 
-    let body = response
-        .json::<OpenAiChatResponse>()
-        .await
-        .map_err(|error| format!("OpenAI-compatible response was not valid JSON: {error}"))?;
+    loop {
+        attempt += 1;
 
-    body.choices
-        .first()
-        .map(|choice| choice.message.content.clone())
-        .filter(|content| !content.trim().is_empty())
-        .ok_or_else(|| "OpenAI-compatible provider returned no content".to_string())
+        let result = http_client()?
+            .post(format!("{}/chat/completions", openai_base_url))
+            .bearer_auth(api_key)
+            .json(&request)
+            .send()
+            .await;
+
+        match result {
+            Ok(response) => {
+                match ensure_success(response, "OpenAI-compatible provider").await {
+                    Ok(success_res) => {
+                        let body = success_res
+                            .json::<OpenAiChatResponse>()
+                            .await
+                            .map_err(|error| format!("OpenAI-compatible response was not valid JSON: {error}"))?;
+
+                        return body
+                            .choices
+                            .first()
+                            .map(|choice| choice.message.content.clone())
+                            .filter(|content| !content.trim().is_empty())
+                            .ok_or_else(|| "OpenAI-compatible provider returned no content".to_string());
+                    }
+                    Err(e) => {
+                        if attempt >= MAX_ATTEMPTS {
+                            return Err(e);
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                if attempt >= MAX_ATTEMPTS {
+                    return Err(format!("OpenAI-compatible request failed: {e}"));
+                }
+            }
+        }
+
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    }
 }
 
 // ── Embedding endpoints ──────────────────────────────────────────────
@@ -545,8 +571,13 @@ fn parse_firecrawl_sources(payload: Value) -> Vec<ResearchSource> {
         .filter_map(|item| {
             let title = string_field(&item, &["title", "metadata.title"])
                 .unwrap_or_else(|| "Untitled source".to_string());
-            let url = string_field(&item, &["url", "metadata.sourceURL", "metadata.url"])
+            let raw_url = string_field(&item, &["url", "metadata.sourceURL", "metadata.url"])
                 .unwrap_or_default();
+            let url = if raw_url.starts_with("http://") || raw_url.starts_with("https://") {
+                raw_url
+            } else {
+                String::new()
+            };
             let description =
                 string_field(&item, &["description", "snippet", "metadata.description"])
                     .unwrap_or_default();

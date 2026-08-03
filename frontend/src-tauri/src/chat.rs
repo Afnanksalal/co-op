@@ -3,6 +3,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
 
+use crate::constants::MAX_CHAT_SESSIONS;
 use crate::graph::graph_context;
 use crate::guardrails::{
     classify_question_type, guardrail_policy_prompt, validate_business_input, validate_model_output,
@@ -42,7 +43,9 @@ pub async fn run_agent_chat(
     require_usable_activation(&state)?;
     let settings = validate_read_only(&state.model_settings)?;
     
-    if crate::guardrails::resolve_off_topic(&settings, &request.message).await {
+    if !crate::guardrails::message_has_business_context(&request.message.to_lowercase())
+        && crate::guardrails::resolve_off_topic(&settings, &request.message).await
+    {
         return Err("Co-Op is intentionally scoped to business tasks and therefore cannot assist with personal requests or non-business topics.".to_string());
     }
 
@@ -82,6 +85,7 @@ pub async fn run_agent_chat(
                 is_pinned: false,
             },
         );
+        state.chat_sessions.truncate(MAX_CHAT_SESSIONS);
     }
 
     let index = state
@@ -103,7 +107,7 @@ pub async fn run_agent_chat(
         guardrail_policy_prompt(&request.agent_type, true, true)
     );
     
-    let initial_budget = crate::context_manager::calculate_char_budget(
+    let initial_budget = crate::context_manager::calculate_input_context_budget(
         settings.max_run_tokens,
         conservative_system_prompt.chars().count() + request.message.chars().count() + 100
     );
@@ -165,14 +169,18 @@ pub async fn run_agent_chat(
         remaining_chars = remaining_chars.saturating_sub(truncated_local.chars().count());
     }
 
-    let web_required = match guardrail_decision.web_intent {
-        crate::guardrails::WebIntent::Yes => true,
-        crate::guardrails::WebIntent::No => false,
-        crate::guardrails::WebIntent::Uncertain => {
-            crate::guardrails::resolve_web_intent(&settings, &request.message).await
-        }
-    };
     let use_web = request.research_enabled;
+    let web_required = if use_web {
+        match guardrail_decision.web_intent {
+            crate::guardrails::WebIntent::Yes => true,
+            crate::guardrails::WebIntent::No => false,
+            crate::guardrails::WebIntent::Uncertain => {
+                crate::guardrails::resolve_web_intent(&settings, &request.message).await
+            }
+        }
+    } else {
+        matches!(guardrail_decision.web_intent, crate::guardrails::WebIntent::Yes)
+    };
     let mut source_context_attached = false;
     
     if use_web {
@@ -196,6 +204,14 @@ pub async fn run_agent_chat(
             Ok(res) => res,
             Err(e) => {
                 eprintln!("Web research failed, continuing without context: {}", e);
+                emit_chat_progress(
+                    &app,
+                    &session_id,
+                    5,
+                    "sources-failed",
+                    "Web search unavailable",
+                    "Could not reach web sources; continuing with local business knowledge.",
+                );
                 String::new()
             }
         };
@@ -219,10 +235,21 @@ pub async fn run_agent_chat(
         }
     }
 
-    let history = crate::context_manager::truncate_chat_history(&state.chat_sessions[index].messages, remaining_chars);
+    let history = if state.chat_sessions[index].messages.len() > 1 {
+        let prior_messages = &state.chat_sessions[index].messages[..state.chat_sessions[index].messages.len() - 1];
+        crate::context_manager::truncate_chat_history(prior_messages, remaining_chars)
+    } else {
+        String::new()
+    };
     
+    let conversation_section = if history.trim().is_empty() {
+        String::new()
+    } else {
+        format!("\n\nPrior Conversation History:\n{}\n", history)
+    };
+
     let prompt = format!(
-        "{context}\n\nConversation:\n{history}\n\nUser: {}",
+        "{context}{conversation_section}\n\nCurrent User Request:\n{}",
         request.message
     );
     // Graceful degradation: if web sources were needed but not attached, explain that web search is disabled
@@ -322,15 +349,17 @@ pub async fn run_agent_chat(
     state.chat_sessions[index].rag_enabled = request.rag_enabled;
     state.chat_sessions[index].research_enabled = use_web;
     state.chat_sessions[index].council_mode = request.council_mode;
-    let _ = remember_business_event(
-        &app,
-        &mut state,
-        "conversation",
-        &memory_title,
-        &memory_content,
-        "ask",
-        0.72,
-    );
+    if request.rag_enabled {
+        let _ = remember_business_event(
+            &app,
+            &mut state,
+            "conversation",
+            &memory_title,
+            &memory_content,
+            "ask",
+            0.72,
+        );
+    }
     save_state(&app, &state)?;
     emit_chat_progress(
         &app,
@@ -375,12 +404,16 @@ You cannot open browsers, run scripts, or perform any system action. When a user
 Never present instructions as if you executed them. Never say \"I checked the logs\" or \"I restarted the server.\"";
 
     let grounding_rule = "\
-STRICT GROUNDING RULE: You may ONLY reference facts that appear in the attached workspace context, company files, business memory, or web sources. Specifically:
+STRICT GROUNDING & CONVERSATION RULES:
+1. Grounding: You may ONLY reference facts that appear in the attached workspace context, company files, business memory, web sources, or the Prior Conversation History. Specifically:
 - Do NOT invent hosting providers, deployment platforms, service names, or infrastructure details.
 - Do NOT invent team names, departments, or organizational structures.
 - Do NOT invent tools, dashboards, monitoring services, or third-party integrations.
 - Do NOT present inferred information as fact. If you must infer, prefix with \"Assuming...\" or \"If [condition], then...\"
-- When information is missing, say exactly what is missing instead of filling the gap.";
+- When information is missing, say exactly what is missing instead of filling the gap.
+2. Conversation Continuity: You have full access to the Prior Conversation History in this chat session.
+- When the user asks what they asked previously, asks to summarize the conversation, or asks about earlier questions or responses (e.g. \"What have I asked you so far?\", \"What was the first thing I asked in this chat?\", \"Summarize our conversation so far\"), answer accurately by referencing the exact sequence of questions and answers from the Prior Conversation History.
+- For follow-up questions, seamlessly use the context and answers established in earlier turns of the conversation.";
 
     let format_instruction = match question_type {
         QuestionType::Factual => "\
@@ -462,7 +495,8 @@ pub fn append_review_section(answer: String, heading: &str, addition: String) ->
     }
 
     // Filter out generic corporate filler that isn't grounded in company context
-    let generic_patterns = [
+    static GENERIC_FILLER: std::sync::OnceLock<Vec<regex::Regex>> = std::sync::OnceLock::new();
+    let generic_filler = GENERIC_FILLER.get_or_init(|| vec![
         regex::Regex::new(r"(?i)(collaborat\w*|coordinat\w*|involv\w*|engag\w*|consult\w*|work\w*)( with)? (the|your|our) \w+ team").unwrap(),
         regex::Regex::new(r"(?i)enterprise-wide").unwrap(),
         regex::Regex::new(r"(?i)organizational alignment").unwrap(),
@@ -476,9 +510,9 @@ pub fn append_review_section(answer: String, heading: &str, addition: String) ->
         regex::Regex::new(r"(?i)governance framework").unwrap(),
         regex::Regex::new(r"(?i)escalate to management").unwrap(),
         regex::Regex::new(r"(?i)seek executive sponsorship").unwrap(),
-    ];
-    let filler_count: usize = generic_patterns.iter().map(|p| p.find_iter(&lower).count()).sum();
-    let sentence_count = trimmed.split(|c: char| c == '.' || c == '!' || c == '?')
+    ]);
+    let filler_count: usize = generic_filler.iter().map(|p| p.find_iter(&lower).count()).sum();
+    let sentence_count = trimmed.split(['.', '!', '?'])
         .filter(|s| !s.trim().is_empty())
         .count();
     // If more than half the content is generic filler, discard the whole section

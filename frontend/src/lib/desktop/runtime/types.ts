@@ -337,6 +337,7 @@ export interface ActivateLicenseRequest {
 export interface WorkflowRequest {
   workflowType: string;
   objective: string;
+  researchEnabled?: boolean;
 }
 
 export interface ChatRequest {

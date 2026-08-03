@@ -20,7 +20,6 @@ export function ChatHeader({
   a2aEnabled,
   ragEnabled,
   webSearchEnabled,
-  webSearchRequired,
   onAgentTypeChange,
   onCouncilModeChange,
   onA2aChange,
@@ -33,7 +32,6 @@ export function ChatHeader({
   a2aEnabled: boolean;
   ragEnabled: boolean;
   webSearchEnabled: boolean;
-  webSearchRequired: boolean;
   onAgentTypeChange: (value: string) => void;
   onCouncilModeChange: (value: string) => void;
   onA2aChange: (value: boolean) => void;

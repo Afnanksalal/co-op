@@ -3,9 +3,20 @@ use crate::types::ChatMessageRecord;
 /// Conservative heuristic for token budgeting: 3 characters = 1 token
 const CHARS_PER_TOKEN: usize = 3;
 
+/// Default minimum input context window in tokens (e.g. 16,384 tokens ~ 49,152 chars)
+pub const DEFAULT_CONTEXT_WINDOW_TOKENS: u32 = 16_384;
+
 /// Calculates the total character budget available.
 pub fn calculate_char_budget(max_tokens: u32, reserved_chars: usize) -> usize {
     let total_budget = (max_tokens as usize).saturating_mul(CHARS_PER_TOKEN);
+    total_budget.saturating_sub(reserved_chars)
+}
+
+/// Calculates the input context character budget for prompt assembly,
+/// ensuring the budget is scaled to modern LLM input context windows.
+pub fn calculate_input_context_budget(completion_tokens: u32, reserved_chars: usize) -> usize {
+    let context_tokens = completion_tokens.max(DEFAULT_CONTEXT_WINDOW_TOKENS);
+    let total_budget = (context_tokens as usize).saturating_mul(CHARS_PER_TOKEN);
     total_budget.saturating_sub(reserved_chars)
 }
 
@@ -45,20 +56,24 @@ pub fn truncate_chat_history(messages: &[ChatMessageRecord], max_chars: usize) -
 
     // Traverse from newest to oldest
     for message in messages.iter().rev() {
-        let formatted = format!("{}: {}", message.role, message.content);
-        // +1 for the newline that joins messages
-        let len = formatted.chars().count() + 1;
+        let role_label = match message.role.as_str() {
+            "assistant" => "Assistant",
+            _ => "User",
+        };
+        let formatted = format!("{}: {}", role_label, message.content.trim());
+        // +2 for the double-newline separator between messages
+        let len = formatted.chars().count() + 2;
 
         if current_chars + len > max_chars {
             break;
         }
 
         current_chars += len;
-        // Prepend because we are iterating in reverse (newest first)
-        accepted_messages.insert(0, formatted);
+        accepted_messages.push(formatted);
     }
 
-    accepted_messages.join("\n")
+    accepted_messages.reverse();
+    accepted_messages.join("\n\n")
 }
 
 #[cfg(test)]
@@ -69,6 +84,14 @@ mod tests {
     fn test_calculate_char_budget() {
         assert_eq!(calculate_char_budget(100, 50), 250);
         assert_eq!(calculate_char_budget(10, 100), 0);
+    }
+
+    #[test]
+    fn test_calculate_input_context_budget() {
+        // Default context tokens = 16_384 * 3 = 49_152
+        assert_eq!(calculate_input_context_budget(2048, 1000), 49_152 - 1000);
+        // Larger custom limit (32_000 * 3 = 96_000)
+        assert_eq!(calculate_input_context_budget(32_000, 1000), 96_000 - 1000);
     }
 
     #[test]

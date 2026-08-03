@@ -56,8 +56,6 @@ export function ChatPanel({
   const pendingForView = pendingChat?.sessionId === sessionId ? pendingChat : null;
   const hasMessages = Boolean(activeSession?.messages.length || pendingForView);
   const visibleTitle = activeSession?.title ?? pendingForView?.prompt ?? 'New conversation';
-  const webSearchRequired = false;
-  const webSearchEnabled = researchEnabled;
   const suggestions = [
     'What should I focus on this week?',
     'Build a 30 day operating plan for my company',
@@ -86,11 +84,6 @@ export function ChatPanel({
     progressTick,
   ]);
 
-  useEffect(() => {
-    if (webSearchRequired) {
-      setResearchEnabled(true);
-    }
-  }, [webSearchRequired]);
 
   useEffect(() => {
     pendingSessionRef.current = pendingChat?.sessionId ?? null;
@@ -171,7 +164,7 @@ export function ChatPanel({
       agentType,
       a2aEnabled,
       ragEnabled,
-      researchEnabled: webSearchEnabled,
+      researchEnabled,
       councilMode,
       startedAt: Date.now(),
     };
@@ -188,7 +181,7 @@ export function ChatPanel({
           message: prompt,
           a2aEnabled,
           ragEnabled,
-          researchEnabled: webSearchEnabled,
+          researchEnabled,
           councilMode,
         }),
       'Response saved.'
@@ -221,8 +214,7 @@ export function ChatPanel({
           councilMode={councilMode}
           a2aEnabled={a2aEnabled}
           ragEnabled={ragEnabled}
-          webSearchEnabled={webSearchEnabled}
-          webSearchRequired={webSearchRequired}
+          webSearchEnabled={researchEnabled}
           onAgentTypeChange={setAgentType}
           onCouncilModeChange={setCouncilMode}
           onA2aChange={setA2aEnabled}

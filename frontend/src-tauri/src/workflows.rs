@@ -30,7 +30,9 @@ pub async fn run_business_workflow(
 
     let model_settings = validate_read_only(&state.model_settings)?;
     
-    if crate::guardrails::resolve_off_topic(&model_settings, &request.objective).await {
+    if !crate::guardrails::message_has_business_context(&request.objective.to_lowercase())
+        && crate::guardrails::resolve_off_topic(&model_settings, &request.objective).await
+    {
         return Err("Co-Op is intentionally scoped to business tasks and therefore cannot assist with personal requests or non-business topics.".to_string());
     }
 
@@ -83,16 +85,21 @@ pub async fn run_business_workflow(
         &routing_detail,
     );
 
-    let web_required = match guardrail_decision.web_intent {
-        crate::guardrails::WebIntent::Yes => true,
-        crate::guardrails::WebIntent::No => false,
-        crate::guardrails::WebIntent::Uncertain => {
-            crate::guardrails::resolve_web_intent(&model_settings, &run.objective).await
+    let use_web = request.research_enabled.unwrap_or(true);
+    let web_required = if use_web {
+        match guardrail_decision.web_intent {
+            crate::guardrails::WebIntent::Yes => true,
+            crate::guardrails::WebIntent::No => false,
+            crate::guardrails::WebIntent::Uncertain => {
+                crate::guardrails::resolve_web_intent(&model_settings, &run.objective).await
+            }
         }
+    } else {
+        matches!(guardrail_decision.web_intent, crate::guardrails::WebIntent::Yes)
     };
     let mut source_context_attached = false;
 
-    if web_required {
+    if web_required && use_web {
         crate::research_sources::ensure_web_search_ready(&model_settings)?;
     }
 
@@ -152,7 +159,7 @@ pub async fn run_business_workflow(
     
     let truncated_local = crate::context_manager::truncate_text_to_budget(&local_context, max_local_chars);
 
-    let web_context = if web_required {
+    let web_context = if web_required && use_web {
         let raw_web = research_context_for_business(
             &model_settings,
             &state.workspace,
