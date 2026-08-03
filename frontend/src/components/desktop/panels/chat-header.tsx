@@ -140,9 +140,9 @@ export function ChatHeader({
             <TogglePill label="Extra review" checked={a2aEnabled} onChange={onA2aChange} />
             <TogglePill label="Use company files" checked={ragEnabled} onChange={onRagChange} />
             <TogglePill
-              label={webSearchRequired ? 'Web required' : 'Use web research'}
+              label="Use web research"
               checked={webSearchEnabled}
-              onChange={(value) => onResearchChange(webSearchRequired || value)}
+              onChange={onResearchChange}
             />
           </div>
         </div>

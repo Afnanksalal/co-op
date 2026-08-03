@@ -141,22 +141,22 @@ pub async fn run_agent_chat(
         if !rag.is_empty() && crate::guardrails::is_safe_context(&rag) {
             local_context.push_str(&rag);
         }
-    }
 
-    emit_chat_progress(
-        &app,
-        &session_id,
-        4,
-        "memory",
-        "Checking remembered facts",
-        "Finding useful local notes without exposing hidden prompts or keys.",
-    );
-    let memory = memory_context_from_store(&app, &settings, &request.message).await?;
-    if !memory.is_empty() && crate::guardrails::is_safe_context(&memory) {
-        if !local_context.is_empty() {
-            local_context.push_str("\n\n");
+        emit_chat_progress(
+            &app,
+            &session_id,
+            4,
+            "memory",
+            "Checking remembered facts",
+            "Finding useful local notes without exposing hidden prompts or keys.",
+        );
+        let memory = memory_context_from_store(&app, &settings, &request.message).await?;
+        if !memory.is_empty() && crate::guardrails::is_safe_context(&memory) {
+            if !local_context.is_empty() {
+                local_context.push_str("\n\n");
+            }
+            local_context.push_str(&memory);
         }
-        local_context.push_str(&memory);
     }
     
     if !local_context.is_empty() {
@@ -172,10 +172,7 @@ pub async fn run_agent_chat(
             crate::guardrails::resolve_web_intent(&settings, &request.message).await
         }
     };
-    // Force-enable web research for competitor/market queries that need outside data
-    let force_web = matches!(request.agent_type.as_str(), "competitor")
-        && web_required;
-    let use_web = request.research_enabled || web_required || force_web;
+    let use_web = request.research_enabled;
     let mut source_context_attached = false;
     
     if use_web {
@@ -228,20 +225,12 @@ pub async fn run_agent_chat(
         "{context}\n\nConversation:\n{history}\n\nUser: {}",
         request.message
     );
-    // Graceful degradation: if web sources were needed but not attached, provide inference
+    // Graceful degradation: if web sources were needed but not attached, explain that web search is disabled
     let system_prompt = if web_required && !source_context_attached {
-        let profile = &state.workspace;
-        let inference_hint = format!(
-            "Web sources were required for this question but could not be fetched. \
-             Use only what you know from the company profile. Based on their industry ({}) \
-             and solution ({}), provide your best-effort answer from the profile context. \
-             Clearly state that this answer is based on local context only and recommend \
-             the owner enable web search in Settings for verified results. \
-             Extract and present the information from the context directly; do not just tell the owner to review files. \
-             Do not invent specific company names, tools, or services that are not in the profile.",
-            if profile.industry.trim().is_empty() { "unspecified" } else { profile.industry.trim() },
-            if profile.solution.trim().is_empty() { "unspecified" } else { profile.solution.trim() },
-        );
+        let inference_hint = "Web sources were required for this question, but Web Research is turned off in the chat Options. \
+             State clearly to the user that you cannot look up outside market data, competitor pricing, or live facts because Web Research is disabled, \
+             and inform them that they can toggle on 'Use web research' in the chat Options if they want external information. \
+             Do not invent or guess external facts.";
         format!(
             "{}\n\n{}\n\n{}",
             agent_prompt(&request.agent_type, question_type),

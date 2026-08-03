@@ -56,8 +56,8 @@ export function ChatPanel({
   const pendingForView = pendingChat?.sessionId === sessionId ? pendingChat : null;
   const hasMessages = Boolean(activeSession?.messages.length || pendingForView);
   const visibleTitle = activeSession?.title ?? pendingForView?.prompt ?? 'New conversation';
-  const webSearchRequired = ['legal', 'investor', 'competitor'].includes(agentType);
-  const webSearchEnabled = researchEnabled || webSearchRequired;
+  const webSearchRequired = false;
+  const webSearchEnabled = researchEnabled;
   const suggestions = [
     'What should I focus on this week?',
     'Build a 30 day operating plan for my company',
