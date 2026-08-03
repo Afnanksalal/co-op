@@ -4,6 +4,8 @@ import { type FormEvent, useEffect, useRef, useState } from 'react';
 import {
   isTauriRuntime,
   runAgentChat,
+  deleteChatSession,
+  pinChatSession,
   type ChatProgressEvent,
   type DesktopState,
 } from '@/lib/desktop/runtime';
@@ -145,6 +147,18 @@ export function ChatPanel({
     setMessage('');
   }
 
+  function handlePin(id: string) {
+    void runWithState('pin', () => pinChatSession(id), 'Chat pinned.');
+  }
+
+  function handleDelete(id: string) {
+    void runWithState('delete', () => deleteChatSession(id), 'Chat deleted.').then((saved) => {
+      if (saved && sessionId === id) {
+        setSessionId(null);
+      }
+    });
+  }
+
   function submitChat(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const prompt = message.trim();
@@ -196,6 +210,8 @@ export function ChatPanel({
         draftOpen={sessionId === null}
         onNew={startNewSession}
         onSelect={selectSession}
+        onPin={handlePin}
+        onDelete={handleDelete}
       />
 
       <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border/50 bg-card">

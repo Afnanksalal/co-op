@@ -59,7 +59,7 @@ pub async fn run_research_query(
         Some(0.1),
     )
     .await?;
-    validate_model_output(&summary, true, true)?;
+    validate_model_output(&summary, true, true, false)?;
 
     let run = ResearchRun {
         id: Uuid::new_v4().to_string(),
@@ -171,7 +171,17 @@ fn research_prompt_profile(research_type: &str, depth: &str) -> String {
     };
 
     format!(
-        "You are Co-Op's private research analyst for a business owner. Run {}. {} Write in plain business language. Structure the answer with: Quick answer, What matters, Evidence, Risks or unknowns, and Next moves. Use only the supplied web sources for outside facts. Cite source titles inline. For competitor work, classify each named company as verified direct competitor, indirect alternative, or non-competitor, and explain why in one sentence. Do not say the owner should run another broad web search; Co-Op already completed the searches listed in the prompt. If evidence is still weak, state exactly what is weak and give the best supported candidate list.",
+        "You are Co-Op's private research analyst for a business owner. Run {}. {} Write in plain business language. \
+Structure the answer with: Quick answer, What matters, Evidence, Risks or unknowns, and Next moves. \
+Use ONLY the supplied web sources for outside facts. Cite source titles inline. \
+For competitor work:
+1. Group results by product category (e.g., \"Observability\", \"Incident Response\", \"On-Call Management\"). Do NOT mix categories.
+2. Within each category, classify each named company as: Direct Competitor, Indirect Alternative, or Not a Competitor.
+3. For each company, cite the specific source that evidences the classification. Do NOT cite 'general market knowledge'.
+4. If a major known competitor is missing from the sources, mention it but explicitly state: \"Not found in current sources — verify independently.\"
+5. Implementation patterns (e.g., \"Slack + custom bots\") are alternative approaches, not competitors. List them separately.
+Do not say the owner should run another broad web search; Co-Op already completed the searches listed in the prompt. \
+If evidence is still weak, state exactly what is weak and give the best supported candidate list.",
         job, depth_instruction
     )
 }

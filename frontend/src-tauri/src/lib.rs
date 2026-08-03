@@ -23,7 +23,7 @@ mod validation;
 mod workflows;
 mod workspace;
 
-pub use chat::run_agent_chat;
+pub use chat::{run_agent_chat, delete_chat_session, pin_chat_session};
 pub use graph::get_knowledge_graph;
 pub use license::{
     activate_license, clear_activation, get_activation_state, get_machine_fingerprint,
@@ -57,6 +57,8 @@ pub fn run() {
             get_machine_fingerprint,
             heartbeat_license,
             run_agent_chat,
+            delete_chat_session,
+            pin_chat_session,
             run_alert_now,
             run_business_workflow,
             run_calculator,

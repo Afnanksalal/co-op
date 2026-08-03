@@ -86,6 +86,7 @@ export interface ChatSession {
   councilMode: string;
   createdAt: string;
   updatedAt: string;
+  isPinned?: boolean;
 }
 
 export interface ChatProgressEvent {

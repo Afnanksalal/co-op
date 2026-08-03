@@ -118,7 +118,7 @@ pub async fn analyze_pitch_deck(
         guardrail_policy_prompt("pitch review", false, false)
     );
     let analysis = call_model(&settings, &system_prompt, &prompt, Some(0.2)).await?;
-    validate_model_output(&analysis, false, false)?;
+    validate_model_output(&analysis, false, false, false)?;
     let score = derive_score(&analysis);
     state.pitch_decks.insert(
         0,

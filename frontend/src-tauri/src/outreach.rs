@@ -243,7 +243,7 @@ pub async fn generate_campaign_emails(
                 .await
                 {
                     Ok(output) => {
-                        if validate_model_output(&output, false, false).is_ok() {
+                        if validate_model_output(&output, false, false, false).is_ok() {
                             let (subject, body) = split_subject_body(&output);
                             Some((lead, subject, body))
                         } else {

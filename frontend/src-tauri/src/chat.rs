@@ -4,7 +4,10 @@ use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
 
 use crate::graph::graph_context;
-use crate::guardrails::{guardrail_policy_prompt, validate_business_input, validate_model_output};
+use crate::guardrails::{
+    classify_question_type, guardrail_policy_prompt, validate_business_input, validate_model_output,
+    QuestionType,
+};
 use crate::memory::{memory_context_from_store, remember_business_event};
 use crate::providers::call_model;
 use crate::knowledge_store::document_context_for_app;
@@ -38,6 +41,10 @@ pub async fn run_agent_chat(
     let mut state = load_or_create_state(&app)?;
     require_usable_activation(&state)?;
     let settings = validate_read_only(&state.model_settings)?;
+    
+    if crate::guardrails::resolve_off_topic(&settings, &request.message).await {
+        return Err("Co-Op is intentionally scoped to business tasks and therefore cannot assist with personal requests or non-business topics.".to_string());
+    }
 
     let now = Utc::now().to_rfc3339();
     let session_id = request
@@ -53,6 +60,7 @@ pub async fn run_agent_chat(
         "Understanding the request",
         "Classifying the business area, review needs, and source requirements.",
     );
+    let question_type = classify_question_type(&request.message);
     let session_index = state
         .chat_sessions
         .iter()
@@ -71,6 +79,7 @@ pub async fn run_agent_chat(
                 council_mode: request.council_mode.clone(),
                 created_at: now.clone(),
                 updated_at: now.clone(),
+                is_pinned: false,
             },
         );
     }
@@ -90,7 +99,7 @@ pub async fn run_agent_chat(
 
     let conservative_system_prompt = format!(
         "{}\n\n{}",
-        agent_prompt(&request.agent_type),
+        agent_prompt(&request.agent_type, question_type),
         guardrail_policy_prompt(&request.agent_type, true, true)
     );
     
@@ -163,7 +172,10 @@ pub async fn run_agent_chat(
             crate::guardrails::resolve_web_intent(&settings, &request.message).await
         }
     };
-    let use_web = request.research_enabled || web_required;
+    // Force-enable web research for competitor/market queries that need outside data
+    let force_web = matches!(request.agent_type.as_str(), "competitor")
+        && web_required;
+    let use_web = request.research_enabled || web_required || force_web;
     let mut source_context_attached = false;
     
     if use_web {
@@ -216,11 +228,33 @@ pub async fn run_agent_chat(
         "{context}\n\nConversation:\n{history}\n\nUser: {}",
         request.message
     );
-    let system_prompt = format!(
-        "{}\n\n{}",
-        agent_prompt(&request.agent_type),
-        guardrail_policy_prompt(&request.agent_type, web_required, source_context_attached)
-    );
+    // Graceful degradation: if web sources were needed but not attached, provide inference
+    let system_prompt = if web_required && !source_context_attached {
+        let profile = &state.workspace;
+        let inference_hint = format!(
+            "Web sources were required for this question but could not be fetched. \
+             Use only what you know from the company profile. Based on their industry ({}) \
+             and solution ({}), provide your best-effort answer from the profile context. \
+             Clearly state that this answer is based on local context only and recommend \
+             the owner enable web search in Settings for verified results. \
+             Extract and present the information from the context directly; do not just tell the owner to review files. \
+             Do not invent specific company names, tools, or services that are not in the profile.",
+            if profile.industry.trim().is_empty() { "unspecified" } else { profile.industry.trim() },
+            if profile.solution.trim().is_empty() { "unspecified" } else { profile.solution.trim() },
+        );
+        format!(
+            "{}\n\n{}\n\n{}",
+            agent_prompt(&request.agent_type, question_type),
+            inference_hint,
+            guardrail_policy_prompt(&request.agent_type, false, false)
+        )
+    } else {
+        format!(
+            "{}\n\n{}",
+            agent_prompt(&request.agent_type, question_type),
+            guardrail_policy_prompt(&request.agent_type, web_required, source_context_attached)
+        )
+    };
     emit_chat_progress(
         &app,
         &session_id,
@@ -231,7 +265,7 @@ pub async fn run_agent_chat(
     );
     let mut answer = call_model(&settings, &system_prompt, &prompt, Some(0.2)).await?;
 
-    if request.a2a_enabled {
+    if request.a2a_enabled && (question_type == QuestionType::Planning || question_type == QuestionType::Brainstorming) {
         emit_chat_progress(
             &app,
             &session_id,
@@ -242,7 +276,7 @@ pub async fn run_agent_chat(
         );
         let critique = call_model(
             &settings,
-            "You are a second Co-Op advisor. Review the draft answer and return only material missing cross-functional concerns. Do not restate or rewrite the draft. If there are no material additions, answer exactly: No material additions.",
+            "You are a second Co-Op advisor. Review the draft answer and return only material missing cross-functional concerns that are grounded in the company's actual profile, stage, and context. Do not mention teams (security team, compliance team, IT team, development team) unless the company profile indicates they exist. Do not add generic corporate recommendations. Do not restate or rewrite the draft. If there are no material additions, answer exactly: No material additions.",
             &format!("Agent: {}\nDraft:\n{}", request.agent_type, answer),
             Some(0.7),
         )
@@ -253,7 +287,7 @@ pub async fn run_agent_chat(
     if matches!(
         request.council_mode.as_str(),
         "review_only" | "full_council"
-    ) {
+    ) && (question_type == QuestionType::Planning || question_type == QuestionType::Brainstorming) {
         emit_chat_progress(
             &app,
             &session_id,
@@ -264,7 +298,7 @@ pub async fn run_agent_chat(
         );
         let review = call_model(
             &settings,
-            "You are Co-Op's final reviewer. Return only decision risks, missing facts, or concrete next actions that are not already covered. Do not restate the answer. If there are no material additions, answer exactly: No material additions.",
+            "You are Co-Op's final reviewer. Return only decision risks, missing facts, or concrete next actions that are not already covered and are grounded in the company's actual profile and context. Do not mention teams, tools, services, or platforms that are not present in the company profile. Do not invent organizational structure. Do not restate the answer. If there are no material additions, answer exactly: No material additions.",
             &format!("Agent: {}\nDraft:\n{}", request.agent_type, answer),
             Some(0.6),
         )
@@ -272,7 +306,7 @@ pub async fn run_agent_chat(
         answer = append_review_section(answer, "Review notes", review);
     }
 
-    validate_model_output(&answer, web_required, source_context_attached)?;
+    validate_model_output(&answer, web_required, source_context_attached, web_required && !source_context_attached)?;
     emit_chat_progress(
         &app,
         &session_id,
@@ -341,54 +375,82 @@ fn emit_chat_progress(
     );
 }
 
-fn agent_prompt(agent_type: &str) -> String {
-    match agent_type {
+fn agent_prompt(agent_type: &str, question_type: QuestionType) -> String {
+    let capability_boundary = "\
+CAPABILITY BOUNDARY: You are a text-based business advisor running inside the Co-Op desktop application. \
+You have NO terminal access, NO ability to execute commands, NO access to live servers, databases, dashboards, or deployment infrastructure. \
+You cannot open browsers, run scripts, or perform any system action. When a user asks you to perform a system action:
+1. Explicitly state that Co-Op cannot execute that action.
+2. Provide the exact steps or commands the user should execute themselves.
+3. Clearly label your output as \"Instructions for the owner\" — not actions you performed.
+Never present instructions as if you executed them. Never say \"I checked the logs\" or \"I restarted the server.\"";
+
+    let grounding_rule = "\
+STRICT GROUNDING RULE: You may ONLY reference facts that appear in the attached workspace context, company files, business memory, or web sources. Specifically:
+- Do NOT invent hosting providers, deployment platforms, service names, or infrastructure details.
+- Do NOT invent team names, departments, or organizational structures.
+- Do NOT invent tools, dashboards, monitoring services, or third-party integrations.
+- Do NOT present inferred information as fact. If you must infer, prefix with \"Assuming...\" or \"If [condition], then...\"
+- When information is missing, say exactly what is missing instead of filling the gap.";
+
+    let format_instruction = match question_type {
+        QuestionType::Factual => "\
+Answer in 1-3 sentences. Do NOT add sections for Known Facts, Assumptions, Risks, Review Notes, or Next Actions. \
+If an assumption is critical, state it inline.",
+        QuestionType::ActionRequest => "\
+State whether Co-Op can perform this action (it cannot execute commands). Then list the exact steps the owner should take. \
+Do NOT generate Key Decisions, Risks, or Assumptions sections.",
+        QuestionType::Planning => "\
+Structure your answer with: Quick Answer, Key Decisions, Tasks, Risks, and Next Step. \
+For short questions, use only the sections that apply.",
+        QuestionType::Brainstorming => "\
+List 3-7 options with one-line tradeoffs each. Recommend one. Do NOT add Known Facts or Risk sections.",
+        QuestionType::Comparison => "\
+Create a comparison table or list. Classify each item. State evidence source. Do NOT add a planning framework.",
+    };
+
+    let role = match agent_type {
     "legal" => "\
 You are Co-Op Legal, the owner's business-legal operations advisor. \
 Give practical, business-friendly guidance on contracts, compliance, IP, employment, and regulatory questions. \
-You are not a licensed attorney — clearly flag items that require attorney review with [ATTORNEY REVIEW]. \
-Structure your answer with: Quick Answer, Legal Considerations, Attorney-Review Items, Risks, and Recommended Actions. \
-For short questions, use only the sections that apply.",
+You are not a licensed attorney — clearly flag items that require attorney review with [ATTORNEY REVIEW].",
 
     "finance" => "\
 You are Co-Op Finance, the owner's financial operations advisor. \
 Focus on runway, burn rate, unit economics, forecasting, cash controls, and investor-grade assumptions. \
-Show your math when numbers are involved. Separate confirmed metrics from estimates. \
-Structure your answer with: Quick Answer, Numbers and Assumptions, Cash Impact, Risks, and Next Step. \
-For short questions, use only the sections that apply.",
+Show your math when numbers are involved. Separate confirmed metrics from estimates.",
 
     "investor" => "\
 You are Co-Op Investor, the owner's fundraising strategy advisor. \
 Focus on fundraising readiness, investor fit, narrative construction, diligence preparation, and term sheet risks. \
-Separate what the company can prove today from what still needs evidence. \
-Structure your answer with: Quick Answer, Investor Fit, Narrative Gaps, Diligence Risks, and Recommended Actions. \
-For short questions, use only the sections that apply.",
+Separate what the company can prove today from what still needs evidence.",
 
     "competitor" => "\
 You are Co-Op Market, the owner's competitive intelligence advisor. \
-Use attached web evidence to identify and classify competitors. For each named company, state whether it is a direct competitor, indirect alternative, or not a real competitor, and explain why in one sentence. \
+Use attached web evidence to identify and classify competitors. \
+Group competitors by product category — do not mix different tool types in a single list. \
+For each named company, state whether it is a direct competitor, indirect alternative, \
+or not a real competitor, and cite the source that supports this classification. \
 Do not list companies without evidence from the attached sources. \
-Structure your answer with: Quick Answer, Direct Competitors, Indirect Alternatives, Positioning Gaps, and Next Step. \
-For short questions, use only the sections that apply.",
+Do not cite 'general market knowledge' as a source.",
 
     "sales" => "\
 You are Co-Op Sales, the owner's sales and pipeline advisor. \
 Focus on ideal customer profile, outreach strategy, pipeline health, objection handling, qualification criteria, and conversion tactics. \
-Ground advice in the company's actual stage, product, and target market. \
-Structure your answer with: Quick Answer, ICP Fit, Pipeline Assessment, Objections and Responses, and Recommended Actions. \
-For short questions, use only the sections that apply.",
+Ground advice in the company's actual stage, product, and target market.",
 
     _ => "\
 You are Co-Op Operations, the owner's general business advisor. \
-Turn ambiguous business questions into clear decisions, tasks, and owners. \
-When multiple paths exist, compare tradeoffs and recommend one. \
-Structure your answer with: Quick Answer, Key Decisions, Tasks and Owners, Risks, and Next Step. \
-For short questions, use only the sections that apply.",
-  }
-  .to_string()
+Give practical, direct answers grounded in the company's actual profile and context. \
+When multiple paths exist, compare tradeoffs and recommend one.",
+  };
+
+  format!(
+      "{capability_boundary}\n\n{grounding_rule}\n\n{role} {format_instruction}"
+  )
 }
 
-fn append_review_section(answer: String, heading: &str, addition: String) -> String {
+pub fn append_review_section(answer: String, heading: &str, addition: String) -> String {
     let trimmed = addition.trim();
     let lower = trimmed.to_lowercase();
     
@@ -410,7 +472,56 @@ fn append_review_section(answer: String, heading: &str, addition: String) -> Str
         return answer;
     }
 
+    // Filter out generic corporate filler that isn't grounded in company context
+    let generic_patterns = [
+        regex::Regex::new(r"(?i)(collaborat\w*|coordinat\w*|involv\w*|engag\w*|consult\w*|work\w*)( with)? (the|your|our) \w+ team").unwrap(),
+        regex::Regex::new(r"(?i)enterprise-wide").unwrap(),
+        regex::Regex::new(r"(?i)organizational alignment").unwrap(),
+        regex::Regex::new(r"(?i)cross-functional alignment").unwrap(),
+        regex::Regex::new(r"(?i)stakeholder alignment").unwrap(),
+        regex::Regex::new(r"(?i)change management process").unwrap(),
+        regex::Regex::new(r"(?i)siem integration").unwrap(),
+        regex::Regex::new(r"(?i)siem system").unwrap(),
+        regex::Regex::new(r"(?i)security information and event management").unwrap(),
+        regex::Regex::new(r"(?i)compliance framework").unwrap(),
+        regex::Regex::new(r"(?i)governance framework").unwrap(),
+        regex::Regex::new(r"(?i)escalate to management").unwrap(),
+        regex::Regex::new(r"(?i)seek executive sponsorship").unwrap(),
+    ];
+    let filler_count: usize = generic_patterns.iter().map(|p| p.find_iter(&lower).count()).sum();
+    let sentence_count = trimmed.split(|c: char| c == '.' || c == '!' || c == '?')
+        .filter(|s| !s.trim().is_empty())
+        .count();
+    // If more than half the content is generic filler, discard the whole section
+    if sentence_count > 0 && filler_count > 0 && filler_count * 2 >= sentence_count {
+        return answer;
+    }
+
     format!("{answer}\n\n{heading}:\n{trimmed}")
+}
+
+#[tauri::command]
+pub async fn delete_chat_session(
+    app: AppHandle,
+    session_id: String,
+) -> Result<DesktopStateResponse, String> {
+    let mut state = load_or_create_state(&app)?;
+    state.chat_sessions.retain(|session| session.id != session_id);
+    save_state(&app, &state)?;
+    Ok(to_response(state))
+}
+
+#[tauri::command]
+pub async fn pin_chat_session(
+    app: AppHandle,
+    session_id: String,
+) -> Result<DesktopStateResponse, String> {
+    let mut state = load_or_create_state(&app)?;
+    if let Some(session) = state.chat_sessions.iter_mut().find(|s| s.id == session_id) {
+        session.is_pinned = !session.is_pinned;
+    }
+    save_state(&app, &state)?;
+    Ok(to_response(state))
 }
 
 #[cfg(test)]
@@ -455,5 +566,26 @@ mod tests {
             ),
             "Answer"
         );
+    }
+
+    #[test]
+    fn review_sections_filter_generic_corporate_filler() {
+        // Generic filler about teams that don't exist in the profile
+        let filler = "Consider collaborating with the security team to develop a comprehensive log review process. \
+            Involve the development team in implementing automated monitoring. \
+            Engage with the compliance team to ensure alignment with policies.";
+        assert_eq!(
+            append_review_section("Answer".to_string(), "Additional checks", filler.to_string()),
+            "Answer"
+        );
+    }
+
+    #[test]
+    fn review_sections_keep_substantive_additions() {
+        let substantive = "The proposed pricing does not account for enterprise volume discounts. \
+            Consider adding a usage-based tier for customers processing more than 10,000 transactions per month.";
+        let result = append_review_section("Answer".to_string(), "Review notes", substantive.to_string());
+        assert!(result.contains("Review notes"));
+        assert!(result.contains("volume discounts"));
     }
 }
