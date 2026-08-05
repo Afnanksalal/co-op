@@ -5,14 +5,24 @@ pub const DEFAULT_CLOUD_URL: &str = match option_env!("COOP_CLOUD_URL") {
     None => "https://co-op-80fi.onrender.com",
 };
 pub const DEFAULT_OLLAMA_URL: &str = "http://localhost:11434";
-pub const REQUEST_TIMEOUT_SECS: u64 = 30;
+/// The only currently supported web research provider.
+pub const DEFAULT_RESEARCH_PROVIDER: &str = "firecrawl";
+pub const REQUEST_TIMEOUT_SECS: u64 = 180;
 pub const MIN_RUN_TOKENS: u32 = 256;
 pub const MAX_RUN_TOKENS: u32 = 64000;
 pub const MAX_MODEL_NAME_LENGTH: usize = 128;
 pub const MAX_OBJECTIVE_LENGTH: usize = 8000;
 pub const MAX_DOCUMENT_LENGTH: usize = 250_000;
-pub const RAG_VECTOR_DIMENSIONS: usize = 128;
-pub const MAX_CHAT_HISTORY_MESSAGES: usize = 40;
+/// Lexical embedding space used when provider embeddings are unavailable.
+/// This is the supported durable default — not a silent degraded mode mixed into
+/// provider indexes.
+pub const LOCAL_EMBEDDING_DIMENSIONS: usize = 128;
+pub const LOCAL_EMBEDDING_VERSION: i64 = 0;
+pub const PROVIDER_EMBEDDING_VERSION: i64 = 1;
+/// Dedicated OpenAI-compatible embedding model (never reuse the chat model).
+pub const DEFAULT_OPENAI_EMBEDDING_MODEL: &str = "text-embedding-3-small";
+/// Preferred Ollama embedding model when the chat model cannot embed.
+pub const DEFAULT_OLLAMA_EMBEDDING_MODEL: &str = "nomic-embed-text";
 pub const MAX_STORED_WORKFLOW_RUNS: usize = 100;
 pub const MAX_CHAT_SESSIONS: usize = 200;
 pub const MAX_DOCUMENTS: usize = 500;

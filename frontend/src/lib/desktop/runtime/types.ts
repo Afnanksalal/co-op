@@ -86,6 +86,7 @@ export interface ChatSession {
   councilMode: string;
   createdAt: string;
   updatedAt: string;
+  isPinned?: boolean;
 }
 
 export interface ChatProgressEvent {
@@ -336,6 +337,7 @@ export interface ActivateLicenseRequest {
 export interface WorkflowRequest {
   workflowType: string;
   objective: string;
+  researchEnabled?: boolean;
 }
 
 export interface ChatRequest {

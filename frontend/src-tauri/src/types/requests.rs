@@ -11,6 +11,8 @@ pub struct ActivateRequest {
 pub struct WorkflowRequest {
     pub workflow_type: String,
     pub objective: String,
+    #[serde(default)]
+    pub research_enabled: Option<bool>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

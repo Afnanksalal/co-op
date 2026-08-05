@@ -37,27 +37,40 @@ pub(crate) fn lead_from_request(request: LeadRequest) -> Lead {
     }
 }
 
-pub(crate) fn parse_generated_leads(output: &str, lead_type: &str, max: usize) -> Vec<Lead> {
+pub(crate) fn parse_generated_leads(
+    output: &str,
+    lead_type: &str,
+    max: usize,
+    sources: &[ResearchSource],
+) -> Vec<Lead> {
     output
         .lines()
         .filter_map(|line| {
             let parts: Vec<&str> = line.split('|').map(str::trim).collect();
-            if parts.len() < 10 {
+            if parts.len() < 9 {
                 return None;
             }
-            let score = parts[9].parse::<u8>().unwrap_or(50).min(100);
+            let score = parts[8].parse::<u8>().unwrap_or(50).min(100);
             let lead = Lead {
                 id: Uuid::new_v4().to_string(),
                 lead_type: lead_type.to_string(),
                 name: parts[0].to_string(),
                 company_name: parts[1].to_string(),
-                email: parts[2].to_string(),
-                website: parts[3].to_string(),
-                profile_url: parts[4].to_string(),
-                platform: parts[5].to_string(),
-                niche: parts[6].to_string(),
-                location: parts[7].to_string(),
-                description: parts[8].to_string(),
+                email: String::new(),
+                website: if is_url_from_sources(parts[2], sources) {
+                    parts[2].to_string()
+                } else {
+                    String::new()
+                },
+                profile_url: if is_url_from_sources(parts[3], sources) {
+                    parts[3].to_string()
+                } else {
+                    String::new()
+                },
+                platform: parts[4].to_string(),
+                niche: parts[5].to_string(),
+                location: parts[6].to_string(),
+                description: parts[7].to_string(),
                 lead_score: score,
                 status: "new".to_string(),
                 source: "web discovery".to_string(),
@@ -219,6 +232,30 @@ fn normalized_identity(value: &str) -> String {
         .to_lowercase()
 }
 
+fn is_url_from_sources(url: &str, sources: &[ResearchSource]) -> bool {
+    let url = url.trim().to_lowercase();
+    if url.is_empty() || !url.starts_with("http") {
+        return false;
+    }
+    let candidate_domain = extract_domain(&url);
+    sources.iter().any(|source| {
+        let source_domain = extract_domain(&source.url.to_lowercase());
+        candidate_domain == source_domain
+            || source.content.to_lowercase().contains(&candidate_domain)
+            || source.url.to_lowercase().contains(&candidate_domain)
+    })
+}
+
+fn extract_domain(url: &str) -> String {
+    url.replace("https://", "")
+        .replace("http://", "")
+        .replace("www.", "")
+        .split('/')
+        .next()
+        .unwrap_or("")
+        .to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -321,9 +358,24 @@ mod tests {
 
     #[test]
     fn generated_leads_without_identity_are_rejected() {
-        let output = " | | | | | web | finance | | interesting but anonymous | 70";
+        let output = " | | | | web | finance | | interesting but anonymous | 70";
 
-        assert!(parse_generated_leads(output, "company", 5).is_empty());
+        assert!(parse_generated_leads(output, "company", 5, &[]).is_empty());
+    }
+
+    #[test]
+    fn rejects_hallucinated_urls() {
+        let sources = vec![ResearchSource {
+            title: "Real Company".to_string(),
+            url: "https://realcompany.com/about".to_string(),
+            description: "A real company".to_string(),
+            content: "Visit us at realcompany.com".to_string(),
+        }];
+
+        assert!(is_url_from_sources("https://realcompany.com", &sources));
+        assert!(!is_url_from_sources("https://fake-company.com", &sources));
+        assert!(!is_url_from_sources("https://hallucinated.io", &sources));
+        assert!(!is_url_from_sources("", &sources));
     }
 
     fn test_lead(lead_type: &str) -> Lead {

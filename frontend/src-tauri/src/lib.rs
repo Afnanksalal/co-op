@@ -1,5 +1,6 @@
 mod chat;
 mod constants;
+mod context_manager;
 mod graph;
 mod guardrails;
 mod knowledge_store;
@@ -22,7 +23,7 @@ mod validation;
 mod workflows;
 mod workspace;
 
-pub use chat::run_agent_chat;
+pub use chat::{run_agent_chat, delete_chat_session, pin_chat_session};
 pub use graph::get_knowledge_graph;
 pub use license::{
     activate_license, clear_activation, get_activation_state, get_machine_fingerprint,
@@ -56,6 +57,8 @@ pub fn run() {
             get_machine_fingerprint,
             heartbeat_license,
             run_agent_chat,
+            delete_chat_session,
+            pin_chat_session,
             run_alert_now,
             run_business_workflow,
             run_calculator,
@@ -79,6 +82,14 @@ pub fn run() {
                         .build(),
                 )?;
             }
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                if let Ok(state) = crate::storage::load_or_create_state(&handle) {
+                    if let Ok(settings) = crate::validation::validate_read_only(&state.model_settings) {
+                        crate::knowledge_store::reindex_stale_embeddings(&handle, &settings).await;
+                    }
+                }
+            });
             Ok(())
         })
         .run(tauri::generate_context!())

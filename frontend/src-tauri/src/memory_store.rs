@@ -4,10 +4,10 @@ use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use tauri::AppHandle;
 
-use crate::constants::{MAX_MEMORIES, RAG_VECTOR_DIMENSIONS};
+use crate::constants::MAX_MEMORIES;
 use crate::knowledge_store::schema::open_store;
-use crate::rag::{embed_text, tokenize};
-use crate::types::{BusinessMemory, MemorySearchResult};
+use crate::rag::{embed_text_local, tokenize};
+use crate::types::{BusinessMemory, MemorySearchResult, ModelSettings};
 
 const MAX_MEMORY_SEARCH_CANDIDATES: usize = 512;
 const MAX_MEMORY_CONTEXT_RESULTS: usize = 8;
@@ -23,17 +23,20 @@ pub fn list_memory_summaries(app: &AppHandle, limit: usize) -> Result<Vec<Busine
     list_memory_summaries_with_conn(&conn, limit)
 }
 
-pub fn search_business_memories(
+pub async fn search_business_memories(
     app: &AppHandle,
+    _settings: &ModelSettings,
     query: &str,
     limit: usize,
 ) -> Result<Vec<MemorySearchResult>, String> {
+    // Memories are always indexed in the local lexical space — query the same space.
+    let query_vector = embed_text_local(query);
     let conn = open_store(app)?;
-    search_memories_with_conn(&conn, query, limit)
+    search_memories_with_conn(&conn, query, &query_vector, limit)
 }
 
-pub fn memory_context_for_app(app: &AppHandle, query: &str) -> Result<String, String> {
-    let results = search_business_memories(app, query, MAX_MEMORY_CONTEXT_RESULTS)?;
+pub async fn memory_context_for_app(app: &AppHandle, settings: &ModelSettings, query: &str) -> Result<String, String> {
+    let results = search_business_memories(app, settings, query, MAX_MEMORY_CONTEXT_RESULTS).await?;
     Ok(memory_context_from_results(results))
 }
 
@@ -56,7 +59,7 @@ fn store_memory_with_conn(conn: &mut Connection, memory: &BusinessMemory) -> Res
         memory.created_at.clone()
     };
     let updated_at = Utc::now().to_rfc3339();
-    let vector = embed_text(&format!(
+    let vector = embed_text_local(&format!(
         "{} {} {}",
         memory.title, memory.memory_type, content
     ));
@@ -66,9 +69,9 @@ fn store_memory_with_conn(conn: &mut Connection, memory: &BusinessMemory) -> Res
     tx.execute(
         "
         INSERT INTO business_memories (
-          id, memory_type, title, content, source, content_hash, vector, confidence, pinned, created_at, updated_at
+          id, memory_type, title, content, source, content_hash, vector, confidence, pinned, created_at, updated_at, embedding_version
         )
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
         ON CONFLICT(id) DO UPDATE SET
           memory_type = excluded.memory_type,
           title = excluded.title,
@@ -78,7 +81,8 @@ fn store_memory_with_conn(conn: &mut Connection, memory: &BusinessMemory) -> Res
           vector = excluded.vector,
           confidence = excluded.confidence,
           pinned = excluded.pinned,
-          updated_at = excluded.updated_at
+          updated_at = excluded.updated_at,
+          embedding_version = excluded.embedding_version
         ",
         params![
             id,
@@ -92,6 +96,7 @@ fn store_memory_with_conn(conn: &mut Connection, memory: &BusinessMemory) -> Res
             if memory.pinned { 1 } else { 0 },
             created_at,
             updated_at,
+            crate::constants::LOCAL_EMBEDDING_VERSION,
         ],
     )
     .map_err(|error| format!("Failed to store business memory: {error}"))?;
@@ -142,10 +147,10 @@ fn list_memory_summaries_with_conn(
 fn search_memories_with_conn(
     conn: &Connection,
     query: &str,
+    query_vector: &[f32],
     limit: usize,
 ) -> Result<Vec<MemorySearchResult>, String> {
     let query_terms = unique_tokens(query);
-    let query_vector = embed_text(query);
     let mut candidates = if let Some(fts_query) = build_fts_query(query) {
         memory_candidates_with_fts(conn, &fts_query)?
     } else {
@@ -160,10 +165,10 @@ fn search_memories_with_conn(
         .into_iter()
         .filter_map(|candidate| {
             let vector = blob_to_vector(&candidate.vector).ok()?;
-            let semantic_score = cosine_similarity(&query_vector, &vector).max(0.0);
+            let semantic_score = cosine_similarity(query_vector, &vector).max(0.0);
             let lexical_score = lexical_memory_score(&query_terms, &candidate);
             let metadata_score = metadata_memory_score(&query_terms, &candidate);
-            let pin_score = if candidate.pinned { 0.05 } else { 0.0 };
+            let pin_score = if candidate.pinned { 0.20 } else { 0.0 };
             let fts_score = candidate.fts_rank.map(fts_rank_score).unwrap_or(0.0);
             let score = ((lexical_score * 0.38)
                 + (semantic_score * 0.34)
@@ -171,7 +176,7 @@ fn search_memories_with_conn(
                 + (fts_score * 0.08)
                 + pin_score)
                 .clamp(0.0, 1.0);
-            if score >= 0.05 {
+            if score >= 0.20 {
                 Some(MemorySearchResult {
                     id: candidate.id,
                     memory_type: candidate.memory_type,
@@ -428,26 +433,28 @@ fn vector_to_blob(vector: &[f32]) -> Vec<u8> {
 }
 
 fn blob_to_vector(blob: &[u8]) -> Result<Vec<f32>, String> {
-    if blob.len() % std::mem::size_of::<f32>() != 0 {
+    if blob.len() % std::mem::size_of::<f32>() != 0 || blob.is_empty() {
         return Err("Stored memory vector has invalid byte length".to_string());
     }
-    let vector = blob
+    Ok(blob
         .chunks_exact(std::mem::size_of::<f32>())
         .map(|bytes| f32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))
-        .collect::<Vec<_>>();
-    if vector.len() != RAG_VECTOR_DIMENSIONS {
-        return Err(
-            "Stored memory vector dimension does not match runtime configuration".to_string(),
-        );
-    }
-    Ok(vector)
+        .collect())
 }
 
 fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
-    a.iter()
-        .zip(b.iter())
-        .map(|(left, right)| left * right)
-        .sum()
+    if a.len() != b.len() || a.is_empty() {
+        return 0.0;
+    }
+    let dot_product: f32 = a.iter().zip(b.iter()).map(|(left, right)| left * right).sum();
+    let norm_a: f32 = a.iter().map(|val| val * val).sum::<f32>().sqrt();
+    let norm_b: f32 = b.iter().map(|val| val * val).sum::<f32>().sqrt();
+
+    if norm_a == 0.0 || norm_b == 0.0 {
+        0.0
+    } else {
+        dot_product / (norm_a * norm_b)
+    }
 }
 
 fn truncate_chars(content: &str, max_chars: usize) -> String {
@@ -523,7 +530,7 @@ mod tests {
         )
         .unwrap();
 
-        let results = search_memories_with_conn(&conn, "dental outreach", 5).unwrap();
+        let results = search_memories_with_conn(&conn, "dental outreach", &crate::rag::embed_text_local("dental outreach"), 5).unwrap();
 
         assert_eq!(results[0].title, "Pipeline decision");
     }

@@ -4,30 +4,37 @@ use uuid::Uuid;
 
 use crate::constants::MAX_STORED_WORKFLOW_RUNS;
 use crate::graph::graph_context;
-use crate::guardrails::{guardrail_policy_prompt, validate_business_input, validate_model_output};
+use crate::guardrails::{
+    classify_question_type, guardrail_policy_prompt, validate_business_input,
+    validate_model_output, QuestionType,
+};
 use crate::memory::{memory_context_from_store, remember_business_event};
 use crate::providers::call_model;
-use crate::rag::document_context_from_store;
-use crate::research::{requires_live_web_research, research_context_for_business};
+use crate::knowledge_store::document_context_for_app;
+use crate::research::research_context_for_business;
 use crate::storage::{load_or_create_state, require_usable_activation, save_state};
 use crate::types::{WorkflowRequest, WorkflowRun, WorkflowTraceEvent};
-use crate::validation::{validate_model_settings, validate_workflow_request};
+use crate::validation::{validate_read_only, validate_workflow_request};
 
 #[tauri::command]
 pub async fn run_business_workflow(
     app: AppHandle,
     request: WorkflowRequest,
 ) -> Result<WorkflowRun, String> {
-    let mut state = load_or_create_state(&app)?;
+    let state = load_or_create_state(&app)?;
     validate_workflow_request(&request)?;
     let workflow_type = request.workflow_type.trim().to_lowercase();
     let objective = request.objective.trim().to_string();
     let guardrail_decision = validate_business_input("Plan", &workflow_type, &objective)?;
     require_usable_activation(&state)?;
 
-    let mut model_settings = state.model_settings.clone();
-    validate_model_settings(&mut model_settings)?;
-    state.model_settings = model_settings.clone();
+    let model_settings = validate_read_only(&state.model_settings)?;
+    
+    if !crate::guardrails::message_has_business_context(&request.objective.to_lowercase())
+        && crate::guardrails::resolve_off_topic(&model_settings, &request.objective).await
+    {
+        return Err("Co-Op is intentionally scoped to business tasks and therefore cannot assist with personal requests or non-business topics.".to_string());
+    }
 
     let created_at = Utc::now().to_rfc3339();
     let risk_level = if guardrail_decision.high_risk {
@@ -78,8 +85,44 @@ pub async fn run_business_workflow(
         &routing_detail,
     );
 
-    let rag = document_context_from_store(&app, &run.objective)?;
-    if !rag.is_empty() {
+    // Default web research on for workflows unless the caller explicitly disables it.
+    let use_web = request.research_enabled.unwrap_or(true);
+    let web_required = match guardrail_decision.web_intent {
+        crate::guardrails::WebIntent::Yes => true,
+        crate::guardrails::WebIntent::No => false,
+        crate::guardrails::WebIntent::Uncertain if use_web => {
+            crate::guardrails::resolve_web_intent(&model_settings, &run.objective).await
+        }
+        crate::guardrails::WebIntent::Uncertain => false,
+    };
+    let mut source_context_attached = false;
+
+    if web_required && use_web {
+        crate::research_sources::ensure_web_search_ready(&model_settings)?;
+    }
+
+    let question_type = classify_question_type(&run.objective);
+    let conservative_system_prompt = format!(
+        "{}\n\n{}",
+        business_system_prompt(&run.workflow_type, &model_settings.council_mode, question_type),
+        guardrail_policy_prompt(&run.workflow_type, true, true)
+    );
+    let initial_budget = crate::context_manager::calculate_char_budget(
+        model_settings.max_run_tokens,
+        conservative_system_prompt.chars().count() + run.objective.chars().count() + 100
+    );
+
+    let max_web_chars = (initial_budget as f64 * 0.60) as usize;
+    let max_local_chars = (initial_budget as f64 * 0.40) as usize;
+    
+    let workspace_text = workspace_context(&state.workspace);
+    let graph_text = graph_context(&state);
+    let prompt_prefix = format!("Startup workspace:\n{}\n{}", workspace_text, graph_text);
+
+    let mut local_context = String::new();
+    let rag = document_context_for_app(&app, &model_settings, &run.objective).await?;
+    let safe_rag = crate::guardrails::sanitize_retrieved_context(&rag);
+    if !safe_rag.is_empty() {
         push_trace(
             &mut run,
             "context",
@@ -87,6 +130,7 @@ pub async fn run_business_workflow(
             "completed",
             "Relevant saved company file sections were added to this work plan.",
         );
+        local_context.push_str(&safe_rag);
     } else {
         push_trace(
             &mut run,
@@ -96,8 +140,10 @@ pub async fn run_business_workflow(
             "No saved company file sections matched this work request.",
         );
     }
-    let memory = memory_context_from_store(&app, &run.objective)?;
-    if !memory.is_empty() {
+
+    let memory = memory_context_from_store(&app, &model_settings, &run.objective).await?;
+    let safe_memory = crate::guardrails::sanitize_retrieved_context(&memory);
+    if !safe_memory.is_empty() {
         push_trace(
             &mut run,
             "context",
@@ -105,43 +151,81 @@ pub async fn run_business_workflow(
             "completed",
             "Relevant saved decisions and notes were added to this work plan.",
         );
+        if !local_context.is_empty() {
+            local_context.push_str("\n\n");
+        }
+        local_context.push_str(&safe_memory);
     }
-    let web_required = guardrail_decision.web_required
-        || requires_live_web_research(&run.workflow_type, &run.objective);
-    let mut source_context_attached = false;
-    let web_context = if web_required {
-        let context = research_context_for_business(
+
+    let truncated_local =
+        crate::context_manager::truncate_text_to_budget(&local_context, max_local_chars);
+
+    let web_context = if web_required && use_web {
+        match research_context_for_business(
             &model_settings,
             &state.workspace,
             &run.objective,
             &run.workflow_type,
+            10,
         )
-        .await?;
-        source_context_attached = !context.trim().is_empty();
+        .await
+        {
+            Ok(raw_web) => {
+                let safe_web = crate::guardrails::sanitize_retrieved_context(&raw_web);
+                let truncated_web =
+                    crate::context_manager::truncate_text_to_budget(&safe_web, max_web_chars);
+                source_context_attached = !truncated_web.trim().is_empty();
+                if source_context_attached {
+                    push_trace(
+                        &mut run,
+                        "context",
+                        "Attached web sources",
+                        "completed",
+                        "Live web sources were added because this work needs current outside facts.",
+                    );
+                } else {
+                    push_trace(
+                        &mut run,
+                        "context",
+                        "Web sources unavailable",
+                        "skipped",
+                        "Web research returned no usable sources after safety filtering.",
+                    );
+                }
+                truncated_web
+            }
+            Err(error) => {
+                push_trace(
+                    &mut run,
+                    "context",
+                    "Web research failed",
+                    "skipped",
+                    &format!("Web research failed: {error}"),
+                );
+                String::new()
+            }
+        }
+    } else if web_required && !use_web {
         push_trace(
             &mut run,
             "context",
-            "Attached web sources",
-            "completed",
-            "Live web sources were added because this work needs current outside facts.",
+            "Web research disabled",
+            "skipped",
+            "This work needs live sources, but web research was turned off for the request.",
         );
-        context
+        String::new()
     } else {
         String::new()
     };
+    
     let system_prompt = format!(
         "{}\n\n{}",
-        business_system_prompt(&run.workflow_type, &model_settings.council_mode),
+        business_system_prompt(&run.workflow_type, &model_settings.council_mode, question_type),
         guardrail_policy_prompt(&run.workflow_type, web_required, source_context_attached)
     );
     let prompt = format!(
-        "Startup workspace:\n{}\n{}\n{}\n\nObjective:\n{}\n{}\n\nWeb sources:\n{}",
-        workspace_context(&state.workspace),
-        graph_context(&state),
-        memory,
-        run.objective,
-        rag,
-        web_context
+        "{}\n{}\n\nObjective:\n{}\n\nWeb sources:\n{}",
+        prompt_prefix, truncated_local, run.objective, web_context
     );
     push_trace(
         &mut run,
@@ -150,7 +234,7 @@ pub async fn run_business_workflow(
         "completed",
         "The request was prepared with company profile, memory, files, and objective.",
     );
-    let mut output = call_model(&model_settings, &system_prompt, &prompt).await;
+    let mut output = call_model(&model_settings, &system_prompt, &prompt, Some(0.2)).await;
 
     if let Ok(primary_output) = &output {
         push_trace(
@@ -191,13 +275,18 @@ pub async fn run_business_workflow(
         );
         let review = call_model(
             &model_settings,
-            "You are a strict business risk reviewer.",
+            "You are Co-Op's final reviewer. Return only decision risks, missing facts, or concrete next actions \
+that are not already covered and are grounded in the company's actual profile and context. \
+Do not mention teams, tools, services, or platforms that are not present in the company profile. \
+Do not invent organizational structure. Do not restate the answer. \
+If there are no material additions, answer exactly: No material additions.",
             &review_prompt,
+            Some(0.6),
         )
         .await;
         if let Ok(review_output) = review {
             mark_last_trace(&mut run, "completed", "Extra review completed.");
-            output = output.map(|primary| format!("{primary}\n\nReview notes:\n{review_output}"));
+            output = output.map(|primary| crate::chat::append_review_section(primary, "Review notes", review_output));
         } else {
             mark_last_trace(
                 &mut run,
@@ -227,7 +316,7 @@ fn finalize_workflow(
 ) -> Result<WorkflowRun, String> {
     match output {
         Ok(content) => {
-            validate_model_output(&content, web_required, source_context_attached)?;
+            validate_model_output(&content, web_required, source_context_attached, false)?;
             run.status = "completed".to_string();
             run.output = Some(content);
             push_trace(
@@ -264,48 +353,115 @@ fn finalize_workflow(
     Ok(run)
 }
 
-pub fn business_system_prompt(workflow_type: &str, council_mode: &str) -> String {
+pub fn business_system_prompt(workflow_type: &str, council_mode: &str, question_type: QuestionType) -> String {
+    let capability_boundary = "\
+CAPABILITY BOUNDARY: You are a text-based business advisor running inside the Co-Op desktop application. \
+You have NO terminal access, NO ability to execute commands, NO access to live servers, databases, dashboards, or deployment infrastructure. \
+You cannot open browsers, run scripts, or perform any system action. When a user asks you to perform a system action:
+1. Explicitly state that Co-Op cannot execute that action.
+2. Provide the exact steps or commands the user should execute themselves.
+3. Clearly label your output as \"Instructions for the owner\" — not actions you performed.
+Never present instructions as if you executed them. Never say \"I checked the logs\" or \"I restarted the server.\"";
+
+    let grounding_rule = "\
+STRICT GROUNDING RULE: You may ONLY reference facts that appear in the attached workspace context, company files, business memory, or web sources. Specifically:
+- Do NOT invent hosting providers, deployment platforms, service names, or infrastructure details.
+- Do NOT invent team names, departments, or organizational structures.
+- Do NOT invent tools, dashboards, monitoring services, or third-party integrations.
+- Do NOT present inferred information as fact. If you must infer, prefix with \"Assuming...\" or \"If [condition], then...\"
+- When information is missing, say exactly what is missing instead of filling the gap.";
+
+    let format_instruction = match question_type {
+        QuestionType::Factual => "\
+Answer in 1-3 sentences. Do NOT add sections for Known Facts, Assumptions, Risks, Review Notes, or Next Actions. \
+If an assumption is critical, state it inline.",
+        QuestionType::ActionRequest => "\
+State whether Co-Op can perform this action (it cannot execute commands). Then list the exact steps the owner should take. \
+Do NOT generate Key Decisions, Risks, or Assumptions sections.",
+        QuestionType::Planning => "\
+Structure the answer with: Decision, Evidence Used, Assumptions, Action Plan, Risks, and Next Checkpoint. \
+Mark external actions for human approval.",
+        QuestionType::Brainstorming => "\
+List 3-7 options with one-line tradeoffs each. Recommend one. Do NOT add Known Facts or Risk sections.",
+        QuestionType::Comparison => "\
+Create a comparison table or list. Classify each item. State evidence source. Do NOT add a planning framework.",
+    };
     format!(
-        "You are Co-Op, a local-first business management and operations harness. Workflow type: {workflow_type}. \
+        "{capability_boundary}\n\n{grounding_rule}\n\nYou are Co-Op, a local-first business management and operations harness. Workflow type: {workflow_type}. \
 Keep company data private, separate known facts from assumptions, and never fabricate company metrics. \
 Use live web sources when they are attached. Do not make competitor, legal, investor, pricing, or market claims without source evidence. \
-Use this production response contract: Decision, Evidence Used, Assumptions, Action Plan, Owners, Risks, Human Approval Required, Next Checkpoint. \
+{format_instruction} \
 When recommending external actions such as legal, payroll, payment, fundraising, security, or customer outreach, mark whether a human owner must approve before execution. \
 Review policy is {council_mode}; use critique only when configured."
     )
 }
 
 pub fn workspace_context(profile: &crate::types::StartupProfile) -> String {
-    format!(
-    "Founder: {} ({})\nCompany: {}\nTagline: {}\nWebsite: {}\nDescription: {}\nStage: {}\nIndustry: {}\nSector: {}\nLocation: {}\nCountry: {}\nCity: {}\nOperating regions: {}\nTeam size: {}\nCo-founder count: {}\nCustomers: {}\nProblem: {}\nSolution: {}\nBusiness model: {}\nRevenue model: {}\nRevenue status: {}\nMonthly revenue: {}\nFunding stage: {}\nTotal raised: {}\nTraction: {}\nCompetitive advantage: {}\nGoals: {}",
-    empty_dash(&profile.founder_name),
-    empty_dash(&profile.founder_role),
-    empty_dash(&profile.company_name),
-    empty_dash(&profile.tagline),
-    empty_dash(&profile.website),
-    empty_dash(&profile.description),
-    empty_dash(&profile.stage),
-    empty_dash(&profile.industry),
-    empty_dash(&profile.sector),
-    empty_dash(&profile.location),
-    empty_dash(&profile.country),
-    empty_dash(&profile.city),
-    empty_dash(&profile.operating_regions),
-    empty_dash(&profile.team_size),
-    profile.cofounder_count.map(|value| value.to_string()).unwrap_or_else(|| "-".to_string()),
-    empty_dash(&profile.target_customers),
-    empty_dash(&profile.problem),
-    empty_dash(&profile.solution),
-    empty_dash(&profile.business_model),
-    empty_dash(&profile.revenue_model),
-    empty_dash(&profile.is_revenue),
-    profile.monthly_revenue.map(format_money).unwrap_or_else(|| "-".to_string()),
-    empty_dash(&profile.funding_stage),
-    profile.total_raised.map(format_money).unwrap_or_else(|| "-".to_string()),
-    empty_dash(&profile.traction),
-    empty_dash(&profile.competitive_advantage),
-    empty_dash(&profile.goals),
-  )
+    let mut lines: Vec<String> = Vec::new();
+
+    let founder_name = profile.founder_name.trim();
+    let founder_role = profile.founder_role.trim();
+    if !founder_name.is_empty() {
+        if !founder_role.is_empty() {
+            lines.push(format!("Founder: {founder_name} ({founder_role})"));
+        } else {
+            lines.push(format!("Founder: {founder_name}"));
+        }
+    }
+    push_field(&mut lines, "Company", &profile.company_name);
+    push_field(&mut lines, "Tagline", &profile.tagline);
+    push_field(&mut lines, "Website", &profile.website);
+    push_field(&mut lines, "Description", &profile.description);
+    push_field(&mut lines, "Stage", &profile.stage);
+    push_field(&mut lines, "Industry", &profile.industry);
+    push_field(&mut lines, "Sector", &profile.sector);
+    push_field(&mut lines, "Location", &profile.location);
+    push_field(&mut lines, "Country", &profile.country);
+    push_field(&mut lines, "City", &profile.city);
+    push_field(&mut lines, "Operating regions", &profile.operating_regions);
+    push_field(&mut lines, "Team size", &profile.team_size);
+    if let Some(count) = profile.cofounder_count {
+        lines.push(format!("Co-founder count: {count}"));
+    }
+    push_field(&mut lines, "Customers", &profile.target_customers);
+    push_field(&mut lines, "Problem", &profile.problem);
+    push_field(&mut lines, "Solution", &profile.solution);
+    push_field(&mut lines, "Business model", &profile.business_model);
+    push_field(&mut lines, "Revenue model", &profile.revenue_model);
+    push_field(&mut lines, "Revenue status", &profile.is_revenue);
+    if let Some(revenue) = profile.monthly_revenue {
+        lines.push(format!("Monthly revenue: {}", format_money(revenue)));
+    }
+    push_field(&mut lines, "Funding stage", &profile.funding_stage);
+    if let Some(raised) = profile.total_raised {
+        lines.push(format!("Total raised: {}", format_money(raised)));
+    }
+    push_field(&mut lines, "Traction", &profile.traction);
+    push_field(&mut lines, "Competitive advantage", &profile.competitive_advantage);
+    push_field(&mut lines, "Goals", &profile.goals);
+
+    if lines.is_empty() {
+        return "No company profile fields are filled in yet.".to_string();
+    }
+    lines.join("\n")
+}
+
+fn is_default_value(label: &str, value: &str) -> bool {
+    let trimmed = value.trim();
+    matches!((label, trimmed), 
+        ("Stage", "idea") | 
+        ("Sector", "other") | 
+        ("Revenue model", "not_yet") | 
+        ("Revenue status", "pre_revenue") | 
+        ("Funding stage", "bootstrapped")
+    )
+}
+
+fn push_field(lines: &mut Vec<String>, label: &str, value: &str) {
+    let trimmed = value.trim();
+    if !trimmed.is_empty() && !is_default_value(label, value) {
+        lines.push(format!("{label}: {trimmed}"));
+    }
 }
 
 fn format_money(value: f64) -> String {
@@ -399,14 +555,6 @@ fn mark_last_trace(run: &mut WorkflowRun, status: &str, detail: &str) {
     }
 }
 
-fn empty_dash(value: &str) -> &str {
-    if value.trim().is_empty() {
-        "-"
-    } else {
-        value.trim()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -459,5 +607,40 @@ mod tests {
         assert_eq!(run.steps, vec!["Prepared harness prompt".to_string()]);
         assert_eq!(run.trace[0].stage, "model");
         assert_eq!(run.trace[0].status, "completed");
+    }
+
+    #[test]
+    fn workspace_context_omits_empty_fields() {
+        let profile = crate::types::StartupProfile {
+            company_name: "WatchDawg".to_string(),
+            problem: "Website security scanning is manual and slow.".to_string(),
+            solution: "Automated website security analysis.".to_string(),
+            ..crate::types::StartupProfile::default()
+        };
+        let context = workspace_context(&profile);
+        assert!(context.contains("Company: WatchDawg"));
+        assert!(context.contains("Problem:"));
+        assert!(context.contains("Solution:"));
+        // Empty fields should not appear
+        assert!(!context.contains("Location:"));
+        assert!(!context.contains("Country:"));
+        assert!(!context.contains("City:"));
+        assert!(!context.contains("Founder:"));
+        assert!(!context.contains("-"));
+    }
+
+    #[test]
+    fn workspace_context_shows_message_for_empty_profile() {
+        let profile = crate::types::StartupProfile {
+            founder_role: String::new(),
+            stage: String::new(),
+            sector: String::new(),
+            revenue_model: String::new(),
+            is_revenue: String::new(),
+            funding_stage: String::new(),
+            ..crate::types::StartupProfile::default()
+        };
+        let context = workspace_context(&profile);
+        assert!(context.contains("No company profile fields"));
     }
 }

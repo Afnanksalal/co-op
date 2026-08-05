@@ -96,6 +96,16 @@ export async function runAgentChat(request: ChatRequest): Promise<DesktopState> 
   return invokeDesktop<DesktopState>('run_agent_chat', { request });
 }
 
+export async function deleteChatSession(sessionId: string): Promise<DesktopState> {
+  if (!isTauriRuntime()) throwDesktopOnly('Chat deletion');
+  return invokeDesktop<DesktopState>('delete_chat_session', { sessionId });
+}
+
+export async function pinChatSession(sessionId: string): Promise<DesktopState> {
+  if (!isTauriRuntime()) throwDesktopOnly('Chat pinning');
+  return invokeDesktop<DesktopState>('pin_chat_session', { sessionId });
+}
+
 export async function addKnowledgeDocument(request: DocumentRequest): Promise<DesktopState> {
   if (!isTauriRuntime()) throwDesktopOnly('Knowledge documents');
   return invokeDesktop<DesktopState>('add_knowledge_document', { request });

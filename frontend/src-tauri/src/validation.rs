@@ -1,8 +1,9 @@
 use reqwest::Url;
 
 use crate::constants::{
-    MAX_DOCUMENT_LENGTH, MAX_EMAIL_BODY_LENGTH, MAX_EMAIL_SUBJECT_LENGTH, MAX_MODEL_NAME_LENGTH,
-    MAX_OBJECTIVE_LENGTH, MAX_RUN_TOKENS, MIN_RUN_TOKENS,
+    DEFAULT_RESEARCH_PROVIDER, MAX_DOCUMENT_LENGTH, MAX_EMAIL_BODY_LENGTH,
+    MAX_EMAIL_SUBJECT_LENGTH, MAX_MODEL_NAME_LENGTH, MAX_OBJECTIVE_LENGTH, MAX_RUN_TOKENS,
+    MIN_RUN_TOKENS,
 };
 use crate::types::{
     CampaignRequest, CapTableRequest, ChatRequest, DocumentRequest, LeadRequest, ModelSettings,
@@ -54,6 +55,12 @@ pub fn sanitize_http_base_url(
     Ok(rendered)
 }
 
+pub fn validate_read_only(settings: &ModelSettings) -> Result<ModelSettings, String> {
+    let mut cloned = settings.clone();
+    validate_model_settings(&mut cloned)?;
+    Ok(cloned)
+}
+
 pub fn validate_model_settings(settings: &mut ModelSettings) -> Result<(), String> {
     settings.provider = settings.provider.trim().to_string();
     settings.council_mode = settings.council_mode.trim().to_string();
@@ -86,8 +93,8 @@ pub fn validate_model_settings(settings: &mut ModelSettings) -> Result<(), Strin
     ) {
         return Err("Unsupported council mode".to_string());
     }
-    if settings.research_provider != "firecrawl" {
-        settings.research_provider = "firecrawl".to_string();
+    if settings.research_provider != DEFAULT_RESEARCH_PROVIDER {
+        settings.research_provider = DEFAULT_RESEARCH_PROVIDER.to_string();
     }
     if !matches!(
         settings.email_provider.as_str(),
@@ -460,7 +467,7 @@ mod tests {
 
         validate_model_settings(&mut settings).unwrap();
 
-        assert_eq!(settings.research_provider, "firecrawl");
+        assert_eq!(settings.research_provider, DEFAULT_RESEARCH_PROVIDER);
     }
 
     #[test]

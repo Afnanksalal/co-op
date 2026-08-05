@@ -1,3 +1,4 @@
+use crate::constants::DEFAULT_RESEARCH_PROVIDER;
 use crate::providers::search_firecrawl;
 use crate::types::{ModelSettings, ResearchSource, StartupProfile};
 
@@ -32,7 +33,7 @@ pub(crate) async fn collect_research_sources(
 }
 
 pub(crate) fn ensure_web_search_ready(settings: &ModelSettings) -> Result<(), String> {
-    if settings.research_provider != "firecrawl" {
+    if settings.research_provider != DEFAULT_RESEARCH_PROVIDER {
         return Err(
             "Web search is required for source-backed business research. Open Settings and save a web search key."
                 .to_string(),
@@ -151,43 +152,7 @@ pub(crate) fn filter_business_sources(
         .collect()
 }
 
-pub fn requires_live_web_research(area: &str, objective: &str) -> bool {
-    let area = area.trim().to_lowercase();
-    if matches!(area.as_str(), "competitor" | "legal" | "investor") {
-        return true;
-    }
 
-    let objective = objective.to_lowercase();
-    let web_terms = [
-        "competitor",
-        "competitors",
-        "alternative",
-        "alternatives",
-        "market",
-        "trend",
-        "pricing",
-        "price",
-        "legal",
-        "law",
-        "regulation",
-        "compliance",
-        "contract",
-        "investor",
-        "funding",
-        "customer segment",
-        "lead",
-        "prospect",
-        "outreach angle",
-        "who are",
-        "find",
-        "current",
-        "latest",
-        "recent",
-        "today",
-    ];
-
-    web_terms.iter().any(|term| objective.contains(term))
-}
 
 fn competitor_search_queries(profile: &StartupProfile, owner_query: &str) -> Vec<String> {
     let business_context = compact_context(&[
@@ -471,22 +436,7 @@ mod tests {
         assert!(queries.iter().any(|query| query.contains("government")));
     }
 
-    #[test]
-    fn live_web_research_is_required_for_external_fact_work() {
-        assert!(requires_live_web_research(
-            "competitor",
-            "who are my competitors"
-        ));
-        assert!(requires_live_web_research(
-            "legal",
-            "review privacy compliance"
-        ));
-        assert!(requires_live_web_research("operations", "find competitors"));
-        assert!(!requires_live_web_research(
-            "operations",
-            "summarize my saved notes"
-        ));
-    }
+
 
     #[test]
     fn competitor_sources_must_match_business_context() {

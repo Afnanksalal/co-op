@@ -25,6 +25,8 @@ struct OllamaChatRequest<'a> {
 #[derive(Debug, Clone, Serialize)]
 struct OllamaOptions {
     num_predict: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    temperature: Option<f32>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -106,10 +108,11 @@ pub async fn call_model(
     settings: &ModelSettings,
     system_prompt: &str,
     user_prompt: &str,
+    temperature: Option<f32>,
 ) -> Result<String, String> {
     match settings.provider.as_str() {
-        "ollama" => call_ollama(settings, system_prompt, user_prompt).await,
-        "openai_compatible" => call_openai_compatible(settings, system_prompt, user_prompt).await,
+        "ollama" => call_ollama(settings, system_prompt, user_prompt, temperature).await,
+        "openai_compatible" => call_openai_compatible(settings, system_prompt, user_prompt, temperature).await,
         provider => Err(format!("Unsupported provider: {provider}")),
     }
 }
@@ -118,12 +121,14 @@ pub async fn call_ollama(
     settings: &ModelSettings,
     system_prompt: &str,
     user_prompt: &str,
+    temperature: Option<f32>,
 ) -> Result<String, String> {
     let request = OllamaChatRequest {
         model: &settings.ollama_model,
         stream: false,
         options: OllamaOptions {
             num_predict: settings.normalized_max_tokens() as i32,
+            temperature,
         },
         messages: vec![
             ChatMessage {
@@ -139,27 +144,52 @@ pub async fn call_ollama(
 
     let ollama_base_url =
         sanitize_http_base_url(&settings.ollama_base_url, true, false, "Ollama URL")?;
-    let response = http_client()?
-        .post(format!("{}/api/chat", ollama_base_url))
-        .json(&request)
-        .send()
-        .await
-        .map_err(|error| format!("Ollama request failed: {error}"))?;
+        
+    let mut attempt = 0;
+    const MAX_ATTEMPTS: u8 = 3;
 
-    let response = ensure_success(response, "Ollama").await?;
+    loop {
+        attempt += 1;
+        
+        let result = http_client()?
+            .post(format!("{}/api/chat", ollama_base_url))
+            .json(&request)
+            .send()
+            .await;
 
-    let body = response
-        .json::<OllamaChatResponse>()
-        .await
-        .map_err(|error| format!("Ollama response was not valid JSON: {error}"))?;
-
-    Ok(body.message.content)
+        match result {
+            Ok(response) => {
+                match ensure_success(response, "Ollama").await {
+                    Ok(success_res) => {
+                        let body = success_res
+                            .json::<OllamaChatResponse>()
+                            .await
+                            .map_err(|error| format!("Ollama response was not valid JSON: {error}"))?;
+                        return Ok(body.message.content);
+                    }
+                    Err(e) => {
+                        if attempt >= MAX_ATTEMPTS {
+                            return Err(e);
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                if attempt >= MAX_ATTEMPTS {
+                    return Err(format!("Ollama request failed: {e}"));
+                }
+            }
+        }
+        
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    }
 }
 
 pub async fn call_openai_compatible(
     settings: &ModelSettings,
     system_prompt: &str,
     user_prompt: &str,
+    temperature: Option<f32>,
 ) -> Result<String, String> {
     let api_key = settings
         .openai_api_key
@@ -167,10 +197,23 @@ pub async fn call_openai_compatible(
         .filter(|value| !value.trim().is_empty())
         .ok_or_else(|| "OpenAI-compatible provider selected but no API key is saved".to_string())?;
 
+    // Estimate input tokens (conservative: ~3 chars per token) and cap max_tokens
+    // so that input + output stays within the configured max_run_tokens budget.
+    // This prevents 429 rate-limit errors on providers with low TPM limits (e.g. Groq free tier).
+    let input_chars = system_prompt.len() + user_prompt.len();
+    let estimated_input_tokens = (input_chars / 3) as u32;
+    let configured_max = settings.normalized_max_tokens();
+    let effective_max_tokens = if estimated_input_tokens >= configured_max {
+        // Input already exceeds budget — request minimal output
+        256
+    } else {
+        configured_max.saturating_sub(estimated_input_tokens).max(256)
+    };
+
     let request = OpenAiChatRequest {
         model: &settings.openai_model,
-        temperature: 0.2,
-        max_tokens: settings.normalized_max_tokens(),
+        temperature: temperature.unwrap_or(0.2),
+        max_tokens: effective_max_tokens,
         messages: vec![
             ChatMessage {
                 role: "system",
@@ -189,26 +232,185 @@ pub async fn call_openai_compatible(
         false,
         "OpenAI-compatible URL",
     )?;
+
+    let mut attempt = 0;
+    const MAX_ATTEMPTS: u8 = 3;
+
+    loop {
+        attempt += 1;
+
+        let result = http_client()?
+            .post(format!("{}/chat/completions", openai_base_url))
+            .bearer_auth(api_key)
+            .json(&request)
+            .send()
+            .await;
+
+        match result {
+            Ok(response) => {
+                match ensure_success(response, "OpenAI-compatible provider").await {
+                    Ok(success_res) => {
+                        let body = success_res
+                            .json::<OpenAiChatResponse>()
+                            .await
+                            .map_err(|error| format!("OpenAI-compatible response was not valid JSON: {error}"))?;
+
+                        return body
+                            .choices
+                            .first()
+                            .map(|choice| choice.message.content.clone())
+                            .filter(|content| !content.trim().is_empty())
+                            .ok_or_else(|| "OpenAI-compatible provider returned no content".to_string());
+                    }
+                    Err(e) => {
+                        if attempt >= MAX_ATTEMPTS {
+                            return Err(e);
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                if attempt >= MAX_ATTEMPTS {
+                    return Err(format!("OpenAI-compatible request failed: {e}"));
+                }
+            }
+        }
+
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    }
+}
+
+// ── Embedding endpoints ──────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize)]
+struct OllamaEmbeddingRequest<'a> {
+    model: &'a str,
+    prompt: &'a str,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct OllamaEmbeddingResponse {
+    embedding: Vec<f32>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct OpenAiEmbeddingRequest<'a> {
+    model: &'a str,
+    input: &'a str,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct OpenAiEmbeddingData {
+    embedding: Vec<f32>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct OpenAiEmbeddingResponse {
+    data: Vec<OpenAiEmbeddingData>,
+}
+
+/// Returns true when the model name looks like a dedicated embedding model.
+fn looks_like_embedding_model(model: &str) -> bool {
+    let lower = model.trim().to_lowercase();
+    lower.contains("embed") || lower.contains("e5-") || lower.contains("bge-")
+}
+
+fn ollama_embedding_model(settings: &ModelSettings) -> String {
+    if looks_like_embedding_model(&settings.ollama_model) {
+        settings.ollama_model.trim().to_string()
+    } else {
+        crate::constants::DEFAULT_OLLAMA_EMBEDDING_MODEL.to_string()
+    }
+}
+
+fn openai_embedding_model(settings: &ModelSettings) -> String {
+    if looks_like_embedding_model(&settings.openai_model) {
+        settings.openai_model.trim().to_string()
+    } else {
+        crate::constants::DEFAULT_OPENAI_EMBEDDING_MODEL.to_string()
+    }
+}
+
+/// Provider embedding call using a dedicated embedding model — never the chat model
+/// unless that model name itself is clearly an embedding model.
+pub async fn call_embedding(
+    settings: &ModelSettings,
+    text: &str,
+) -> Result<Vec<f32>, String> {
+    match settings.provider.as_str() {
+        "ollama" => embed_ollama(settings, text).await,
+        "openai_compatible" => embed_openai_compatible(settings, text).await,
+        provider => Err(format!("Unsupported embedding provider: {provider}")),
+    }
+}
+
+async fn embed_ollama(
+    settings: &ModelSettings,
+    text: &str,
+) -> Result<Vec<f32>, String> {
+    let model = ollama_embedding_model(settings);
+    let request = OllamaEmbeddingRequest {
+        model: &model,
+        prompt: text,
+    };
+    let ollama_base_url =
+        sanitize_http_base_url(&settings.ollama_base_url, true, false, "Ollama URL")?;
     let response = http_client()?
-        .post(format!("{}/chat/completions", openai_base_url))
+        .post(format!("{}/api/embeddings", ollama_base_url))
+        .json(&request)
+        .send()
+        .await
+        .map_err(|error| format!("Ollama embedding request failed: {error}"))?;
+    let response = ensure_success(response, "Ollama embeddings").await?;
+    let body = response
+        .json::<OllamaEmbeddingResponse>()
+        .await
+        .map_err(|error| format!("Ollama embedding response was not valid JSON: {error}"))?;
+    if body.embedding.is_empty() {
+        return Err("Ollama returned an empty embedding vector".to_string());
+    }
+    Ok(body.embedding)
+}
+
+async fn embed_openai_compatible(
+    settings: &ModelSettings,
+    text: &str,
+) -> Result<Vec<f32>, String> {
+    let api_key = settings
+        .openai_api_key
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| "OpenAI-compatible provider selected but no API key is saved".to_string())?;
+    let model = openai_embedding_model(settings);
+    let request = OpenAiEmbeddingRequest {
+        model: &model,
+        input: text,
+    };
+    let openai_base_url = sanitize_http_base_url(
+        &settings.openai_base_url,
+        true,
+        false,
+        "OpenAI-compatible URL",
+    )?;
+    let response = http_client()?
+        .post(format!("{}/embeddings", openai_base_url))
         .bearer_auth(api_key)
         .json(&request)
         .send()
         .await
-        .map_err(|error| format!("OpenAI-compatible request failed: {error}"))?;
-
-    let response = ensure_success(response, "OpenAI-compatible provider").await?;
-
+        .map_err(|error| format!("OpenAI-compatible embedding request failed: {error}"))?;
+    let response = ensure_success(response, "OpenAI-compatible embeddings").await?;
     let body = response
-        .json::<OpenAiChatResponse>()
+        .json::<OpenAiEmbeddingResponse>()
         .await
-        .map_err(|error| format!("OpenAI-compatible response was not valid JSON: {error}"))?;
-
-    body.choices
+        .map_err(|error| {
+            format!("OpenAI-compatible embedding response was not valid JSON: {error}")
+        })?;
+    body.data
         .first()
-        .map(|choice| choice.message.content.clone())
-        .filter(|content| !content.trim().is_empty())
-        .ok_or_else(|| "OpenAI-compatible provider returned no content".to_string())
+        .map(|entry| entry.embedding.clone())
+        .filter(|vector| !vector.is_empty())
+        .ok_or_else(|| "OpenAI-compatible provider returned no embedding".to_string())
 }
 
 pub async fn search_firecrawl(
@@ -408,14 +610,23 @@ fn parse_firecrawl_sources(payload: Value) -> Vec<ResearchSource> {
         .filter_map(|item| {
             let title = string_field(&item, &["title", "metadata.title"])
                 .unwrap_or_else(|| "Untitled source".to_string());
-            let url = string_field(&item, &["url", "metadata.sourceURL", "metadata.url"])
+            let raw_url = string_field(&item, &["url", "metadata.sourceURL", "metadata.url"])
                 .unwrap_or_default();
+            let url = if raw_url.starts_with("http://") || raw_url.starts_with("https://") {
+                raw_url
+            } else {
+                String::new()
+            };
             let description =
                 string_field(&item, &["description", "snippet", "metadata.description"])
                     .unwrap_or_default();
-            let content = string_field(&item, &["markdown", "content", "text", "summary"])
+            
+            let raw_content = string_field(&item, &["content", "text", "summary", "markdown"])
                 .unwrap_or_else(|| description.clone());
-            if url.is_empty() && content.is_empty() {
+                
+            let content = clean_markdown(&raw_content);
+            
+            if url.is_empty() && content.trim().is_empty() {
                 return None;
             }
             Some(ResearchSource {
@@ -426,6 +637,23 @@ fn parse_firecrawl_sources(payload: Value) -> Vec<ResearchSource> {
             })
         })
         .collect()
+}
+
+fn clean_markdown(input: &str) -> String {
+    use std::sync::OnceLock;
+    static RE_IMAGES: OnceLock<regex::Regex> = OnceLock::new();
+    static RE_LINKS: OnceLock<regex::Regex> = OnceLock::new();
+    static RE_FORMATTING: OnceLock<regex::Regex> = OnceLock::new();
+
+    let re_images = RE_IMAGES.get_or_init(|| regex::Regex::new(r"!\[[^\]]*\]\([^)]+\)").unwrap());
+    let re_links = RE_LINKS.get_or_init(|| regex::Regex::new(r"\[([^\]]+)\]\([^)]+\)").unwrap());
+    let re_formatting = RE_FORMATTING.get_or_init(|| regex::Regex::new(r"(\*\*\*+|---+|===+|###+)").unwrap());
+
+    let no_images = re_images.replace_all(input, "");
+    let no_links = re_links.replace_all(&no_images, "$1");
+    let no_formatting = re_formatting.replace_all(&no_links, "");
+    
+    no_formatting.to_string()
 }
 
 fn firecrawl_result_items(payload: &Value) -> Vec<Value> {
@@ -641,5 +869,23 @@ mod tests {
         assert_eq!(sources.len(), 1);
         assert_eq!(sources[0].title, "Legacy title");
         assert_eq!(sources[0].url, "https://legacy.example.com");
+    }
+
+    #[test]
+    fn strips_markdown_noise_from_firecrawl_results() {
+        let input = "---
+### Header
+[Contact Us](https://example.com)
+![Logo](https://example.com/logo.png)
+Useful text
+---";
+        let cleaned = super::clean_markdown(input);
+        
+        assert!(!cleaned.contains("Contact Us](https://example.com)"));
+        assert!(cleaned.contains("Contact Us"));
+        assert!(!cleaned.contains("![Logo]"));
+        assert!(!cleaned.contains("---"));
+        assert!(!cleaned.contains("###"));
+        assert!(cleaned.contains("Useful text"));
     }
 }

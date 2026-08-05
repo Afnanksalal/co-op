@@ -1,4 +1,5 @@
 use chrono::Utc;
+use futures::StreamExt;
 use std::collections::HashSet;
 use tauri::AppHandle;
 use uuid::Uuid;
@@ -20,7 +21,7 @@ use crate::types::{
     DiscoverLeadsRequest, Lead, LeadRequest, ResearchRun,
 };
 use crate::validation::{
-    looks_like_email, validate_campaign_request, validate_lead_request, validate_model_settings,
+    looks_like_email, validate_campaign_request, validate_lead_request, validate_read_only,
     validate_objective,
 };
 use crate::workflows::workspace_context;
@@ -47,8 +48,7 @@ pub async fn discover_leads(
     }
     let mut state = load_or_create_state(&app)?;
     require_usable_activation(&state)?;
-    let mut settings = state.model_settings.clone();
-    validate_model_settings(&mut settings)?;
+    let settings = validate_read_only(&state.model_settings)?;
     if settings.research_provider != "firecrawl" {
         return Err(
             "Lead discovery uses web search. Open Settings and save a web search key before discovering prospects."
@@ -81,7 +81,7 @@ pub async fn discover_leads(
 
     let source_context = format_sources(&sources);
     let extraction_prompt = format!(
-    "Company profile:\n{}\n\nLead type: {}\nOwner search brief: {}\nWeb search query: {}\nMax leads: {}\n\nWeb sources:\n{}\n\nExtract concrete leads only from the web sources. Do not invent names, emails, websites, locations, or follower counts. Leave unknown fields empty. Score fit from 0-100 based on relevance to the company profile. Return one lead per line in this exact pipe-delimited format:\nname | company | email | website | profile_url | platform | niche | location | description | score",
+    "Company profile:\n{}\n\nLead type: {}\nOwner search brief: {}\nWeb search query: {}\nMax leads: {}\n\nWeb sources:\n{}\n\nExtract concrete leads only from the web sources. Do not invent names, websites, locations, or follower counts. Leave unknown fields empty. Score fit from 0-100 based on relevance to the company profile. Return one lead per line in this exact pipe-delimited format:\nname | company | website | profile_url | platform | niche | location | description | score",
     workspace_context(&state.workspace),
     request.lead_type,
     request.query.trim(),
@@ -93,10 +93,11 @@ pub async fn discover_leads(
         &settings,
         "You are Co-Op's lead discovery extractor. Use only supplied web evidence. Only output pipe-delimited lead rows.",
         &extraction_prompt,
+        Some(0.1),
     )
     .await?;
 
-    let mut leads = parse_generated_leads(&generated, &request.lead_type, max_leads);
+    let mut leads = parse_generated_leads(&generated, &request.lead_type, max_leads, &sources);
     if leads.is_empty() {
         leads = fallback_leads_from_sources(&sources, &request.lead_type, max_leads);
     }
@@ -219,43 +220,127 @@ pub async fn generate_campaign_emails(
 
     let settings = state.model_settings.clone();
     let mut generated = Vec::new();
-    for lead in leads {
-        let (subject, body) = if campaign.mode == "ai_personalized" {
+
+    if campaign.mode == "ai_personalized" {
+        let subject_template = campaign.subject_template.clone();
+        let body_template = campaign.body_template.clone();
+        let mut futures = futures::stream::iter(leads.into_iter().map(|lead| {
+            let settings_clone = settings.clone();
+            let subject_template = subject_template.clone();
+            let body_template = body_template.clone();
             let prompt = format!(
-        "Startup:\n{}\n\nCampaign goal: {}\nTone: {}\nCTA: {}\nLead:\n{}\n\nReturn subject on the first line and email body after that.",
-        workspace_context(&state.workspace),
-        campaign.campaign_goal,
-        campaign.tone,
-        campaign.call_to_action,
-        lead_context(&lead)
-      );
-            let output = call_model(
-                &settings,
-                "You write concise, personalized B2B outreach emails. No fake claims.",
-                &prompt,
-            )
-            .await?;
-            validate_model_output(&output, false, false)?;
-            split_subject_body(&output)
-        } else {
-            (
+                "Startup:\n{}\n\nCampaign goal: {}\nTone: {}\nCTA: {}\nLead:\n{}\n\nReturn subject on the first line and email body after that.",
+                workspace_context(&state.workspace),
+                campaign.campaign_goal,
+                campaign.tone,
+                campaign.call_to_action,
+                lead_context(&lead)
+            );
+
+            async move {
+                match call_model(
+                    &settings_clone,
+                    "You write concise, personalized B2B outreach emails. No fake claims.",
+                    &prompt,
+                    Some(0.7),
+                )
+                .await
+                {
+                    Ok(output) => {
+                        if validate_model_output(&output, false, false, false).is_ok() {
+                            let (subject, body) = split_subject_body(&output);
+                            (lead, subject, body, None)
+                        } else if !subject_template.trim().is_empty()
+                            && !body_template.trim().is_empty()
+                        {
+                            (
+                                lead.clone(),
+                                apply_lead_vars(&subject_template, &lead),
+                                apply_lead_vars(&body_template, &lead),
+                                Some("AI output failed validation; used campaign template instead.".to_string()),
+                            )
+                        } else {
+                            (
+                                lead,
+                                String::new(),
+                                String::new(),
+                                Some("AI output failed validation and no campaign template was available.".to_string()),
+                            )
+                        }
+                    }
+                    Err(error) => {
+                        if !subject_template.trim().is_empty() && !body_template.trim().is_empty()
+                        {
+                            (
+                                lead.clone(),
+                                apply_lead_vars(&subject_template, &lead),
+                                apply_lead_vars(&body_template, &lead),
+                                Some(format!("AI generation failed ({error}); used campaign template instead.")),
+                            )
+                        } else {
+                            (
+                                lead,
+                                String::new(),
+                                String::new(),
+                                Some(format!("AI generation failed: {error}")),
+                            )
+                        }
+                    }
+                }
+            }
+        }))
+        .buffer_unordered(5);
+
+        let mut failed = 0usize;
+        while let Some((lead, subject, body, provider_message)) = futures.next().await {
+            if subject.trim().is_empty() || body.trim().is_empty() {
+                failed += 1;
+                continue;
+            }
+            let status = if provider_message.is_some() {
+                "generated_from_template".to_string()
+            } else {
+                "generated".to_string()
+            };
+            generated.push(CampaignEmail {
+                id: Uuid::new_v4().to_string(),
+                campaign_id: campaign.id.clone(),
+                lead_id: lead.id,
+                to: lead.email,
+                subject,
+                body,
+                status,
+                provider_message,
+                created_at: Utc::now().to_rfc3339(),
+                sent_at: None,
+            });
+        }
+        if generated.is_empty() {
+            return Err(format!(
+                "Failed to generate any emails ({failed} lead(s) failed). Check your AI provider or add a campaign template fallback."
+            ));
+        }
+    } else {
+        for lead in leads {
+            let (subject, body) = (
                 apply_lead_vars(&campaign.subject_template, &lead),
                 apply_lead_vars(&campaign.body_template, &lead),
-            )
-        };
-        generated.push(CampaignEmail {
-            id: Uuid::new_v4().to_string(),
-            campaign_id: campaign.id.clone(),
-            lead_id: lead.id,
-            to: lead.email,
-            subject,
-            body,
-            status: "generated".to_string(),
-            provider_message: None,
-            created_at: Utc::now().to_rfc3339(),
-            sent_at: None,
-        });
+            );
+            generated.push(CampaignEmail {
+                id: Uuid::new_v4().to_string(),
+                campaign_id: campaign.id.clone(),
+                lead_id: lead.id,
+                to: lead.email,
+                subject,
+                body,
+                status: "generated".to_string(),
+                provider_message: None,
+                created_at: Utc::now().to_rfc3339(),
+                sent_at: None,
+            });
+        }
     }
+
     state.campaign_emails.extend(generated);
     if let Some(stored) = state
         .campaigns
@@ -275,8 +360,7 @@ pub async fn send_campaign_emails(
 ) -> Result<DesktopStateResponse, String> {
     let mut state = load_or_create_state(&app)?;
     require_usable_activation(&state)?;
-    let mut settings = state.model_settings.clone();
-    validate_model_settings(&mut settings)?;
+    let settings = validate_read_only(&state.model_settings)?;
     let indexes: Vec<usize> = state
         .campaign_emails
         .iter()

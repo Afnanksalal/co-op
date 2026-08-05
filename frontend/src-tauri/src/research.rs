@@ -13,9 +13,9 @@ use crate::research_sources::{
 };
 use crate::storage::{load_or_create_state, require_usable_activation, save_state};
 use crate::types::{DocumentRequest, ModelSettings, ResearchRequest, ResearchRun, StartupProfile};
-use crate::validation::{validate_model_settings, validate_objective};
+use crate::validation::{validate_read_only, validate_objective};
 
-pub(crate) use crate::research_sources::requires_live_web_research;
+
 
 #[tauri::command]
 pub async fn run_research_query(
@@ -26,9 +26,7 @@ pub async fn run_research_query(
     validate_business_input("Research", &request.research_type, &request.query)?;
     let mut state = load_or_create_state(&app)?;
     require_usable_activation(&state)?;
-    let mut settings = state.model_settings.clone();
-    validate_model_settings(&mut settings)?;
-    state.model_settings = settings.clone();
+    let settings = validate_read_only(&state.model_settings)?;
     let research_type = normalize_research_type(&request.research_type);
     let depth = normalize_research_depth(&request.depth);
     let source_limit = source_limit_for_depth(&depth);
@@ -58,14 +56,15 @@ pub async fn run_research_query(
             "Owner brief: {}\nWeb searches completed:\n{}\n\nSources:\n{}",
             request.query, search_context, source_context
         ),
+        Some(0.1),
     )
     .await?;
-    validate_model_output(&summary, true, true)?;
+    validate_model_output(&summary, true, true, false)?;
 
     let run = ResearchRun {
         id: Uuid::new_v4().to_string(),
         query: request.query.trim().to_string(),
-        provider: "firecrawl".to_string(),
+        provider: settings.research_provider.clone(),
         summary,
         sources,
         created_at: Utc::now().to_rfc3339(),
@@ -98,7 +97,7 @@ pub async fn run_research_query(
                 source: run.provider.clone(),
                 content,
             },
-        )?;
+        ).await?;
     }
 
     Ok(run)
@@ -109,10 +108,11 @@ pub async fn research_context_for_business(
     profile: &StartupProfile,
     owner_query: &str,
     focus: &str,
+    source_limit: usize,
 ) -> Result<String, String> {
     ensure_web_search_ready(settings)?;
     let (sources, search_queries) =
-        collect_research_sources(settings, profile, owner_query, focus, 4).await?;
+        collect_research_sources(settings, profile, owner_query, focus, source_limit).await?;
     require_sources(&sources, "web context")?;
     Ok(format!(
         "Searches completed:\n{}\n\n{}",
@@ -171,7 +171,17 @@ fn research_prompt_profile(research_type: &str, depth: &str) -> String {
     };
 
     format!(
-        "You are Co-Op's private research analyst for a business owner. Run {}. {} Write in plain business language. Structure the answer with: Quick answer, What matters, Evidence, Risks or unknowns, and Next moves. Use only the supplied web sources for outside facts. Cite source titles inline. For competitor work, classify each named company as verified direct competitor, indirect alternative, or non-competitor, and explain why in one sentence. Do not say the owner should run another broad web search; Co-Op already completed the searches listed in the prompt. If evidence is still weak, state exactly what is weak and give the best supported candidate list.",
+        "You are Co-Op's private research analyst for a business owner. Run {}. {} Write in plain business language. \
+Structure the answer with: Quick answer, What matters, Evidence, Risks or unknowns, and Next moves. \
+Use ONLY the supplied web sources for outside facts. Cite source titles inline. \
+For competitor work:
+1. Group results by product category (e.g., \"Observability\", \"Incident Response\", \"On-Call Management\"). Do NOT mix categories.
+2. Within each category, classify each named company as: Direct Competitor, Indirect Alternative, or Not a Competitor.
+3. For each company, cite the specific source that evidences the classification. Do NOT cite 'general market knowledge'.
+4. If a major known competitor is missing from the sources, mention it but explicitly state: \"Not found in current sources — verify independently.\"
+5. Implementation patterns (e.g., \"Slack + custom bots\") are alternative approaches, not competitors. List them separately.
+Do not say the owner should run another broad web search; Co-Op already completed the searches listed in the prompt. \
+If evidence is still weak, state exactly what is weak and give the best supported candidate list.",
         job, depth_instruction
     )
 }

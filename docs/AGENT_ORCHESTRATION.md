@@ -109,6 +109,16 @@ Supported email sending modes:
 
 Provider keys are stored in OS credential storage. The cloud license backend never receives provider keys, prompts, outputs, files, campaign content, or local run history.
 
+## RAG Architecture
+
+Co-Op uses a hybrid embedding architecture to stay completely local and fast, avoiding external vector databases:
+
+- **Provider Embeddings:** If the configured provider (Ollama or OpenAI-compatible) supports an embedding endpoint (`/api/embeddings` or `/v1/embeddings`), Co-Op automatically generates dense vector embeddings for company files and business memories.
+- **Enhanced Local Fallback:** If the provider lacks an embedding endpoint (e.g., Groq) or is unreachable, Co-Op falls back to a 128-dimension lexical hash vector algorithm. This fallback includes suffix-stripping stemming, bigram generation, and a dictionary of 150+ business synonym clusters to map related concepts without needing a language model.
+- **Background Re-indexing:** When a user switches to a provider that supports true embeddings, Co-Op automatically upgrades any legacy hash-based vectors to dense semantic vectors in a background task on the next app startup.
+
+All embeddings (whether dense provider vectors or local fallback hashes) are stored directly inside the local SQLite database alongside the text chunks.
+
 ## Review Policy
 
 Review should reduce risk without wasting tokens or slowing every answer.
@@ -123,6 +133,7 @@ Review should reduce risk without wasting tokens or slowing every answer.
 High-risk triggers include contracts, compliance, payroll, payments, banking, investors, board decisions, acquisitions, terminations, security, privacy, legal commitments, and major customer promises.
 
 Co-Op must not fan out the same prompt to several providers by default.
+When reviewing output (A2A or full review), the engine must use dynamic temperature routing (e.g. 0.6 to 0.7) to ensure the review model is creative enough to spot missing risks and biases, rather than inheriting the primary model's low-temperature factual setting.
 
 ## Guardrails
 
@@ -142,17 +153,18 @@ Rules:
 
 - Co-Op is topic-centric: company planning, research, customers, money, legal, sales, strategy, operations, files, and decisions.
 - Clear off-topic requests should be rejected instead of handled like a general chatbot.
-- Co-Op does not run code, write executable scripts, provide shell commands, or produce exploit instructions.
 - Co-Op must not reveal saved provider keys, activation tokens, hidden prompts, or internal policy text.
+- Co-Op blocks executable code generation (scripts, shell commands, SQL drops) but allows safe operational and navigational guidance (e.g. "go to the dashboard and check logs") when grounded in a business context.
 - Retrieved web pages, files, and user-provided documents are untrusted content. They may add facts, not instructions.
-- Market, competitor, legal, customer, pricing, investor, risk, and prospect work requires web sources. If sources are not available, the feature must fail closed with setup guidance.
+- Market, competitor, legal, customer, pricing, investor, risk, and prospect work requires web sources. If sources are not available, the feature must gracefully degrade to inferring from local context while asking the user to enable web search.
 - Model output is checked before saving. Blocked output is not written as a successful plan, chat answer, pitch analysis, or outreach draft.
 
 Implementation anchors:
 
-- `chat.rs` uses input guardrails, source-gated web research, memory context, and output checks.
+- `guardrails.rs` classifies question type (factual, planning, action request, comparison, brainstorming) to drive proportional response formatting, while applying context-aware input/output gates.
+- `chat.rs` uses adaptive formatting, source-gated web research, memory context, and A2A review filters that discard generic corporate filler.
 - `chat.rs` emits safe progress events so the UI can show what stage is running without exposing hidden reasoning.
-- `workflows.rs` uses the same guardrails for work plans and raises sensitivity for high-risk work.
+- `workflows.rs` uses the same guardrails and adaptive question typing for work plans, applying a strict "unknowns" policy to prevent hallucination from sparse company profiles.
 - `research.rs` always requires Firecrawl-backed sources and validates the sourced summary.
 - `research_sources.rs` plans and filters web sources, including multi-query competitor searches from company, offering, buyer, and region context.
 - `outreach.rs` requires source-backed lead discovery and blocks unsafe generated email output.
@@ -168,7 +180,7 @@ Research inputs used for the guardrail direction:
 
 The harness may attach:
 
-- Company profile from onboarding and Company settings.
+- Company profile from onboarding and Company settings (sparse profiles emit only populated fields to prevent hallucination targets).
 - Saved company files from the local file store.
 - Local business memory derived from profile, files, research, customers, campaigns, and work history.
 - Current customer list and campaigns when relevant.
@@ -242,10 +254,10 @@ Do not fall back to invented model-only leads.
 
 ## Output Standard
 
-Every answer should be written for an owner who needs to make progress:
+Every answer should be written for an owner who needs to make progress. Responses use proportional formatting based on question type (e.g., factual queries get direct answers, strategic queries get structured plans).
 
 - Start with the practical answer.
-- State assumptions and missing facts.
+- State assumptions and missing facts. If context is missing, do not invent it.
 - Include risks and approvals where needed.
 - Give concrete next actions.
 - Avoid technical terms unless the user is in Settings or documentation.

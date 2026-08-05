@@ -5,7 +5,7 @@ use tauri::{AppHandle, Manager};
 use crate::constants::{
     MAX_ALERTS, MAX_BOOKMARKS, MAX_CAMPAIGNS, MAX_CAMPAIGN_EMAILS, MAX_CAP_TABLES,
     MAX_CHAT_SESSIONS, MAX_DOCUMENTS, MAX_INTEGRATIONS, MAX_LEADS, MAX_MEMORIES, MAX_PITCH_DECKS,
-    MAX_RESEARCH_RUNS, MAX_STORED_WORKFLOW_RUNS, STATE_FILE, STATE_SCHEMA_VERSION,
+    MAX_RESEARCH_RUNS, MAX_STORED_WORKFLOW_RUNS, STATE_FILE, STATE_SCHEMA_VERSION, DEFAULT_RESEARCH_PROVIDER,
 };
 use crate::knowledge_store::{migrate_legacy_documents, to_document_summary};
 use crate::memory_store::list_memory_summaries;
@@ -159,8 +159,8 @@ fn repair_state(state: &mut DesktopState) {
     {
         state.model_settings.email_from_name.clear();
     }
-    if state.model_settings.research_provider.trim() != "firecrawl" {
-        state.model_settings.research_provider = "firecrawl".to_string();
+    if state.model_settings.research_provider.trim() != DEFAULT_RESEARCH_PROVIDER {
+        state.model_settings.research_provider = DEFAULT_RESEARCH_PROVIDER.to_string();
     }
     if state.workspace.sector.trim().is_empty() {
         state.workspace.sector = if state.workspace.industry.trim().is_empty() {

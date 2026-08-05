@@ -13,6 +13,8 @@ pub struct ChatSession {
     pub council_mode: String,
     pub created_at: String,
     pub updated_at: String,
+    #[serde(default)]
+    pub is_pinned: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

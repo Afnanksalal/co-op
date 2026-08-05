@@ -4,6 +4,8 @@ import { type FormEvent, useEffect, useRef, useState } from 'react';
 import {
   isTauriRuntime,
   runAgentChat,
+  deleteChatSession,
+  pinChatSession,
   type ChatProgressEvent,
   type DesktopState,
 } from '@/lib/desktop/runtime';
@@ -54,8 +56,6 @@ export function ChatPanel({
   const pendingForView = pendingChat?.sessionId === sessionId ? pendingChat : null;
   const hasMessages = Boolean(activeSession?.messages.length || pendingForView);
   const visibleTitle = activeSession?.title ?? pendingForView?.prompt ?? 'New conversation';
-  const webSearchRequired = ['legal', 'investor', 'competitor'].includes(agentType);
-  const webSearchEnabled = researchEnabled || webSearchRequired;
   const suggestions = [
     'What should I focus on this week?',
     'Build a 30 day operating plan for my company',
@@ -84,11 +84,6 @@ export function ChatPanel({
     progressTick,
   ]);
 
-  useEffect(() => {
-    if (webSearchRequired) {
-      setResearchEnabled(true);
-    }
-  }, [webSearchRequired]);
 
   useEffect(() => {
     pendingSessionRef.current = pendingChat?.sessionId ?? null;
@@ -145,6 +140,18 @@ export function ChatPanel({
     setMessage('');
   }
 
+  function handlePin(id: string) {
+    void runWithState('pin', () => pinChatSession(id), 'Chat pinned.');
+  }
+
+  function handleDelete(id: string) {
+    void runWithState('delete', () => deleteChatSession(id), 'Chat deleted.').then((saved) => {
+      if (saved && sessionId === id) {
+        setSessionId(null);
+      }
+    });
+  }
+
   function submitChat(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const prompt = message.trim();
@@ -157,7 +164,7 @@ export function ChatPanel({
       agentType,
       a2aEnabled,
       ragEnabled,
-      researchEnabled: webSearchEnabled,
+      researchEnabled,
       councilMode,
       startedAt: Date.now(),
     };
@@ -174,7 +181,7 @@ export function ChatPanel({
           message: prompt,
           a2aEnabled,
           ragEnabled,
-          researchEnabled: webSearchEnabled,
+          researchEnabled,
           councilMode,
         }),
       'Response saved.'
@@ -196,6 +203,8 @@ export function ChatPanel({
         draftOpen={sessionId === null}
         onNew={startNewSession}
         onSelect={selectSession}
+        onPin={handlePin}
+        onDelete={handleDelete}
       />
 
       <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border/50 bg-card">
@@ -205,8 +214,7 @@ export function ChatPanel({
           councilMode={councilMode}
           a2aEnabled={a2aEnabled}
           ragEnabled={ragEnabled}
-          webSearchEnabled={webSearchEnabled}
-          webSearchRequired={webSearchRequired}
+          webSearchEnabled={researchEnabled}
           onAgentTypeChange={setAgentType}
           onCouncilModeChange={setCouncilMode}
           onA2aChange={setA2aEnabled}

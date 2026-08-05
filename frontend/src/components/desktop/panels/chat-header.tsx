@@ -20,7 +20,6 @@ export function ChatHeader({
   a2aEnabled,
   ragEnabled,
   webSearchEnabled,
-  webSearchRequired,
   onAgentTypeChange,
   onCouncilModeChange,
   onA2aChange,
@@ -33,7 +32,6 @@ export function ChatHeader({
   a2aEnabled: boolean;
   ragEnabled: boolean;
   webSearchEnabled: boolean;
-  webSearchRequired: boolean;
   onAgentTypeChange: (value: string) => void;
   onCouncilModeChange: (value: string) => void;
   onA2aChange: (value: boolean) => void;
@@ -47,21 +45,13 @@ export function ChatHeader({
   useEffect(() => {
     if (!optionsOpen) return;
 
-    const closeOnOutsideClick = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setOptionsOpen(false);
-      }
-    };
-
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOptionsOpen(false);
     };
 
-    document.addEventListener('pointerdown', closeOnOutsideClick);
     document.addEventListener('keydown', closeOnEscape);
 
     return () => {
-      document.removeEventListener('pointerdown', closeOnOutsideClick);
       document.removeEventListener('keydown', closeOnEscape);
     };
   }, [optionsOpen]);
@@ -102,48 +92,54 @@ export function ChatHeader({
         </div>
       </div>
       {optionsOpen && (
-        <div
-          id={optionsId}
-          className="absolute right-3 top-full z-50 mt-2 w-[calc(100%-1.5rem)] max-w-2xl rounded-lg border border-border/60 bg-popover p-3 text-popover-foreground shadow-xl sm:right-4 sm:w-[42rem]"
-        >
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Select value={agentType} onValueChange={onAgentTypeChange}>
-              <SelectTrigger className="h-9 min-w-0">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {['operations', 'legal', 'finance', 'investor', 'competitor', 'sales'].map(
-                  (option) => (
+        <>
+          <div 
+            className="fixed inset-0 z-40" 
+            onClick={() => setOptionsOpen(false)}
+          />
+          <div
+            id={optionsId}
+            className="absolute right-3 top-full z-50 mt-2 w-[calc(100%-1.5rem)] max-w-2xl rounded-lg border border-border/60 bg-popover p-3 text-popover-foreground shadow-xl sm:right-4 sm:w-[42rem]"
+          >
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Select value={agentType} onValueChange={onAgentTypeChange}>
+                <SelectTrigger className="h-9 min-w-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {['operations', 'legal', 'finance', 'investor', 'competitor', 'sales'].map(
+                    (option) => (
+                      <SelectItem key={option} value={option}>
+                        {advisorDisplay(option)}
+                      </SelectItem>
+                    )
+                  )}
+                </SelectContent>
+              </Select>
+              <Select value={councilMode} onValueChange={onCouncilModeChange}>
+                <SelectTrigger className="h-9 min-w-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {['off', 'review_only', 'high_risk_only', 'full_council'].map((option) => (
                     <SelectItem key={option} value={option}>
-                      {advisorDisplay(option)}
+                      {reviewModeDisplay(option)}
                     </SelectItem>
-                  )
-                )}
-              </SelectContent>
-            </Select>
-            <Select value={councilMode} onValueChange={onCouncilModeChange}>
-              <SelectTrigger className="h-9 min-w-0">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {['off', 'review_only', 'high_risk_only', 'full_council'].map((option) => (
-                  <SelectItem key={option} value={option}>
-                    {reviewModeDisplay(option)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <TogglePill label="Extra review" checked={a2aEnabled} onChange={onA2aChange} />
+              <TogglePill label="Use company files" checked={ragEnabled} onChange={onRagChange} />
+              <TogglePill
+                label="Use web research"
+                checked={webSearchEnabled}
+                onChange={onResearchChange}
+              />
+            </div>
           </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <TogglePill label="Extra review" checked={a2aEnabled} onChange={onA2aChange} />
-            <TogglePill label="Use company files" checked={ragEnabled} onChange={onRagChange} />
-            <TogglePill
-              label={webSearchRequired ? 'Web required' : 'Use web research'}
-              checked={webSearchEnabled}
-              onChange={(value) => onResearchChange(webSearchRequired || value)}
-            />
-          </div>
-        </div>
+        </>
       )}
     </div>
   );
