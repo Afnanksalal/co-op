@@ -2,16 +2,9 @@
 
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
-import {
-  CaretDown,
-  EnvelopeSimple,
-  HardDrives,
-  MagnifyingGlass,
-  Plugs,
-} from '@phosphor-icons/react';
+import { CaretDown, EnvelopeSimple, HardDrives, MagnifyingGlass } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import {
-  saveIntegration,
   saveModelSettings,
   type DesktopState,
   type ModelSettings,
@@ -43,12 +36,6 @@ export function SettingsPanel({
     settings.firecrawlApiKeySaved ? 'model' : 'research'
   );
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [integration, setIntegration] = useState({
-    name: '',
-    kind: 'mcp',
-    baseUrl: '',
-    enabled: true,
-  });
   const update = (patch: Partial<ModelSettings>) =>
     setSettings({ ...settings, researchProvider: 'firecrawl', ...patch });
   const settingsPayload: ModelSettingsUpdate = {
@@ -58,8 +45,6 @@ export function SettingsPanel({
     firecrawlApiKey,
     emailApiKey,
   };
-  const integrationReady =
-    integration.name.trim().length >= 2 && integration.baseUrl.trim().length > 0;
   const needsModelKey = settings.provider === 'openai_compatible' && !settings.openaiApiKeySaved;
   const needsFirecrawlKey = !settings.firecrawlApiKeySaved;
   const needsEmailKey = settings.emailProvider !== 'none' && !settings.emailApiKeySaved;
@@ -91,7 +76,6 @@ export function SettingsPanel({
     { id: 'model', label: 'Assistant' },
     { id: 'research', label: 'Sources' },
     { id: 'email', label: 'Email' },
-    { id: 'integrations', label: 'Connections' },
   ];
 
   const saveLabel =
@@ -106,59 +90,6 @@ export function SettingsPanel({
       setSettingsTab('research');
     }
   }, [settings.firecrawlApiKeySaved]);
-
-  if (settingsTab === 'integrations') {
-    return (
-      <DesktopPage className="mx-auto w-full max-w-5xl space-y-5">
-        <SettingsHeader
-          currentTab={settingsTab}
-          onTabChange={setSettingsTab}
-          options={settingTabs}
-        />
-        <form
-          className="rounded-lg border border-border bg-card p-5"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void runWithState(
-              'integration',
-              () => saveIntegration(integration),
-              'Integration saved.'
-            );
-          }}
-        >
-          <PanelTitle icon={Plugs} title="Local connections" />
-          <div className="grid gap-4 md:grid-cols-2">
-            <Field
-              label="Name"
-              value={integration.name}
-              onChange={(name) => setIntegration({ ...integration, name })}
-            />
-            <SelectField
-              label="Type"
-              value={integration.kind}
-              onChange={(kind) => setIntegration({ ...integration, kind })}
-              options={['mcp', 'webhook', 'notion', 'crm', 'custom']}
-            />
-            <div className="md:col-span-2">
-              <Field
-                label="Service address"
-                value={integration.baseUrl}
-                onChange={(baseUrl) => setIntegration({ ...integration, baseUrl })}
-                placeholder="https://service.example.com"
-              />
-            </div>
-          </div>
-          <Button
-            className="mt-5"
-            type="submit"
-            disabled={busyAction === 'integration' || !integrationReady}
-          >
-            Save integration
-          </Button>
-        </form>
-      </DesktopPage>
-    );
-  }
 
   return (
     <DesktopPage className="mx-auto w-full max-w-5xl space-y-5">

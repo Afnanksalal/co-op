@@ -218,7 +218,7 @@ export function subtitleForView(view: View, state: DesktopState | null): string 
   if (!state) return 'Loading Co-Op';
   if (view === 'onboarding') return 'Three steps before the first plan';
   if (view === 'activation') return 'License check for this computer';
-  if (view === 'settings') return 'Assistant, web sources, email, and local connections';
+  if (view === 'settings') return 'Assistant, web sources, and email';
   if (['workspace', 'rag', 'memory', 'research'].includes(view)) {
     return 'Profile, files, memory, and research for this business';
   }
