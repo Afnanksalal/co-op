@@ -85,17 +85,15 @@ pub async fn run_business_workflow(
         &routing_detail,
     );
 
+    // Default web research on for workflows unless the caller explicitly disables it.
     let use_web = request.research_enabled.unwrap_or(true);
-    let web_required = if use_web {
-        match guardrail_decision.web_intent {
-            crate::guardrails::WebIntent::Yes => true,
-            crate::guardrails::WebIntent::No => false,
-            crate::guardrails::WebIntent::Uncertain => {
-                crate::guardrails::resolve_web_intent(&model_settings, &run.objective).await
-            }
+    let web_required = match guardrail_decision.web_intent {
+        crate::guardrails::WebIntent::Yes => true,
+        crate::guardrails::WebIntent::No => false,
+        crate::guardrails::WebIntent::Uncertain if use_web => {
+            crate::guardrails::resolve_web_intent(&model_settings, &run.objective).await
         }
-    } else {
-        matches!(guardrail_decision.web_intent, crate::guardrails::WebIntent::Yes)
+        crate::guardrails::WebIntent::Uncertain => false,
     };
     let mut source_context_attached = false;
 
@@ -123,7 +121,8 @@ pub async fn run_business_workflow(
 
     let mut local_context = String::new();
     let rag = document_context_for_app(&app, &model_settings, &run.objective).await?;
-    if !rag.is_empty() && crate::guardrails::is_safe_context(&rag) {
+    let safe_rag = crate::guardrails::sanitize_retrieved_context(&rag);
+    if !safe_rag.is_empty() {
         push_trace(
             &mut run,
             "context",
@@ -131,7 +130,7 @@ pub async fn run_business_workflow(
             "completed",
             "Relevant saved company file sections were added to this work plan.",
         );
-        local_context.push_str(&rag);
+        local_context.push_str(&safe_rag);
     } else {
         push_trace(
             &mut run,
@@ -141,9 +140,10 @@ pub async fn run_business_workflow(
             "No saved company file sections matched this work request.",
         );
     }
-    
+
     let memory = memory_context_from_store(&app, &model_settings, &run.objective).await?;
-    if !memory.is_empty() && crate::guardrails::is_safe_context(&memory) {
+    let safe_memory = crate::guardrails::sanitize_retrieved_context(&memory);
+    if !safe_memory.is_empty() {
         push_trace(
             &mut run,
             "context",
@@ -154,31 +154,66 @@ pub async fn run_business_workflow(
         if !local_context.is_empty() {
             local_context.push_str("\n\n");
         }
-        local_context.push_str(&memory);
+        local_context.push_str(&safe_memory);
     }
-    
-    let truncated_local = crate::context_manager::truncate_text_to_budget(&local_context, max_local_chars);
+
+    let truncated_local =
+        crate::context_manager::truncate_text_to_budget(&local_context, max_local_chars);
 
     let web_context = if web_required && use_web {
-        let raw_web = research_context_for_business(
+        match research_context_for_business(
             &model_settings,
             &state.workspace,
             &run.objective,
             &run.workflow_type,
             10,
         )
-        .await?;
-        let safe_web = if crate::guardrails::is_safe_context(&raw_web) { raw_web } else { String::new() };
-        let truncated_web = crate::context_manager::truncate_text_to_budget(&safe_web, max_web_chars);
-        source_context_attached = !truncated_web.trim().is_empty();
+        .await
+        {
+            Ok(raw_web) => {
+                let safe_web = crate::guardrails::sanitize_retrieved_context(&raw_web);
+                let truncated_web =
+                    crate::context_manager::truncate_text_to_budget(&safe_web, max_web_chars);
+                source_context_attached = !truncated_web.trim().is_empty();
+                if source_context_attached {
+                    push_trace(
+                        &mut run,
+                        "context",
+                        "Attached web sources",
+                        "completed",
+                        "Live web sources were added because this work needs current outside facts.",
+                    );
+                } else {
+                    push_trace(
+                        &mut run,
+                        "context",
+                        "Web sources unavailable",
+                        "skipped",
+                        "Web research returned no usable sources after safety filtering.",
+                    );
+                }
+                truncated_web
+            }
+            Err(error) => {
+                push_trace(
+                    &mut run,
+                    "context",
+                    "Web research failed",
+                    "skipped",
+                    &format!("Web research failed: {error}"),
+                );
+                String::new()
+            }
+        }
+    } else if web_required && !use_web {
         push_trace(
             &mut run,
             "context",
-            "Attached web sources",
-            "completed",
-            "Live web sources were added because this work needs current outside facts.",
+            "Web research disabled",
+            "skipped",
+            "This work needs live sources, but web research was turned off for the request.",
         );
-        truncated_web
+        String::new()
     } else {
         String::new()
     };

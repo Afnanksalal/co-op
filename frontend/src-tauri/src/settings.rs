@@ -33,14 +33,19 @@ pub fn save_model_settings(
         || settings.ollama_model != old_ollama_model
         || settings.openai_model != old_openai_model;
 
-    state.model_settings = settings;
+    state.model_settings = settings.clone();
     save_state(&app, &state)?;
 
     if provider_changed {
-        let _ = app.emit(
-            "provider-changed",
-            "You switched your AI provider. Restart Co-Op to update your file search index — this helps Co-Op find the right documents when you ask questions.",
-        );
+        let handle = app.clone();
+        let reindex_settings = settings;
+        tauri::async_runtime::spawn(async move {
+            crate::knowledge_store::reindex_stale_embeddings(&handle, &reindex_settings).await;
+            let _ = handle.emit(
+                "provider-changed",
+                "AI provider updated. File search index refresh was started automatically.",
+            );
+        });
     }
 
     Ok(to_response(load_or_create_state(&app)?))

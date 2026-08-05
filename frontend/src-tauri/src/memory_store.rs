@@ -25,11 +25,12 @@ pub fn list_memory_summaries(app: &AppHandle, limit: usize) -> Result<Vec<Busine
 
 pub async fn search_business_memories(
     app: &AppHandle,
-    settings: &ModelSettings,
+    _settings: &ModelSettings,
     query: &str,
     limit: usize,
 ) -> Result<Vec<MemorySearchResult>, String> {
-    let query_vector = crate::rag::embed_text(settings, query).await;
+    // Memories are always indexed in the local lexical space — query the same space.
+    let query_vector = embed_text_local(query);
     let conn = open_store(app)?;
     search_memories_with_conn(&conn, query, &query_vector, limit)
 }
@@ -68,9 +69,9 @@ fn store_memory_with_conn(conn: &mut Connection, memory: &BusinessMemory) -> Res
     tx.execute(
         "
         INSERT INTO business_memories (
-          id, memory_type, title, content, source, content_hash, vector, confidence, pinned, created_at, updated_at
+          id, memory_type, title, content, source, content_hash, vector, confidence, pinned, created_at, updated_at, embedding_version
         )
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
         ON CONFLICT(id) DO UPDATE SET
           memory_type = excluded.memory_type,
           title = excluded.title,
@@ -80,7 +81,8 @@ fn store_memory_with_conn(conn: &mut Connection, memory: &BusinessMemory) -> Res
           vector = excluded.vector,
           confidence = excluded.confidence,
           pinned = excluded.pinned,
-          updated_at = excluded.updated_at
+          updated_at = excluded.updated_at,
+          embedding_version = excluded.embedding_version
         ",
         params![
             id,
@@ -94,6 +96,7 @@ fn store_memory_with_conn(conn: &mut Connection, memory: &BusinessMemory) -> Res
             if memory.pinned { 1 } else { 0 },
             created_at,
             updated_at,
+            crate::constants::LOCAL_EMBEDDING_VERSION,
         ],
     )
     .map_err(|error| format!("Failed to store business memory: {error}"))?;

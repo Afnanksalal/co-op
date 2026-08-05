@@ -42,8 +42,7 @@ pub async fn run_agent_chat(
     let mut state = load_or_create_state(&app)?;
     require_usable_activation(&state)?;
     let settings = validate_read_only(&state.model_settings)?;
-    eprintln!("[DIAG] run_agent_chat: research_enabled={}, rag_enabled={}, agent_type={}", request.research_enabled, request.rag_enabled, request.agent_type);
-    
+
     if !crate::guardrails::message_has_business_context(&request.message.to_lowercase())
         && crate::guardrails::resolve_off_topic(&settings, &request.message).await
     {
@@ -143,8 +142,9 @@ pub async fn run_agent_chat(
             "Looking for private documents that match this question.",
         );
         let rag = document_context_for_app(&app, &settings, &request.message).await?;
-        if !rag.is_empty() && crate::guardrails::is_safe_context(&rag) {
-            local_context.push_str(&rag);
+        let safe_rag = crate::guardrails::sanitize_retrieved_context(&rag);
+        if !safe_rag.is_empty() {
+            local_context.push_str(&safe_rag);
         }
 
         emit_chat_progress(
@@ -156,11 +156,12 @@ pub async fn run_agent_chat(
             "Finding useful local notes without exposing hidden prompts or keys.",
         );
         let memory = memory_context_from_store(&app, &settings, &request.message).await?;
-        if !memory.is_empty() && crate::guardrails::is_safe_context(&memory) {
+        let safe_memory = crate::guardrails::sanitize_retrieved_context(&memory);
+        if !safe_memory.is_empty() {
             if !local_context.is_empty() {
                 local_context.push_str("\n\n");
             }
-            local_context.push_str(&memory);
+            local_context.push_str(&safe_memory);
         }
     }
     
@@ -170,36 +171,18 @@ pub async fn run_agent_chat(
         remaining_chars = remaining_chars.saturating_sub(truncated_local.chars().count());
     }
 
-    let mut use_web = request.research_enabled;
-    let web_required = if use_web {
-        match guardrail_decision.web_intent {
-            crate::guardrails::WebIntent::Yes => true,
-            crate::guardrails::WebIntent::No => false,
-            crate::guardrails::WebIntent::Uncertain => {
-                crate::guardrails::resolve_web_intent(&settings, &request.message).await
-            }
+    // Respect the user's web-research toggle. Never silently override it.
+    let use_web = request.research_enabled;
+    let web_required = match guardrail_decision.web_intent {
+        crate::guardrails::WebIntent::Yes => true,
+        crate::guardrails::WebIntent::No => false,
+        crate::guardrails::WebIntent::Uncertain if use_web => {
+            crate::guardrails::resolve_web_intent(&settings, &request.message).await
         }
-    } else {
-        matches!(guardrail_decision.web_intent, crate::guardrails::WebIntent::Yes)
+        crate::guardrails::WebIntent::Uncertain => false,
     };
-    
-    // Auto-enable web research when guardrails say it's required and Firecrawl is configured,
-    // even if the user's toggle was off (prevents toggle-sync bugs from blocking needed research)
-    let firecrawl_ready = settings.firecrawl_api_key
-        .as_deref()
-        .map(|k| !k.trim().is_empty())
-        .unwrap_or(false)
-        && settings.research_provider == crate::constants::DEFAULT_RESEARCH_PROVIDER;
-    eprintln!("[DIAG] web_required={}, use_web={}, firecrawl_ready={}, research_provider={}, firecrawl_key_present={}", 
-        web_required, use_web, firecrawl_ready, settings.research_provider,
-        settings.firecrawl_api_key.is_some());
-    if web_required && !use_web && firecrawl_ready {
-        eprintln!("[INFO] Auto-enabling web research: guardrails flagged web_required but toggle was off");
-        use_web = true;
-    }
-    
+
     let mut source_context_attached = false;
-    
     let mut web_error: Option<String> = None;
     if use_web {
         emit_chat_progress(
@@ -221,7 +204,6 @@ pub async fn run_agent_chat(
         {
             Ok(res) => res,
             Err(e) => {
-                eprintln!("Web research failed, continuing without context: {}", e);
                 web_error = Some(e.to_string());
                 emit_chat_progress(
                     &app,
@@ -229,20 +211,21 @@ pub async fn run_agent_chat(
                     5,
                     "sources-failed",
                     "Web search unavailable",
-                    "Web search failed. See terminal for error; continuing with local knowledge.",
+                    "Web search failed; continuing with local knowledge and a clear notice.",
                 );
                 String::new()
             }
         };
-        let safe_research = if crate::guardrails::is_safe_context(&research) {
-            research
-        } else {
-            eprintln!("[DIAG] Web context was dropped by guardrails::is_safe_context! This is why it failed.");
-            web_error = Some("Web research results contained security terms that triggered the safety filter. Since your company analyzes security risks, the competitors' websites triggered the prompt-attack guardrail!".to_string());
-            String::new()
-        };
-        let truncated_research = crate::context_manager::truncate_text_to_budget(&safe_research, max_web_chars);
-        
+        let safe_research = crate::guardrails::sanitize_retrieved_context(&research);
+        if safe_research.is_empty() && !research.trim().is_empty() {
+            web_error = Some(
+                "Web research returned content that looked like a prompt-injection attempt, so it was discarded."
+                    .to_string(),
+            );
+        }
+        let truncated_research =
+            crate::context_manager::truncate_text_to_budget(&safe_research, max_web_chars);
+
         if !truncated_research.trim().is_empty() {
             source_context_attached = true;
             emit_chat_progress(
@@ -255,11 +238,10 @@ pub async fn run_agent_chat(
             );
             context.push_str("\n\nLive research context:\n");
             context.push_str(&truncated_research);
-            remaining_chars = remaining_chars.saturating_sub(truncated_research.chars().count() + 30);
+            remaining_chars =
+                remaining_chars.saturating_sub(truncated_research.chars().count() + 30);
         }
     }
-
-    eprintln!("[DIAG] use_web={}, web_required={}, source_context_attached={}, max_web_chars={}", use_web, web_required, source_context_attached, max_web_chars);
 
     let history = if state.chat_sessions[index].messages.len() > 1 {
         let prior_messages = &state.chat_sessions[index].messages[..state.chat_sessions[index].messages.len() - 1];
@@ -389,7 +371,7 @@ pub async fn run_agent_chat(
     state.chat_sessions[index].updated_at = Utc::now().to_rfc3339();
     state.chat_sessions[index].a2a_enabled = request.a2a_enabled;
     state.chat_sessions[index].rag_enabled = request.rag_enabled;
-    state.chat_sessions[index].research_enabled = use_web;
+    state.chat_sessions[index].research_enabled = request.research_enabled;
     state.chat_sessions[index].council_mode = request.council_mode;
     if request.rag_enabled {
         let _ = remember_business_event(

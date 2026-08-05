@@ -9,7 +9,7 @@ fn vector_blob_round_trips_without_json_expansion() {
 
     assert_eq!(
         blob.len(),
-        crate::constants::LOCAL_FALLBACK_DIMENSIONS * std::mem::size_of::<f32>()
+        crate::constants::LOCAL_EMBEDDING_DIMENSIONS * std::mem::size_of::<f32>()
     );
     assert_eq!(decoded.len(), vector.len());
     assert_eq!(decoded, vector);
@@ -39,9 +39,9 @@ fn sqlite_store_uses_fts_candidates_and_vector_ranking() {
     let mut document = document;
     document.chunks[0].document_id = document.id.clone();
 
-    store_document_with_conn(&mut conn, &document).expect("store document");
+    store_document_with_conn(&mut conn, &document, crate::constants::LOCAL_EMBEDDING_VERSION).expect("store document");
     let summaries = list_document_summaries_with_conn(&conn, 10).expect("summaries");
-    let results = search_with_conn(&conn, "runway burn", &crate::rag::embed_text_local("runway burn"), 5).expect("search");
+    let results = search_with_conn(&conn, "runway burn", &crate::rag::embed_text_local("runway burn"), None, 5).expect("search");
 
     assert_eq!(summaries.len(), 1);
     assert_eq!(summaries[0].chunk_count, 1);
@@ -90,8 +90,8 @@ fn init_schema_upgrades_legacy_tables_before_creating_indexes() {
     );
 
     let document = test_document("Migrated file", "Cash runway and sales pipeline context");
-    store_document_with_conn(&mut conn, &document).expect("store after migration");
-    let results = search_with_conn(&conn, "cash runway", &crate::rag::embed_text_local("cash runway"), 5).expect("search after migration");
+    store_document_with_conn(&mut conn, &document, crate::constants::LOCAL_EMBEDDING_VERSION).expect("store after migration");
+    let results = search_with_conn(&conn, "cash runway", &crate::rag::embed_text_local("cash runway"), None, 5).expect("search after migration");
 
     assert_eq!(results.len(), 1);
 }
@@ -122,10 +122,10 @@ fn duplicate_file_content_updates_existing_document_instead_of_bloating_index() 
         created_at: Utc::now().to_rfc3339(),
     };
 
-    store_document_with_conn(&mut conn, &first).expect("store first");
-    store_document_with_conn(&mut conn, &second).expect("store duplicate");
+    store_document_with_conn(&mut conn, &first, crate::constants::LOCAL_EMBEDDING_VERSION).expect("store first");
+    store_document_with_conn(&mut conn, &second, crate::constants::LOCAL_EMBEDDING_VERSION).expect("store duplicate");
     let summaries = list_document_summaries_with_conn(&conn, 10).expect("summaries");
-    let results = search_with_conn(&conn, "refund contracts", &crate::rag::embed_text_local("refund contracts"), 10).expect("search");
+    let results = search_with_conn(&conn, "refund contracts", &crate::rag::embed_text_local("refund contracts"), None, 10).expect("search");
 
     assert_eq!(summaries.len(), 1);
     assert_eq!(summaries[0].title, "Updated policy name");
@@ -139,8 +139,8 @@ fn hybrid_search_rejects_unrelated_recent_files() {
     init_schema(&conn).expect("schema");
     let document = test_document("Hiring notes", "Interview loop and onboarding checklist");
 
-    store_document_with_conn(&mut conn, &document).expect("store document");
-    let results = search_with_conn(&conn, "runway burn cash", &crate::rag::embed_text_local("runway burn cash"), 5).expect("search");
+    store_document_with_conn(&mut conn, &document, crate::constants::LOCAL_EMBEDDING_VERSION).expect("store document");
+    let results = search_with_conn(&conn, "runway burn cash", &crate::rag::embed_text_local("runway burn cash"), None, 5).expect("search");
 
     assert!(results.is_empty());
 }
@@ -159,9 +159,9 @@ fn hybrid_search_uses_title_and_content_signals() {
         "Pipeline review, outreach reply rates, and customer objections",
     );
 
-    store_document_with_conn(&mut conn, &sales).expect("store sales");
-    store_document_with_conn(&mut conn, &runway).expect("store runway");
-    let results = search_with_conn(&conn, "cash runway", &crate::rag::embed_text_local("cash runway"), 5).expect("search");
+    store_document_with_conn(&mut conn, &sales, crate::constants::LOCAL_EMBEDDING_VERSION).expect("store sales");
+    store_document_with_conn(&mut conn, &runway, crate::constants::LOCAL_EMBEDDING_VERSION).expect("store runway");
+    let results = search_with_conn(&conn, "cash runway", &crate::rag::embed_text_local("cash runway"), None, 5).expect("search");
 
     assert!(!results.is_empty());
     assert_eq!(results[0].title, "Runway board memo");

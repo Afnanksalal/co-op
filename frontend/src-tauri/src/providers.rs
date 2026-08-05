@@ -309,6 +309,30 @@ struct OpenAiEmbeddingResponse {
     data: Vec<OpenAiEmbeddingData>,
 }
 
+/// Returns true when the model name looks like a dedicated embedding model.
+fn looks_like_embedding_model(model: &str) -> bool {
+    let lower = model.trim().to_lowercase();
+    lower.contains("embed") || lower.contains("e5-") || lower.contains("bge-")
+}
+
+fn ollama_embedding_model(settings: &ModelSettings) -> String {
+    if looks_like_embedding_model(&settings.ollama_model) {
+        settings.ollama_model.trim().to_string()
+    } else {
+        crate::constants::DEFAULT_OLLAMA_EMBEDDING_MODEL.to_string()
+    }
+}
+
+fn openai_embedding_model(settings: &ModelSettings) -> String {
+    if looks_like_embedding_model(&settings.openai_model) {
+        settings.openai_model.trim().to_string()
+    } else {
+        crate::constants::DEFAULT_OPENAI_EMBEDDING_MODEL.to_string()
+    }
+}
+
+/// Provider embedding call using a dedicated embedding model — never the chat model
+/// unless that model name itself is clearly an embedding model.
 pub async fn call_embedding(
     settings: &ModelSettings,
     text: &str,
@@ -324,8 +348,9 @@ async fn embed_ollama(
     settings: &ModelSettings,
     text: &str,
 ) -> Result<Vec<f32>, String> {
+    let model = ollama_embedding_model(settings);
     let request = OllamaEmbeddingRequest {
-        model: &settings.ollama_model,
+        model: &model,
         prompt: text,
     };
     let ollama_base_url =
@@ -356,8 +381,9 @@ async fn embed_openai_compatible(
         .as_deref()
         .filter(|value| !value.trim().is_empty())
         .ok_or_else(|| "OpenAI-compatible provider selected but no API key is saved".to_string())?;
+    let model = openai_embedding_model(settings);
     let request = OpenAiEmbeddingRequest {
-        model: &settings.openai_model,
+        model: &model,
         input: text,
     };
     let openai_base_url = sanitize_http_base_url(

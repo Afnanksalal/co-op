@@ -4,10 +4,11 @@ use std::hash::{Hash, Hasher};
 use tauri::AppHandle;
 use uuid::Uuid;
 
-use crate::constants::LOCAL_FALLBACK_DIMENSIONS;
+use crate::constants::{
+    LOCAL_EMBEDDING_DIMENSIONS, LOCAL_EMBEDDING_VERSION, PROVIDER_EMBEDDING_VERSION,
+};
 use crate::knowledge_store::{
-    list_document_summaries, search_store, store_document,
-    to_document_summary,
+    list_document_summaries, search_store, store_document, to_document_summary,
 };
 use crate::providers::call_embedding;
 use crate::storage::{load_or_create_state, require_usable_activation, save_state, to_response};
@@ -16,6 +17,28 @@ use crate::types::{
     SearchRequest, SearchResult,
 };
 use crate::validation::{validate_document_request, validate_objective};
+
+/// Which embedding space a batch was written into. Never mix spaces inside one write.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EmbeddingSpace {
+    Local,
+    Provider,
+}
+
+impl EmbeddingSpace {
+    pub fn version(self) -> i64 {
+        match self {
+            Self::Local => LOCAL_EMBEDDING_VERSION,
+            Self::Provider => PROVIDER_EMBEDDING_VERSION,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct EmbeddedBatch {
+    pub vectors: Vec<Vec<f32>>,
+    pub space: EmbeddingSpace,
+}
 
 #[tauri::command]
 pub async fn add_knowledge_document(
@@ -29,12 +52,10 @@ pub async fn add_knowledge_document(
     let document_id = Uuid::new_v4().to_string();
     let created_at = Utc::now().to_rfc3339();
     let texts = chunk_text(&request.content);
-    let vectors: Vec<Vec<f32>> = futures::future::join_all(
-        texts.iter().map(|text| embed_text(&settings, text))
-    ).await;
+    let batch = embed_batch(&settings, &texts).await;
     let chunks: Vec<KnowledgeChunk> = texts
         .into_iter()
-        .zip(vectors)
+        .zip(batch.vectors)
         .map(|(content, vector)| KnowledgeChunk {
             id: Uuid::new_v4().to_string(),
             document_id: document_id.clone(),
@@ -52,7 +73,7 @@ pub async fn add_knowledge_document(
         chunks,
         created_at,
     };
-    store_document(&app, &document)?;
+    store_document(&app, &document, batch.space.version())?;
     state.documents = list_document_summaries(&app, crate::constants::MAX_DOCUMENTS)
         .unwrap_or_else(|_| vec![to_document_summary(&document)]);
     save_state(&app, &state)?;
@@ -165,22 +186,65 @@ pub fn chunk_text(content: &str) -> Vec<String> {
     chunks
 }
 
-pub async fn embed_text(settings: &ModelSettings, content: &str) -> Vec<f32> {
-    match call_embedding(settings, content).await {
-        Ok(vector) => vector,
-        Err(e) => {
-            eprintln!("Embedding provider unavailable ({}), using local fallback", e);
-            embed_text_local(content)
+/// Embed an entire batch into one consistent space.
+/// If the provider cannot embed every item successfully, the whole batch uses
+/// the local lexical space — never a mixed provider/local index.
+pub async fn embed_batch(settings: &ModelSettings, texts: &[String]) -> EmbeddedBatch {
+    if texts.is_empty() {
+        return EmbeddedBatch {
+            vectors: Vec::new(),
+            space: EmbeddingSpace::Local,
+        };
+    }
+
+    if let Ok(probe) = call_embedding(settings, "co-op embedding capability probe").await {
+        if !probe.is_empty() {
+            let mut vectors = Vec::with_capacity(texts.len());
+            let mut consistent = true;
+            for text in texts {
+                match call_embedding(settings, text).await {
+                    Ok(vector) if vector.len() == probe.len() && !vector.is_empty() => {
+                        vectors.push(vector);
+                    }
+                    _ => {
+                        consistent = false;
+                        break;
+                    }
+                }
+            }
+            if consistent && vectors.len() == texts.len() {
+                return EmbeddedBatch {
+                    vectors,
+                    space: EmbeddingSpace::Provider,
+                };
+            }
         }
+    }
+
+    EmbeddedBatch {
+        vectors: texts.iter().map(|text| embed_text_local(text)).collect(),
+        space: EmbeddingSpace::Local,
+    }
+}
+
+/// Query embedding for search. Prefers provider when available so it can match
+/// provider-indexed chunks; always also exposes local via [`embed_text_local`].
+pub async fn embed_query_provider(
+    settings: &ModelSettings,
+    content: &str,
+) -> Option<Vec<f32>> {
+    match call_embedding(settings, content).await {
+        Ok(vector) if !vector.is_empty() => Some(vector),
+        _ => None,
     }
 }
 
 pub fn embed_text_local(content: &str) -> Vec<f32> {
-    let mut vector = vec![0.0; LOCAL_FALLBACK_DIMENSIONS];
+    let mut vector = vec![0.0; LOCAL_EMBEDDING_DIMENSIONS];
     for token in tokenize(content) {
         let mut hasher = DefaultHasher::new();
         token.hash(&mut hasher);
-        let index = (hasher.finish() as usize) % LOCAL_FALLBACK_DIMENSIONS;
+        let index = (hasher.finish() as usize) % LOCAL_EMBEDDING_DIMENSIONS;
         vector[index] += 1.0;
     }
     normalize(vector)

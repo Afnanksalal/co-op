@@ -12,10 +12,17 @@ pub fn calculate_char_budget(max_tokens: u32, reserved_chars: usize) -> usize {
     total_budget.saturating_sub(reserved_chars)
 }
 
-/// Calculates the input context character budget for prompt assembly,
-/// ensuring the budget is scaled to modern LLM input context windows.
+/// Calculates the input context character budget for prompt assembly.
+/// Reserves room for model output without collapsing to zero when
+/// `max_run_tokens` is larger than the default context window.
 pub fn calculate_input_context_budget(max_run_tokens: u32, reserved_chars: usize) -> usize {
-    let input_tokens = DEFAULT_CONTEXT_WINDOW_TOKENS.saturating_sub(max_run_tokens);
+    const MIN_INPUT_TOKENS: u32 = 4_096;
+    let context_window =
+        DEFAULT_CONTEXT_WINDOW_TOKENS.max(max_run_tokens.saturating_add(MIN_INPUT_TOKENS));
+    let output_reserve = max_run_tokens.min(context_window / 2);
+    let input_tokens = context_window
+        .saturating_sub(output_reserve)
+        .max(MIN_INPUT_TOKENS);
     let total_budget = (input_tokens as usize).saturating_mul(CHARS_PER_TOKEN);
     total_budget.saturating_sub(reserved_chars)
 }
@@ -88,10 +95,12 @@ mod tests {
 
     #[test]
     fn test_calculate_input_context_budget() {
-        // 2048 max_run_tokens -> 1048 input tokens (due to 1000 output reserve) -> 3144 chars
-        assert_eq!(calculate_input_context_budget(2048, 1000), 3144 - 1000);
-        // 32000 max_run_tokens -> 31000 input tokens -> 93000 chars
-        assert_eq!(calculate_input_context_budget(32_000, 1000), 93_000 - 1000);
+        // 2048 output reserve against a 16k window -> 14336 input tokens -> 43008 - 1000 chars
+        assert_eq!(calculate_input_context_budget(2048, 1000), 43_008 - 1000);
+        // Large max_run_tokens must still leave a usable input budget (never zero).
+        let large = calculate_input_context_budget(32_000, 1000);
+        assert!(large >= 4_096 * 3 - 1000);
+        assert!(large > 0);
     }
 
     #[test]

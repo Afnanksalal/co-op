@@ -222,8 +222,12 @@ pub async fn generate_campaign_emails(
     let mut generated = Vec::new();
 
     if campaign.mode == "ai_personalized" {
+        let subject_template = campaign.subject_template.clone();
+        let body_template = campaign.body_template.clone();
         let mut futures = futures::stream::iter(leads.into_iter().map(|lead| {
             let settings_clone = settings.clone();
+            let subject_template = subject_template.clone();
+            let body_template = body_template.clone();
             let prompt = format!(
                 "Startup:\n{}\n\nCampaign goal: {}\nTone: {}\nCTA: {}\nLead:\n{}\n\nReturn subject on the first line and email body after that.",
                 workspace_context(&state.workspace),
@@ -232,7 +236,7 @@ pub async fn generate_campaign_emails(
                 campaign.call_to_action,
                 lead_context(&lead)
             );
-            
+
             async move {
                 match call_model(
                     &settings_clone,
@@ -245,32 +249,76 @@ pub async fn generate_campaign_emails(
                     Ok(output) => {
                         if validate_model_output(&output, false, false, false).is_ok() {
                             let (subject, body) = split_subject_body(&output);
-                            Some((lead, subject, body))
+                            (lead, subject, body, None)
+                        } else if !subject_template.trim().is_empty()
+                            && !body_template.trim().is_empty()
+                        {
+                            (
+                                lead.clone(),
+                                apply_lead_vars(&subject_template, &lead),
+                                apply_lead_vars(&body_template, &lead),
+                                Some("AI output failed validation; used campaign template instead.".to_string()),
+                            )
                         } else {
-                            None
+                            (
+                                lead,
+                                String::new(),
+                                String::new(),
+                                Some("AI output failed validation and no campaign template was available.".to_string()),
+                            )
                         }
                     }
-                    Err(_) => None,
+                    Err(error) => {
+                        if !subject_template.trim().is_empty() && !body_template.trim().is_empty()
+                        {
+                            (
+                                lead.clone(),
+                                apply_lead_vars(&subject_template, &lead),
+                                apply_lead_vars(&body_template, &lead),
+                                Some(format!("AI generation failed ({error}); used campaign template instead.")),
+                            )
+                        } else {
+                            (
+                                lead,
+                                String::new(),
+                                String::new(),
+                                Some(format!("AI generation failed: {error}")),
+                            )
+                        }
+                    }
                 }
             }
         }))
         .buffer_unordered(5);
 
-        while let Some(result) = futures.next().await {
-            if let Some((lead, subject, body)) = result {
-                generated.push(CampaignEmail {
-                    id: Uuid::new_v4().to_string(),
-                    campaign_id: campaign.id.clone(),
-                    lead_id: lead.id,
-                    to: lead.email,
-                    subject,
-                    body,
-                    status: "generated".to_string(),
-                    provider_message: None,
-                    created_at: Utc::now().to_rfc3339(),
-                    sent_at: None,
-                });
+        let mut failed = 0usize;
+        while let Some((lead, subject, body, provider_message)) = futures.next().await {
+            if subject.trim().is_empty() || body.trim().is_empty() {
+                failed += 1;
+                continue;
             }
+            let status = if provider_message.is_some() {
+                "generated_from_template".to_string()
+            } else {
+                "generated".to_string()
+            };
+            generated.push(CampaignEmail {
+                id: Uuid::new_v4().to_string(),
+                campaign_id: campaign.id.clone(),
+                lead_id: lead.id,
+                to: lead.email,
+                subject,
+                body,
+                status,
+                provider_message,
+                created_at: Utc::now().to_rfc3339(),
+                sent_at: None,
+            });
+        }
+        if generated.is_empty() {
+            return Err(format!(
+                "Failed to generate any emails ({failed} lead(s) failed). Check your AI provider or add a campaign template fallback."
+            ));
         }
     } else {
         for lead in leads {
@@ -291,10 +339,6 @@ pub async fn generate_campaign_emails(
                 sent_at: None,
             });
         }
-    }
-
-    if generated.is_empty() && campaign.mode == "ai_personalized" {
-        return Err("Failed to generate any emails. Please check your AI provider connection or try again.".to_string());
     }
 
     state.campaign_emails.extend(generated);
