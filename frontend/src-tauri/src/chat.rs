@@ -42,6 +42,7 @@ pub async fn run_agent_chat(
     let mut state = load_or_create_state(&app)?;
     require_usable_activation(&state)?;
     let settings = validate_read_only(&state.model_settings)?;
+    eprintln!("[DIAG] run_agent_chat: research_enabled={}, rag_enabled={}, agent_type={}", request.research_enabled, request.rag_enabled, request.agent_type);
     
     if !crate::guardrails::message_has_business_context(&request.message.to_lowercase())
         && crate::guardrails::resolve_off_topic(&settings, &request.message).await
@@ -169,7 +170,7 @@ pub async fn run_agent_chat(
         remaining_chars = remaining_chars.saturating_sub(truncated_local.chars().count());
     }
 
-    let use_web = request.research_enabled;
+    let mut use_web = request.research_enabled;
     let web_required = if use_web {
         match guardrail_decision.web_intent {
             crate::guardrails::WebIntent::Yes => true,
@@ -181,8 +182,25 @@ pub async fn run_agent_chat(
     } else {
         matches!(guardrail_decision.web_intent, crate::guardrails::WebIntent::Yes)
     };
+    
+    // Auto-enable web research when guardrails say it's required and Firecrawl is configured,
+    // even if the user's toggle was off (prevents toggle-sync bugs from blocking needed research)
+    let firecrawl_ready = settings.firecrawl_api_key
+        .as_deref()
+        .map(|k| !k.trim().is_empty())
+        .unwrap_or(false)
+        && settings.research_provider == crate::constants::DEFAULT_RESEARCH_PROVIDER;
+    eprintln!("[DIAG] web_required={}, use_web={}, firecrawl_ready={}, research_provider={}, firecrawl_key_present={}", 
+        web_required, use_web, firecrawl_ready, settings.research_provider,
+        settings.firecrawl_api_key.is_some());
+    if web_required && !use_web && firecrawl_ready {
+        eprintln!("[INFO] Auto-enabling web research: guardrails flagged web_required but toggle was off");
+        use_web = true;
+    }
+    
     let mut source_context_attached = false;
     
+    let mut web_error: Option<String> = None;
     if use_web {
         emit_chat_progress(
             &app,
@@ -204,19 +222,25 @@ pub async fn run_agent_chat(
             Ok(res) => res,
             Err(e) => {
                 eprintln!("Web research failed, continuing without context: {}", e);
+                web_error = Some(e.to_string());
                 emit_chat_progress(
                     &app,
                     &session_id,
                     5,
                     "sources-failed",
                     "Web search unavailable",
-                    "Could not reach web sources; continuing with local business knowledge.",
+                    "Web search failed. See terminal for error; continuing with local knowledge.",
                 );
                 String::new()
             }
         };
-        
-        let safe_research = if crate::guardrails::is_safe_context(&research) { research } else { String::new() };
+        let safe_research = if crate::guardrails::is_safe_context(&research) {
+            research
+        } else {
+            eprintln!("[DIAG] Web context was dropped by guardrails::is_safe_context! This is why it failed.");
+            web_error = Some("Web research results contained security terms that triggered the safety filter. Since your company analyzes security risks, the competitors' websites triggered the prompt-attack guardrail!".to_string());
+            String::new()
+        };
         let truncated_research = crate::context_manager::truncate_text_to_budget(&safe_research, max_web_chars);
         
         if !truncated_research.trim().is_empty() {
@@ -235,6 +259,8 @@ pub async fn run_agent_chat(
         }
     }
 
+    eprintln!("[DIAG] use_web={}, web_required={}, source_context_attached={}, max_web_chars={}", use_web, web_required, source_context_attached, max_web_chars);
+
     let history = if state.chat_sessions[index].messages.len() > 1 {
         let prior_messages = &state.chat_sessions[index].messages[..state.chat_sessions[index].messages.len() - 1];
         crate::context_manager::truncate_chat_history(prior_messages, remaining_chars)
@@ -252,12 +278,28 @@ pub async fn run_agent_chat(
         "{context}{conversation_section}\n\nCurrent User Request:\n{}",
         request.message
     );
-    // Graceful degradation: if web sources were needed but not attached, explain that web search is disabled
+    // Graceful degradation: if web sources were needed but not attached, explain why
     let system_prompt = if web_required && !source_context_attached {
-        let inference_hint = "Web sources were required for this question, but Web Research is turned off in the chat Options. \
+        let inference_hint = if use_web {
+            if let Some(err) = &web_error {
+                format!(
+                    "Web sources were required for this question, but the live Web Research attempt failed with the following error: {err}. \
+                     State clearly to the user that you attempted to search the web but could not retrieve external information due to an error, \
+                     and tell them EXACTLY what the error was so they can fix it (e.g. rate limit, invalid key, or no credits). \
+                     Do not invent or guess external facts."
+                )
+            } else {
+                "Web sources were required for this question, but the live Web Research attempt failed or returned no results. \
+                 State clearly to the user that you attempted to search the web but could not retrieve external information, \
+                 and suggest they check their Firecrawl API key in the Model Settings. \
+                 Do not invent or guess external facts.".to_string()
+            }
+        } else {
+            "Web sources were required for this question, but Web Research is turned off in the chat Options. \
              State clearly to the user that you cannot look up outside market data, competitor pricing, or live facts because Web Research is disabled, \
              and inform them that they can toggle on 'Use web research' in the chat Options if they want external information. \
-             Do not invent or guess external facts.";
+             Do not invent or guess external facts.".to_string()
+        };
         format!(
             "{}\n\n{}\n\n{}",
             agent_prompt(&request.agent_type, question_type),

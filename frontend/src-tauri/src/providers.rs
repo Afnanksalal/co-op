@@ -197,10 +197,23 @@ pub async fn call_openai_compatible(
         .filter(|value| !value.trim().is_empty())
         .ok_or_else(|| "OpenAI-compatible provider selected but no API key is saved".to_string())?;
 
+    // Estimate input tokens (conservative: ~3 chars per token) and cap max_tokens
+    // so that input + output stays within the configured max_run_tokens budget.
+    // This prevents 429 rate-limit errors on providers with low TPM limits (e.g. Groq free tier).
+    let input_chars = system_prompt.len() + user_prompt.len();
+    let estimated_input_tokens = (input_chars / 3) as u32;
+    let configured_max = settings.normalized_max_tokens();
+    let effective_max_tokens = if estimated_input_tokens >= configured_max {
+        // Input already exceeds budget — request minimal output
+        256
+    } else {
+        configured_max.saturating_sub(estimated_input_tokens).max(256)
+    };
+
     let request = OpenAiChatRequest {
         model: &settings.openai_model,
         temperature: temperature.unwrap_or(0.2),
-        max_tokens: settings.normalized_max_tokens(),
+        max_tokens: effective_max_tokens,
         messages: vec![
             ChatMessage {
                 role: "system",
