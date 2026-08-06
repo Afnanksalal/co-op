@@ -121,7 +121,8 @@ All embeddings (whether dense provider vectors or local fallback hashes) are sto
 
 ## Review Policy
 
-Review should reduce risk without wasting tokens or slowing every answer.
+Review gates represent automated agent-to-agent (A2A) LLM analysis for risk detection and do not function as human approval workflows.
+
 
 | Review level        | Behavior                                                                   |
 | ------------------- | -------------------------------------------------------------------------- |
@@ -275,3 +276,10 @@ Before adding a provider:
 - Add tests for routing and missing-key behavior.
 - Update owner-facing settings UI.
 - Update this document and `docs/DATA_PLANE.md` if data boundaries change.
+
+ ## What is Intentionally Not Implemented
+
+- **External Vector Databases:** Co-Op intentionally avoids external vector database infrastructure to remain completely local, lightweight, and zero-configuration.
+- **Multi-Provider Fan-out:** The engine does not fan out single prompts across multiple distinct AI provider networks concurrently to respect token budgets and privacy boundaries.
+- **Human Approval Workflows:** Review mechanics are fully automated internal evaluation stages rather than synchronous human-in-the-loop gates.
+
