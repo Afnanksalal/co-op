@@ -10,10 +10,10 @@ Co-Op runs business work through a local workflow harness. It should feel like a
 | LLM              | AI provider           |
 | LLM council      | Second look or review |
 | RAG              | Company files         |
-| Vector search    | File search           |
+| Vector search    | File search            |
 | Knowledge graph  | Business memory       |
-| Model routing    | AI setup              |
-| Prompt harness   | Work plan             |
+| Model routing    | AI setup               |
+| Prompt harness   | Work plan               |
 
 Normal product screens should use the owner-facing wording. Internal names may remain in DTOs and modules where changing them would create migration risk.
 
@@ -111,17 +111,25 @@ Provider keys are stored in OS credential storage. The cloud license backend nev
 
 ## RAG Architecture
 
-Co-Op uses a hybrid embedding architecture to stay completely local and fast, avoiding external vector databases:
+Co-Op uses a hybrid embedding architecture to stay completely local and fast, avoiding external vector databases. **Company files and business memories use two different retrieval paths — they are not treated the same way.**
 
-- **Provider Embeddings:** If the configured provider (Ollama or OpenAI-compatible) supports an embedding endpoint (`/api/embeddings` or `/v1/embeddings`), Co-Op automatically generates dense vector embeddings for company files and business memories.
-- **Enhanced Local Fallback:** If the provider lacks an embedding endpoint (e.g., Groq) or is unreachable, Co-Op falls back to a 128-dimension lexical hash vector algorithm. This fallback includes suffix-stripping stemming, bigram generation, and a dictionary of 150+ business synonym clusters to map related concepts without needing a language model.
-- **Background Re-indexing:** When a user switches to a provider that supports true embeddings, Co-Op automatically upgrades any legacy hash-based vectors to dense semantic vectors in a background task on the next app startup.
+**Company files (dense embeddings, provider-dependent):**
 
-All embeddings (whether dense provider vectors or local fallback hashes) are stored directly inside the local SQLite database alongside the text chunks.
+- **Provider Embeddings:** If the configured provider (Ollama or OpenAI-compatible) supports an embedding endpoint (`/api/embeddings` or `/v1/embeddings`), Co-Op automatically generates dense vector embeddings for company files.
+- **Enhanced Local Fallback:** If the provider lacks an embedding endpoint (e.g., Groq) or is unreachable, Co-Op falls back to a 128-dimension lexical hash vector algorithm for files. This fallback includes suffix-stripping stemming, bigram generation, and a dictionary of 150+ business synonym clusters to map related concepts without needing a language model.
+- **Background Re-indexing:** When a user switches to a provider that supports true embeddings, Co-Op automatically upgrades any legacy hash-based file vectors to dense semantic vectors in a background task on the next app startup.
+
+**Business memory (local lexical only, no provider embeddings):**
+
+- Business memory does **not** use provider-generated dense embeddings, regardless of which AI provider is configured.
+- Memory is retrieved with full-text search plus the same deterministic lexical hash/synonym matching described above. This keeps memory retrieval fast, provider-independent, and consistent even when the active provider changes.
+- Do not assume memory participates in the "Background Re-indexing" upgrade path above — that path applies to company files only.
+
+All embeddings and lexical vectors (for files) and lexical match data (for memory) are stored directly inside the local SQLite database alongside the text chunks.
 
 ## Review Policy
 
-Review should reduce risk without wasting tokens or slowing every answer.
+Review should reduce risk without wasting tokens or slowing every answer. **Review is a model self-check/second-look step, not human approval.** No review level in this table causes a human to approve or sign off on an answer before it is shown or saved — see "What Review Is Not" below.
 
 | Review level        | Behavior                                                                   |
 | ------------------- | -------------------------------------------------------------------------- |
@@ -134,6 +142,13 @@ High-risk triggers include contracts, compliance, payroll, payments, banking, in
 
 Co-Op must not fan out the same prompt to several providers by default.
 When reviewing output (A2A or full review), the engine must use dynamic temperature routing (e.g. 0.6 to 0.7) to ensure the review model is creative enough to spot missing risks and biases, rather than inheriting the primary model's low-temperature factual setting.
+
+### What Review Is Not
+
+- Review is an automated second model pass (or the same model at a different temperature), not a human-in-the-loop approval gate.
+- High-risk topics are **flagged for human review** in the output (see Output Standard), but the run still completes and saves without waiting for a human to click "approve."
+- Any UI element that has previously implied a human "approval" state should be read as: *the answer was internally reviewed and/or flagged for the owner to check* — not that a human approved it before it reached the owner.
+- This distinction is being reconciled with the UI badge tracked in issue #11. Until that lands, treat any "Needs approval"-style label in the running app as describing an unresolved flag for the owner's attention, not a blocked/pending human sign-off step.
 
 ## Guardrails
 
@@ -193,8 +208,8 @@ All context is bounded before it reaches the selected provider so one large file
 
 Co-Op stores two kinds of local context:
 
-- Company files: source documents and sections that can be searched.
-- Business memory: durable facts, decisions, preferences, risks, research findings, plan outcomes, and profile summaries.
+- Company files: source documents and sections that can be searched, and which may use dense provider embeddings (see RAG Architecture above).
+- Business memory: durable facts, decisions, preferences, risks, research findings, plan outcomes, and profile summaries — retrieved with local lexical/full-text matching only, never dense provider embeddings (see RAG Architecture above).
 
 Memory is not a separate cloud service. It is stored in the local SQLite data plane and searched with full-text plus compact deterministic matching data. The UI exposes this as the Memory section inside Company, not as vector infrastructure.
 
@@ -262,6 +277,20 @@ Every answer should be written for an owner who needs to make progress. Response
 - Give concrete next actions.
 - Avoid technical terms unless the user is in Settings or documentation.
 - Mark legal, finance, security, privacy, hiring, termination, payment, and compliance actions for human review.
+
+"Mark ... for human review" means the output is flagged/labeled so the owner knows to check it themselves — it does not mean Co-Op blocks the answer pending a human's sign-off. See "What Review Is Not" under Review Policy.
+
+## What's Intentionally Not Implemented
+
+This section exists so future agents and PRs don't rebuild things that were deliberately left out. If a feature below sounds missing, it is missing on purpose — open a discussion before adding it.
+
+- **No external/cloud vector database.** All embeddings and lexical vectors live in local SQLite. Do not introduce Pinecone, Weaviate, pgvector-over-network, or similar.
+- **No dense provider embeddings for business memory.** Memory is local lexical/full-text only, even when the active provider supports an embedding endpoint. Only company files use provider embeddings. Do not "upgrade" memory to dense embeddings as a quick win — this needs a deliberate design decision, not an incidental change.
+- **No multi-provider fan-out by default.** Co-Op does not send the same prompt to several providers to compare answers. The "review" pass is a second call to the same configured provider (or the same model at a different temperature), not a council of models.
+- **No blocking human-approval gate.** Nothing in the current runtime pauses a run and waits for a human to click "approve" before saving or showing an answer. High-risk output is flagged for human review, not held for human sign-off. (Related: issue #11 tracks a UI badge that currently implies approval semantics that don't exist yet — don't build backend approval-gate logic to match the badge; fix the badge to match the actual behavior, or track approval-gating as a separate, explicitly-scoped feature.)
+- **No hidden chain-of-thought or raw model output in progress events.** `chat-progress` events are a fixed, safe vocabulary of stage names — not a debugging or reasoning stream. Do not add raw model output, retrieved document text, or reasoning traces to these events.
+- **No unsourced research output.** If Firecrawl/web sources are unavailable, research jobs fail with a setup message rather than silently falling back to a model-only guess.
+- **No invented leads.** Lead discovery only saves source-backed people/companies; there is no model-only lead generation fallback.
 
 ## Extending The Harness
 
