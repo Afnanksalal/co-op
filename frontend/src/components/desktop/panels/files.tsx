@@ -242,6 +242,15 @@ export function RagPanel({
                 Co-Op connects your profile, files, customers, research, and plans so answers stay
                 grounded.
               </p>
+              <div className="mt-2">
+                <Badge variant={state.modelSettings.provider === 'ollama' ? 'outline' : 'secondary'}>
+                  {state.modelSettings.provider === 'ollama'
+                    ? `Ollama embeddings (${state.modelSettings.ollamaModel})`
+                    : state.modelSettings.provider === 'openai_compatible'
+                      ? `Provider embeddings (${state.modelSettings.openaiModel})`
+                      : 'Local embeddings'}
+                </Badge>
+              </div>
             </div>
             <Button type="button" variant="outline" onClick={refreshGraph}>
               Refresh

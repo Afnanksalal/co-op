@@ -24,13 +24,8 @@ pub struct GuardrailDecision {
     pub high_risk: bool,
 }
 
-fn log_guardrail_event(action: &str, category: &str, input_preview: &str) {
-    let preview: String = input_preview
-        .chars()
-        .take(80)
-        .filter(|c| *c != '\n' && *c != '\r')
-        .collect();
-    log::info!("guardrail/{action}: category={category} preview=\"{preview}\"");
+fn log_guardrail_event(action: &str, category: &str, _input_preview: &str) {
+    log::info!("guardrail/{action}: category={category}");
 }
 
 pub fn validate_business_input(

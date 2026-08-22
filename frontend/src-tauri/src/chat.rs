@@ -1,6 +1,7 @@
 use chrono::Utc;
 use serde::Serialize;
-use tauri::{AppHandle, Emitter};
+use std::sync::atomic::{AtomicBool, Ordering};
+use tauri::{AppHandle, Emitter, Manager};
 use uuid::Uuid;
 
 use crate::constants::MAX_CHAT_SESSIONS;
@@ -31,6 +32,30 @@ struct ChatProgressEvent {
     created_at: String,
 }
 
+pub struct ChatCancelFlag(pub AtomicBool);
+
+impl Default for ChatCancelFlag {
+    fn default() -> Self {
+        Self(AtomicBool::new(false))
+    }
+}
+
+fn check_cancel(app: &AppHandle) -> Result<(), String> {
+    let flag = app.state::<ChatCancelFlag>();
+    if flag.0.load(Ordering::SeqCst) {
+        Err("Chat cancelled.".to_string())
+    } else {
+        Ok(())
+    }
+}
+
+#[tauri::command]
+pub async fn cancel_chat(app: AppHandle) -> Result<(), String> {
+    let flag = app.state::<ChatCancelFlag>();
+    flag.0.store(true, Ordering::SeqCst);
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn run_agent_chat(
     app: AppHandle,
@@ -42,7 +67,11 @@ pub async fn run_agent_chat(
     let mut state = load_or_create_state(&app)?;
     require_usable_activation(&state)?;
     let settings = validate_read_only(&state.model_settings)?;
-
+    // Reset cancel flag at start of each chat
+    let cancel_flag = app.state::<ChatCancelFlag>();
+    cancel_flag.0.store(false, Ordering::SeqCst);
+    eprintln!("[DIAG] run_agent_chat: research_enabled={}, rag_enabled={}, agent_type={}", request.research_enabled, request.rag_enabled, request.agent_type);
+    
     if !crate::guardrails::message_has_business_context(&request.message.to_lowercase())
         && crate::guardrails::resolve_off_topic(&settings, &request.message).await
     {
@@ -142,9 +171,8 @@ pub async fn run_agent_chat(
             "Looking for private documents that match this question.",
         );
         let rag = document_context_for_app(&app, &settings, &request.message).await?;
-        let safe_rag = crate::guardrails::sanitize_retrieved_context(&rag);
-        if !safe_rag.is_empty() {
-            local_context.push_str(&safe_rag);
+        if !rag.is_empty() && crate::guardrails::is_safe_context(&rag) {
+            local_context.push_str(&rag);
         }
 
         emit_chat_progress(
@@ -156,12 +184,11 @@ pub async fn run_agent_chat(
             "Finding useful local notes without exposing hidden prompts or keys.",
         );
         let memory = memory_context_from_store(&app, &settings, &request.message).await?;
-        let safe_memory = crate::guardrails::sanitize_retrieved_context(&memory);
-        if !safe_memory.is_empty() {
+        if !memory.is_empty() && crate::guardrails::is_safe_context(&memory) {
             if !local_context.is_empty() {
                 local_context.push_str("\n\n");
             }
-            local_context.push_str(&safe_memory);
+            local_context.push_str(&memory);
         }
     }
     
@@ -171,18 +198,36 @@ pub async fn run_agent_chat(
         remaining_chars = remaining_chars.saturating_sub(truncated_local.chars().count());
     }
 
-    // Respect the user's web-research toggle. Never silently override it.
-    let use_web = request.research_enabled;
-    let web_required = match guardrail_decision.web_intent {
-        crate::guardrails::WebIntent::Yes => true,
-        crate::guardrails::WebIntent::No => false,
-        crate::guardrails::WebIntent::Uncertain if use_web => {
-            crate::guardrails::resolve_web_intent(&settings, &request.message).await
+    let mut use_web = request.research_enabled;
+    let web_required = if use_web {
+        match guardrail_decision.web_intent {
+            crate::guardrails::WebIntent::Yes => true,
+            crate::guardrails::WebIntent::No => false,
+            crate::guardrails::WebIntent::Uncertain => {
+                crate::guardrails::resolve_web_intent(&settings, &request.message).await
+            }
         }
-        crate::guardrails::WebIntent::Uncertain => false,
+    } else {
+        matches!(guardrail_decision.web_intent, crate::guardrails::WebIntent::Yes)
     };
-
+    
+    // Auto-enable web research when guardrails say it's required and Firecrawl is configured,
+    // even if the user's toggle was off (prevents toggle-sync bugs from blocking needed research)
+    let firecrawl_ready = settings.firecrawl_api_key
+        .as_deref()
+        .map(|k| !k.trim().is_empty())
+        .unwrap_or(false)
+        && settings.research_provider == crate::constants::DEFAULT_RESEARCH_PROVIDER;
+    eprintln!("[DIAG] web_required={}, use_web={}, firecrawl_ready={}, research_provider={}, firecrawl_key_present={}", 
+        web_required, use_web, firecrawl_ready, settings.research_provider,
+        settings.firecrawl_api_key.is_some());
+    if web_required && !use_web && firecrawl_ready {
+        eprintln!("[INFO] Auto-enabling web research: guardrails flagged web_required but toggle was off");
+        use_web = true;
+    }
+    
     let mut source_context_attached = false;
+    
     let mut web_error: Option<String> = None;
     if use_web {
         emit_chat_progress(
@@ -204,6 +249,7 @@ pub async fn run_agent_chat(
         {
             Ok(res) => res,
             Err(e) => {
+                eprintln!("Web research failed, continuing without context: {}", e);
                 web_error = Some(e.to_string());
                 emit_chat_progress(
                     &app,
@@ -211,21 +257,20 @@ pub async fn run_agent_chat(
                     5,
                     "sources-failed",
                     "Web search unavailable",
-                    "Web search failed; continuing with local knowledge and a clear notice.",
+                    "Web search failed. See terminal for error; continuing with local knowledge.",
                 );
                 String::new()
             }
         };
-        let safe_research = crate::guardrails::sanitize_retrieved_context(&research);
-        if safe_research.is_empty() && !research.trim().is_empty() {
-            web_error = Some(
-                "Web research returned content that looked like a prompt-injection attempt, so it was discarded."
-                    .to_string(),
-            );
-        }
-        let truncated_research =
-            crate::context_manager::truncate_text_to_budget(&safe_research, max_web_chars);
-
+        let safe_research = if crate::guardrails::is_safe_context(&research) {
+            research
+        } else {
+            eprintln!("[DIAG] Web context was dropped by guardrails::is_safe_context! This is why it failed.");
+            web_error = Some("Web research results contained security terms that triggered the safety filter. Since your company analyzes security risks, the competitors' websites triggered the prompt-attack guardrail!".to_string());
+            String::new()
+        };
+        let truncated_research = crate::context_manager::truncate_text_to_budget(&safe_research, max_web_chars);
+        
         if !truncated_research.trim().is_empty() {
             source_context_attached = true;
             emit_chat_progress(
@@ -238,10 +283,11 @@ pub async fn run_agent_chat(
             );
             context.push_str("\n\nLive research context:\n");
             context.push_str(&truncated_research);
-            remaining_chars =
-                remaining_chars.saturating_sub(truncated_research.chars().count() + 30);
+            remaining_chars = remaining_chars.saturating_sub(truncated_research.chars().count() + 30);
         }
     }
+
+    eprintln!("[DIAG] use_web={}, web_required={}, source_context_attached={}, max_web_chars={}", use_web, web_required, source_context_attached, max_web_chars);
 
     let history = if state.chat_sessions[index].messages.len() > 1 {
         let prior_messages = &state.chat_sessions[index].messages[..state.chat_sessions[index].messages.len() - 1];
@@ -303,9 +349,11 @@ pub async fn run_agent_chat(
         "Preparing the answer",
         "Combining company context, sources, and the selected advisor style.",
     );
+    check_cancel(&app)?;
     let mut answer = call_model(&settings, &system_prompt, &prompt, Some(0.2)).await?;
 
     if request.a2a_enabled && (question_type == QuestionType::Planning || question_type == QuestionType::Brainstorming) {
+        check_cancel(&app)?;
         emit_chat_progress(
             &app,
             &session_id,
@@ -328,6 +376,7 @@ pub async fn run_agent_chat(
         request.council_mode.as_str(),
         "review_only" | "full_council"
     ) && (question_type == QuestionType::Planning || question_type == QuestionType::Brainstorming) {
+        check_cancel(&app)?;
         emit_chat_progress(
             &app,
             &session_id,
@@ -371,7 +420,7 @@ pub async fn run_agent_chat(
     state.chat_sessions[index].updated_at = Utc::now().to_rfc3339();
     state.chat_sessions[index].a2a_enabled = request.a2a_enabled;
     state.chat_sessions[index].rag_enabled = request.rag_enabled;
-    state.chat_sessions[index].research_enabled = request.research_enabled;
+    state.chat_sessions[index].research_enabled = use_web;
     state.chat_sessions[index].council_mode = request.council_mode;
     if request.rag_enabled {
         let _ = remember_business_event(

@@ -2,10 +2,11 @@ use chrono::Utc;
 use rusqlite::{params, Connection, OptionalExtension};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
-use tauri::AppHandle;
+use serde::Serialize;
+use tauri::{AppHandle, Emitter};
 
 use crate::constants::MAX_DOCUMENTS;
-use crate::rag::{chunk_text, embed_text_local, tokenize};
+use crate::rag::{chunk_text, embed_text_local, embed_texts_batch, tokenize};
 use crate::types::{DesktopState, KnowledgeChunk, KnowledgeDocument, ModelSettings, SearchResult};
 
 pub(crate) mod schema;
@@ -19,13 +20,9 @@ const MAX_CONTEXT_RESULTS: usize = 6;
 const MAX_CONTEXT_CHARS: usize = 12_000;
 const MAX_CONTEXT_RESULTS_PER_DOCUMENT: usize = 2;
 
-pub fn store_document(
-    app: &AppHandle,
-    document: &KnowledgeDocument,
-    embedding_version: i64,
-) -> Result<(), String> {
+pub fn store_document(app: &AppHandle, document: &KnowledgeDocument) -> Result<(), String> {
     let mut conn = open_store(app)?;
-    store_document_with_conn(&mut conn, document, embedding_version)
+    store_document_with_conn(&mut conn, document)
 }
 
 pub fn list_document_summaries(
@@ -42,10 +39,9 @@ pub async fn search_store(
     query: &str,
     limit: usize,
 ) -> Result<Vec<SearchResult>, String> {
-    let local_query = crate::rag::embed_text_local(query);
-    let provider_query = crate::rag::embed_query_provider(settings, query).await;
+    let query_vector = crate::rag::embed_text(settings, query).await;
     let conn = open_store(app)?;
-    search_with_conn(&conn, query, &local_query, provider_query.as_deref(), limit)
+    search_with_conn(&conn, query, &query_vector, limit)
 }
 
 pub async fn document_context_for_app(app: &AppHandle, settings: &ModelSettings, query: &str) -> Result<String, String> {
@@ -75,11 +71,7 @@ pub fn migrate_legacy_documents(app: &AppHandle, state: &mut DesktopState) -> Re
         let mut conn = open_store(app)?;
         for document in state.documents.clone() {
             let normalized = normalize_document_for_store(document);
-            store_document_with_conn(
-                &mut conn,
-                &normalized,
-                crate::constants::LOCAL_EMBEDDING_VERSION,
-            )?;
+            store_document_with_conn(&mut conn, &normalized)?;
         }
     }
 
@@ -113,7 +105,6 @@ pub fn to_document_summary(document: &KnowledgeDocument) -> KnowledgeDocument {
 fn store_document_with_conn(
     conn: &mut Connection,
     document: &KnowledgeDocument,
-    embedding_version: i64,
 ) -> Result<(), String> {
     let content = normalize_content_for_storage(&document.content);
     let content_hash = content_hash(&content);
@@ -180,7 +171,7 @@ fn store_document_with_conn(
             INSERT INTO knowledge_chunks (
               id, document_id, section_index, content, vector, token_start, token_end, token_count, created_at, embedding_version
             )
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 1)
             ",
             params![
                 chunk.id,
@@ -192,7 +183,6 @@ fn store_document_with_conn(
                 token_end as i64,
                 token_count as i64,
                 chunk.created_at,
-                embedding_version,
             ],
         )
         .map_err(|error| format!("Failed to store knowledge chunk: {error}"))?;
@@ -252,8 +242,7 @@ fn list_document_summaries_with_conn(
 fn search_with_conn(
     conn: &Connection,
     query: &str,
-    local_query: &[f32],
-    provider_query: Option<&[f32]>,
+    query_vector: &[f32],
     limit: usize,
 ) -> Result<Vec<SearchResult>, String> {
     let query_terms = unique_tokens(query);
@@ -273,37 +262,17 @@ fn search_with_conn(
         .into_iter()
         .filter_map(|candidate| {
             let vector = blob_to_vector(&candidate.vector).ok()?;
-            // Score only against the matching embedding space — never cross dims.
-            let semantic_score = if vector.len() == local_query.len() {
-                cosine_similarity(local_query, &vector).max(0.0)
-            } else if let Some(provider_query) = provider_query {
-                if vector.len() == provider_query.len() {
-                    cosine_similarity(provider_query, &vector).max(0.0)
-                } else {
-                    0.0
-                }
-            } else {
-                0.0
-            };
+            let semantic_score = cosine_similarity(query_vector, &vector).max(0.0);
             let lexical_score = lexical_match_score(&query_terms, &candidate);
             let metadata_score = metadata_match_score(&query_terms, &candidate);
             let fts_score = candidate.fts_rank.map(fts_rank_score).unwrap_or(0.0);
             let section_score = 1.0 / (1.0 + candidate.section_index as f32);
-            // When semantic cannot match (dim mismatch / provider down), lean on lexical+FTS.
-            let score = if semantic_score > 0.0 {
-                ((lexical_score * 0.45)
-                    + (semantic_score * 0.3)
-                    + (metadata_score * 0.13)
-                    + (fts_score * 0.08)
-                    + (section_score * 0.04))
-                    .clamp(0.0, 1.0)
-            } else {
-                ((lexical_score * 0.55)
-                    + (metadata_score * 0.2)
-                    + (fts_score * 0.2)
-                    + (section_score * 0.05))
-                    .clamp(0.0, 1.0)
-            };
+            let score = ((lexical_score * 0.45)
+                + (semantic_score * 0.3)
+                + (metadata_score * 0.13)
+                + (fts_score * 0.08)
+                + (section_score * 0.04))
+                .clamp(0.0, 1.0);
             if score >= 0.20 {
                 Some(SearchResult {
                     document_id: candidate.document_id,
@@ -682,22 +651,32 @@ struct ExistingDocument {
     created_at: String,
 }
 
-/// Upgrade local lexical vectors to provider embeddings when the provider can
-/// embed consistently. Never marks a row as provider-indexed unless the vector
-/// actually came from the provider. No-ops cleanly when embeddings are unavailable.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ReindexProgressEvent {
+    total_chunks: usize,
+    total_memories: usize,
+    processed: usize,
+    errors: usize,
+    stage: &'static str,
+}
+
+/// Re-embed all knowledge chunks and business memories that still have old
+/// hash-based vectors (embedding_version = 0). Runs in batches of 5 using
+/// batch embedding API. Emits `reindex-progress` events for UI observability.
 pub async fn reindex_stale_embeddings(app: &AppHandle, settings: &ModelSettings) {
     let conn = match open_store(app) {
         Ok(c) => c,
         Err(_) => return,
     };
 
-    let probe = match crate::providers::call_embedding(settings, "co-op embedding capability probe")
-        .await
-    {
-        Ok(vector) if !vector.is_empty() => vector,
-        _ => return,
-    };
+    // Test one embedding call first — bail early if provider has no embeddings
+    if crate::providers::call_embedding(settings, "test").await.is_err() {
+        eprintln!("Embedding provider unavailable — skipping re-index");
+        return;
+    }
 
+    // Re-index knowledge chunks
     let stale_chunks: Vec<(String, String)> = {
         let mut stmt = match conn.prepare(
             "SELECT id, content FROM knowledge_chunks WHERE embedding_version = 0 LIMIT 500",
@@ -708,41 +687,100 @@ pub async fn reindex_stale_embeddings(app: &AppHandle, settings: &ModelSettings)
         let rows = match stmt.query_map([], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
         }) {
-            Ok(rows) => rows,
+            Ok(rows) => rows.filter_map(|r| r.ok()).collect(),
             Err(_) => return,
         };
-        rows.filter_map(|r| r.ok()).collect()
+        rows
     };
 
-    let mut upgraded_chunks = 0usize;
+    // Re-index business memories
+    let stale_memories: Vec<(String, String, String, String)> = {
+        let mut stmt = match conn.prepare(
+            "SELECT id, title, memory_type, content FROM business_memories WHERE embedding_version = 0 LIMIT 500",
+        ) {
+            Ok(s) => s,
+            Err(_) => return,
+        };
+        let rows = match stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+            ))
+        }) {
+            Ok(rows) => rows.filter_map(|r| r.ok()).collect(),
+            Err(_) => return,
+        };
+        rows
+    };
+
+    let total_chunks = stale_chunks.len();
+    let total_memories = stale_memories.len();
+    if total_chunks == 0 && total_memories == 0 {
+        return;
+    }
+
+    let mut processed: usize = 0;
+    let mut errors: usize = 0;
+    let total = total_chunks + total_memories;
+
+    let emit_progress = |app: &AppHandle, processed: usize, errors: usize, stage: &'static str| {
+        let _ = app.emit("reindex-progress", ReindexProgressEvent {
+            total_chunks,
+            total_memories,
+            processed,
+            errors,
+            stage,
+        });
+    };
+
+    emit_progress(app, 0, 0, "started");
+
+    // Batch-embed chunks
     for batch in stale_chunks.chunks(5) {
-        let texts: Vec<String> = batch.iter().map(|(_, content)| content.clone()).collect();
-        let embedded = crate::rag::embed_batch(settings, &texts).await;
-        if embedded.space != crate::rag::EmbeddingSpace::Provider {
-            // Provider became unavailable mid-run — stop rather than writing lies.
-            break;
-        }
-        for ((id, _), vector) in batch.iter().zip(embedded.vectors) {
-            if vector.len() != probe.len() {
-                continue;
-            }
-            let blob = vector_to_blob(&vector);
-            if conn
-                .execute(
-                    "UPDATE knowledge_chunks SET vector = ?1, embedding_version = ?2 WHERE id = ?3",
-                    rusqlite::params![blob, crate::constants::PROVIDER_EMBEDDING_VERSION, id],
-                )
-                .is_ok()
-            {
-                upgraded_chunks += 1;
+        let texts: Vec<&str> = batch.iter().map(|(_, content)| content.as_str()).collect();
+        let vectors = embed_texts_batch(settings, &texts).await;
+        for ((id, _), vector) in batch.iter().zip(vectors.iter()) {
+            let blob = vector_to_blob(vector);
+            if conn.execute(
+                "UPDATE knowledge_chunks SET vector = ?1, embedding_version = 1 WHERE id = ?2",
+                rusqlite::params![blob, id],
+            ).is_err() {
+                errors += 1;
             }
         }
+        processed += batch.len();
+        emit_progress(app, processed, errors, "chunks");
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     }
 
-    // Memories stay on the local lexical space by design (sync write path).
-    // Do not pretend they were provider-embedded.
-    let _ = upgraded_chunks;
+    // Batch-embed memories
+    for batch in stale_memories.chunks(5) {
+        let combined: Vec<String> = batch.iter()
+            .map(|(_, title, memory_type, content)| format!("{} {} {}", title, memory_type, content))
+            .collect();
+        let texts: Vec<&str> = combined.iter().map(|s| s.as_str()).collect();
+        let vectors = embed_texts_batch(settings, &texts).await;
+        for ((id, _, _, _), vector) in batch.iter().zip(vectors.iter()) {
+            let blob = vector_to_blob(vector);
+            if conn.execute(
+                "UPDATE business_memories SET vector = ?1, embedding_version = 1 WHERE id = ?2",
+                rusqlite::params![blob, id],
+            ).is_err() {
+                errors += 1;
+            }
+        }
+        processed += batch.len();
+        emit_progress(app, processed, errors, "memories");
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
+
+    emit_progress(app, total, errors, "done");
+    eprintln!(
+        "Re-indexed {} chunks and {} memories with provider embeddings ({} errors)",
+        total_chunks, total_memories, errors
+    );
 }
 
 #[cfg(test)]

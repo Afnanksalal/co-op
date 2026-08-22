@@ -78,8 +78,15 @@ pub fn validate_model_settings(settings: &mut ModelSettings) -> Result<(), Strin
         false,
         "OpenAI-compatible URL",
     )?;
-    settings.firecrawl_base_url =
-        sanitize_http_base_url(&settings.firecrawl_base_url, true, false, "Firecrawl URL")?;
+    let has_firecrawl_key = settings
+        .firecrawl_api_key
+        .as_deref()
+        .map(|k| !k.trim().is_empty())
+        .unwrap_or(false);
+    if has_firecrawl_key {
+        settings.firecrawl_base_url =
+            sanitize_http_base_url(&settings.firecrawl_base_url, true, false, "Firecrawl URL")?;
+    }
     settings.max_run_tokens = settings
         .max_run_tokens
         .clamp(MIN_RUN_TOKENS, MAX_RUN_TOKENS);
@@ -123,15 +130,7 @@ pub fn validate_model_settings(settings: &mut ModelSettings) -> Result<(), Strin
     {
         return Err("Provider API key is required for OpenAI-compatible routing".to_string());
     }
-    if settings
-        .firecrawl_api_key
-        .as_deref()
-        .map(str::trim)
-        .unwrap_or("")
-        .is_empty()
-    {
-        return Err("Web search key is required for source-backed business research".to_string());
-    }
+
     if settings.email_provider != "none" {
         if settings
             .email_api_key
@@ -435,7 +434,14 @@ mod tests {
     }
 
     #[test]
-    fn model_settings_are_valid_with_required_web_key() {
+    fn model_settings_are_valid_without_web_key() {
+        let mut settings = ModelSettings::default();
+
+        assert!(validate_model_settings(&mut settings).is_ok());
+    }
+
+    #[test]
+    fn model_settings_are_valid_with_web_key() {
         let mut settings = ModelSettings {
             firecrawl_api_key: Some("fc-test".to_string()),
             ..ModelSettings::default()
@@ -445,15 +451,11 @@ mod tests {
     }
 
     #[test]
-    fn model_settings_require_keys_for_external_provider_and_web_search() {
+    fn model_settings_require_key_for_external_provider() {
         let mut settings = ModelSettings {
             provider: "openai_compatible".to_string(),
-            firecrawl_api_key: Some("fc-test".to_string()),
             ..ModelSettings::default()
         };
-        assert!(validate_model_settings(&mut settings).is_err());
-
-        let mut settings = ModelSettings::default();
         assert!(validate_model_settings(&mut settings).is_err());
     }
 

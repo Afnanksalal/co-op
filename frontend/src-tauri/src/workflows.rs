@@ -317,7 +317,11 @@ fn finalize_workflow(
     match output {
         Ok(content) => {
             validate_model_output(&content, web_required, source_context_attached, false)?;
-            run.status = "completed".to_string();
+            run.status = if run.approval_required {
+                "awaiting_approval".to_string()
+            } else {
+                "completed".to_string()
+            };
             run.output = Some(content);
             push_trace(
                 &mut run,
@@ -351,6 +355,40 @@ fn finalize_workflow(
     }
     save_state(&app, &state)?;
     Ok(run)
+}
+
+#[tauri::command]
+pub async fn approve_workflow_run(app: AppHandle, run_id: String) -> Result<crate::types::DesktopState, String> {
+    let mut state = load_or_create_state(&app)?;
+    let run = state
+        .workflow_runs
+        .iter_mut()
+        .find(|r| r.id == run_id)
+        .ok_or_else(|| "Workflow run not found".to_string())?;
+    if run.status != "awaiting_approval" {
+        return Err(format!("Cannot approve a run with status '{}'", run.status));
+    }
+    run.status = "completed".to_string();
+    run.completed_at = Some(Utc::now().to_rfc3339());
+    save_state(&app, &state)?;
+    Ok(state)
+}
+
+#[tauri::command]
+pub async fn reject_workflow_run(app: AppHandle, run_id: String) -> Result<crate::types::DesktopState, String> {
+    let mut state = load_or_create_state(&app)?;
+    let run = state
+        .workflow_runs
+        .iter_mut()
+        .find(|r| r.id == run_id)
+        .ok_or_else(|| "Workflow run not found".to_string())?;
+    if run.status != "awaiting_approval" {
+        return Err(format!("Cannot reject a run with status '{}'", run.status));
+    }
+    run.status = "rejected".to_string();
+    run.completed_at = Some(Utc::now().to_rfc3339());
+    save_state(&app, &state)?;
+    Ok(state)
 }
 
 pub fn business_system_prompt(workflow_type: &str, council_mode: &str, question_type: QuestionType) -> String {

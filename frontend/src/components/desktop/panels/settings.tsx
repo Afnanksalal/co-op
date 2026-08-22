@@ -2,7 +2,12 @@
 
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
-import { CaretDown, EnvelopeSimple, HardDrives, MagnifyingGlass } from '@phosphor-icons/react';
+import {
+  CaretDown,
+  EnvelopeSimple,
+  HardDrives,
+  MagnifyingGlass,
+} from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import {
   saveModelSettings,
@@ -32,9 +37,7 @@ export function SettingsPanel({
   const [openaiApiKey, setOpenaiApiKey] = useState('');
   const [firecrawlApiKey, setFirecrawlApiKey] = useState('');
   const [emailApiKey, setEmailApiKey] = useState('');
-  const [settingsTab, setSettingsTab] = useState(
-    settings.firecrawlApiKeySaved ? 'model' : 'research'
-  );
+  const [settingsTab, setSettingsTab] = useState('model');
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const update = (patch: Partial<ModelSettings>) =>
     setSettings({ ...settings, researchProvider: 'firecrawl', ...patch });
@@ -45,6 +48,7 @@ export function SettingsPanel({
     firecrawlApiKey,
     emailApiKey,
   };
+
   const needsModelKey = settings.provider === 'openai_compatible' && !settings.openaiApiKeySaved;
   const needsFirecrawlKey = !settings.firecrawlApiKeySaved;
   const needsEmailKey = settings.emailProvider !== 'none' && !settings.emailApiKeySaved;
@@ -57,7 +61,7 @@ export function SettingsPanel({
     settings.emailProvider === 'none' ||
     ((settings.emailApiKeySaved || emailApiKey.trim().length > 0) &&
       looksLikeEmail(settings.emailFrom));
-  const settingsReady = modelReady && researchReady && emailReady;
+  const settingsReady = modelReady && emailReady;
 
   async function saveSettings() {
     const saved = await runWithState(
@@ -85,11 +89,9 @@ export function SettingsPanel({
         ? 'Save web sources'
         : 'Save email settings';
 
-  useEffect(() => {
-    if (!settings.firecrawlApiKeySaved) {
-      setSettingsTab('research');
-    }
-  }, [settings.firecrawlApiKeySaved]);
+
+
+
 
   return (
     <DesktopPage className="mx-auto w-full max-w-5xl space-y-5">

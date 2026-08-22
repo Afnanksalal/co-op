@@ -10,7 +10,7 @@ use crate::constants::{
 use crate::knowledge_store::{
     list_document_summaries, search_store, store_document, to_document_summary,
 };
-use crate::providers::call_embedding;
+use crate::providers::{call_embedding, call_embedding_batch};
 use crate::storage::{load_or_create_state, require_usable_activation, save_state, to_response};
 use crate::types::{
     DesktopStateResponse, DocumentRequest, KnowledgeChunk, KnowledgeDocument, ModelSettings,
@@ -236,6 +236,18 @@ pub async fn embed_query_provider(
     match call_embedding(settings, content).await {
         Ok(vector) if !vector.is_empty() => Some(vector),
         _ => None,
+    }
+}
+
+/// Batch-embed multiple texts. Uses provider batch API when available,
+/// falls back to local embeddings for the entire batch on provider failure.
+pub async fn embed_texts_batch(settings: &ModelSettings, texts: &[&str]) -> Vec<Vec<f32>> {
+    match call_embedding_batch(settings, texts).await {
+        Ok(vectors) => vectors,
+        Err(e) => {
+            eprintln!("Batch embedding provider unavailable ({}), using local fallback", e);
+            texts.iter().map(|t| embed_text_local(t)).collect()
+        }
     }
 }
 

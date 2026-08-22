@@ -185,7 +185,7 @@ export function OutreachPanel({
                     <div className="flex shrink-0 flex-col items-end gap-2">
                       <Badge variant="outline">{item.status}</Badge>
                       <Badge variant={item.leadScore >= 70 ? 'success' : 'secondary'}>
-                        {item.leadScore}% fit
+                        {item.leadScore > 0 ? `${item.leadScore}% fit` : 'Unscored'}
                       </Badge>
                     </div>
                   </div>

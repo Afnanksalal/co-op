@@ -23,7 +23,9 @@ mod validation;
 mod workflows;
 mod workspace;
 
-pub use chat::{run_agent_chat, delete_chat_session, pin_chat_session};
+use tauri::Manager;
+
+pub use chat::{run_agent_chat, delete_chat_session, pin_chat_session, cancel_chat, ChatCancelFlag};
 pub use graph::get_knowledge_graph;
 pub use license::{
     activate_license, clear_activation, get_activation_state, get_machine_fingerprint,
@@ -37,7 +39,7 @@ pub use rag::{add_knowledge_document, search_knowledge};
 pub use research::run_research_query;
 pub use settings::save_model_settings;
 pub use tools::{analyze_pitch_deck, run_alert_now, run_calculator, save_alert, save_cap_table};
-pub use workflows::run_business_workflow;
+pub use workflows::{run_business_workflow, approve_workflow_run, reject_workflow_run};
 pub use workspace::{save_bookmark, save_integration, save_workspace_profile};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -57,10 +59,13 @@ pub fn run() {
             get_machine_fingerprint,
             heartbeat_license,
             run_agent_chat,
+            cancel_chat,
             delete_chat_session,
             pin_chat_session,
             run_alert_now,
             run_business_workflow,
+            approve_workflow_run,
+            reject_workflow_run,
             run_calculator,
             run_research_query,
             save_alert,
@@ -75,6 +80,7 @@ pub fn run() {
             send_campaign_emails,
         ])
         .setup(|app| {
+            app.manage(ChatCancelFlag::default());
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()

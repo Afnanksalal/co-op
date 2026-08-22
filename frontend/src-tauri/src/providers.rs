@@ -413,6 +413,70 @@ async fn embed_openai_compatible(
         .ok_or_else(|| "OpenAI-compatible provider returned no embedding".to_string())
 }
 
+#[derive(Debug, Clone, Serialize)]
+struct OpenAiBatchEmbeddingRequest<'a> {
+    model: &'a str,
+    input: Vec<&'a str>,
+}
+
+/// Embed multiple texts in a single HTTP call (OpenAI-compatible) or
+/// sequentially (Ollama). Returns one vector per input text.
+pub async fn call_embedding_batch(
+    settings: &ModelSettings,
+    texts: &[&str],
+) -> Result<Vec<Vec<f32>>, String> {
+    if texts.is_empty() {
+        return Ok(vec![]);
+    }
+    match settings.provider.as_str() {
+        "ollama" => {
+            let mut results = Vec::with_capacity(texts.len());
+            for text in texts {
+                results.push(call_embedding(settings, text).await?);
+            }
+            Ok(results)
+        }
+        "openai_compatible" => {
+            let api_key = settings
+                .openai_api_key
+                .as_deref()
+                .filter(|v| !v.trim().is_empty())
+                .ok_or_else(|| "OpenAI-compatible provider selected but no API key is saved".to_string())?;
+            let request = OpenAiBatchEmbeddingRequest {
+                model: &settings.openai_model,
+                input: texts.to_vec(),
+            };
+            let openai_base_url = sanitize_http_base_url(
+                &settings.openai_base_url,
+                true,
+                false,
+                "OpenAI-compatible URL",
+            )?;
+            let response = http_client()?
+                .post(format!("{}/embeddings", openai_base_url))
+                .bearer_auth(api_key)
+                .json(&request)
+                .send()
+                .await
+                .map_err(|e| format!("Batch embedding request failed: {e}"))?;
+            let response = ensure_success(response, "OpenAI-compatible batch embeddings").await?;
+            let body = response
+                .json::<OpenAiEmbeddingResponse>()
+                .await
+                .map_err(|e| format!("Batch embedding response was not valid JSON: {e}"))?;
+            if body.data.len() != texts.len() {
+                return Err(format!(
+                    "Batch embedding returned {} vectors for {} inputs",
+                    body.data.len(),
+                    texts.len()
+                ));
+            }
+            Ok(body.data.into_iter().map(|d| d.embedding).collect())
+        }
+        provider => Err(format!("Unsupported embedding provider: {provider}")),
+    }
+}
+
 pub async fn search_firecrawl(
     settings: &ModelSettings,
     query: &str,
