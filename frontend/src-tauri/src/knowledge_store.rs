@@ -20,9 +20,9 @@ const MAX_CONTEXT_RESULTS: usize = 6;
 const MAX_CONTEXT_CHARS: usize = 12_000;
 const MAX_CONTEXT_RESULTS_PER_DOCUMENT: usize = 2;
 
-pub fn store_document(app: &AppHandle, document: &KnowledgeDocument) -> Result<(), String> {
+pub fn store_document(app: &AppHandle, document: &KnowledgeDocument, embedding_version: i64) -> Result<(), String> {
     let mut conn = open_store(app)?;
-    store_document_with_conn(&mut conn, document)
+    store_document_with_conn(&mut conn, document, embedding_version)
 }
 
 pub fn list_document_summaries(
@@ -39,7 +39,9 @@ pub async fn search_store(
     query: &str,
     limit: usize,
 ) -> Result<Vec<SearchResult>, String> {
-    let query_vector = crate::rag::embed_text(settings, query).await;
+    let query_vector = crate::rag::embed_query_provider(settings, query)
+        .await
+        .unwrap_or_else(|| crate::rag::embed_text_local(query));
     let conn = open_store(app)?;
     search_with_conn(&conn, query, &query_vector, limit)
 }
@@ -71,7 +73,7 @@ pub fn migrate_legacy_documents(app: &AppHandle, state: &mut DesktopState) -> Re
         let mut conn = open_store(app)?;
         for document in state.documents.clone() {
             let normalized = normalize_document_for_store(document);
-            store_document_with_conn(&mut conn, &normalized)?;
+            store_document_with_conn(&mut conn, &normalized, crate::constants::LOCAL_EMBEDDING_VERSION)?;
         }
     }
 
@@ -105,6 +107,7 @@ pub fn to_document_summary(document: &KnowledgeDocument) -> KnowledgeDocument {
 fn store_document_with_conn(
     conn: &mut Connection,
     document: &KnowledgeDocument,
+    embedding_version: i64,
 ) -> Result<(), String> {
     let content = normalize_content_for_storage(&document.content);
     let content_hash = content_hash(&content);
@@ -171,7 +174,7 @@ fn store_document_with_conn(
             INSERT INTO knowledge_chunks (
               id, document_id, section_index, content, vector, token_start, token_end, token_count, created_at, embedding_version
             )
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 1)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
             ",
             params![
                 chunk.id,
@@ -183,6 +186,7 @@ fn store_document_with_conn(
                 token_end as i64,
                 token_count as i64,
                 chunk.created_at,
+                embedding_version,
             ],
         )
         .map_err(|error| format!("Failed to store knowledge chunk: {error}"))?;

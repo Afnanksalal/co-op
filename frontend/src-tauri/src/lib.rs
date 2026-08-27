@@ -33,7 +33,8 @@ pub use license::{
 };
 pub use memory::{save_business_memory, search_business_memory};
 pub use outreach::{
-    create_campaign, create_lead, discover_leads, generate_campaign_emails, send_campaign_emails,
+    create_campaign, create_lead, discover_leads, generate_campaign_emails,
+    send_campaign_emails, send_single_campaign_email, update_campaign_email,
 };
 pub use rag::{add_knowledge_document, search_knowledge};
 pub use research::run_research_query;
@@ -78,6 +79,8 @@ pub fn run() {
             search_knowledge,
             search_business_memory,
             send_campaign_emails,
+            send_single_campaign_email,
+            update_campaign_email,
         ])
         .setup(|app| {
             app.manage(ChatCancelFlag::default());
