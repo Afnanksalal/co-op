@@ -1,24 +1,24 @@
 use chrono::Utc;
 use rusqlite::{params, Connection, OptionalExtension};
-use sha2::{Digest, Sha256};
-use std::collections::{HashMap, HashSet};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
 use crate::constants::MAX_DOCUMENTS;
-use crate::rag::{chunk_text, embed_text_local, embed_texts_batch, tokenize};
-use crate::types::{DesktopState, KnowledgeChunk, KnowledgeDocument, ModelSettings, SearchResult};
+use crate::rag::{chunk_text, embed_text_local, embed_texts_batch};
+use crate::types::{DesktopState, KnowledgeChunk, KnowledgeDocument, ModelSettings};
 
 pub(crate) mod schema;
+pub(crate) mod search;
+pub(crate) mod utils;
+
+pub use search::*;
+pub use utils::*;
 
 use schema::open_store;
 #[cfg(test)]
 use schema::{configure_connection, init_schema, table_has_column};
 
-const MAX_SEARCH_CANDIDATES: usize = 768;
-const MAX_CONTEXT_RESULTS: usize = 6;
-const MAX_CONTEXT_CHARS: usize = 12_000;
-const MAX_CONTEXT_RESULTS_PER_DOCUMENT: usize = 2;
+
 
 pub fn store_document(app: &AppHandle, document: &KnowledgeDocument, embedding_version: i64) -> Result<(), String> {
     let mut conn = open_store(app)?;
@@ -33,22 +33,28 @@ pub fn list_document_summaries(
     list_document_summaries_with_conn(&conn, limit)
 }
 
-pub async fn search_store(
-    app: &AppHandle,
-    settings: &ModelSettings,
-    query: &str,
-    limit: usize,
-) -> Result<Vec<SearchResult>, String> {
-    let query_vector = crate::rag::embed_query_provider(settings, query)
-        .await
-        .unwrap_or_else(|| crate::rag::embed_text_local(query));
-    let conn = open_store(app)?;
-    search_with_conn(&conn, query, &query_vector, limit)
-}
-
-pub async fn document_context_for_app(app: &AppHandle, settings: &ModelSettings, query: &str) -> Result<String, String> {
-    let results = search_store(app, settings, query, 5).await?;
-    Ok(document_context_from_results(results))
+pub fn normalize_document_for_store(mut document: KnowledgeDocument) -> KnowledgeDocument {
+    document.content = normalize_content_for_storage(&document.content);
+    if document.chunks.is_empty() && !document.content.trim().is_empty() {
+        let created_at = if document.created_at.trim().is_empty() {
+            Utc::now().to_rfc3339()
+        } else {
+            document.created_at.clone()
+        };
+        document.chunks = chunk_text(&document.content)
+            .into_iter()
+            .enumerate()
+            .map(|(index, content)| KnowledgeChunk {
+                id: format!("{}-{index}", document.id),
+                document_id: document.id.clone(),
+                vector: embed_text_local(&content),
+                content,
+                created_at: created_at.clone(),
+            })
+            .collect();
+    }
+    document.chunk_count = document.chunks.len();
+    document
 }
 
 pub fn migrate_legacy_documents(app: &AppHandle, state: &mut DesktopState) -> Result<(), String> {
@@ -243,302 +249,7 @@ fn list_document_summaries_with_conn(
         .map_err(|error| format!("Failed to read knowledge documents: {error}"))
 }
 
-fn search_with_conn(
-    conn: &Connection,
-    query: &str,
-    query_vector: &[f32],
-    limit: usize,
-) -> Result<Vec<SearchResult>, String> {
-    let query_terms = unique_tokens(query);
-    let mut candidates = if let Some(fts_query) = build_fts_query(query) {
-        search_candidates_with_fts(conn, &fts_query)?
-    } else {
-        Vec::new()
-    };
 
-    candidates = merge_candidates(candidates, recent_candidates(conn)?);
-
-    if candidates.is_empty() || query_terms.is_empty() {
-        return Ok(Vec::new());
-    }
-
-    let mut results = candidates
-        .into_iter()
-        .filter_map(|candidate| {
-            let vector = blob_to_vector(&candidate.vector).ok()?;
-            let semantic_score = cosine_similarity(query_vector, &vector).max(0.0);
-            let lexical_score = lexical_match_score(&query_terms, &candidate);
-            let metadata_score = metadata_match_score(&query_terms, &candidate);
-            let fts_score = candidate.fts_rank.map(fts_rank_score).unwrap_or(0.0);
-            let section_score = 1.0 / (1.0 + candidate.section_index as f32);
-            let score = ((lexical_score * 0.45)
-                + (semantic_score * 0.3)
-                + (metadata_score * 0.13)
-                + (fts_score * 0.08)
-                + (section_score * 0.04))
-                .clamp(0.0, 1.0);
-            if score >= 0.20 {
-                Some(SearchResult {
-                    document_id: candidate.document_id,
-                    chunk_id: candidate.chunk_id,
-                    title: candidate.title,
-                    source: candidate.source,
-                    content: candidate.content,
-                    score,
-                })
-            } else {
-                None
-            }
-        })
-        .collect::<Vec<_>>();
-
-    results.sort_by(|left, right| {
-        right
-            .score
-            .partial_cmp(&left.score)
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
-    results.truncate(limit.clamp(1, 20));
-    Ok(results)
-}
-
-fn search_candidates_with_fts(
-    conn: &Connection,
-    fts_query: &str,
-) -> Result<Vec<SearchCandidate>, String> {
-    let mut stmt = conn
-        .prepare(
-            "
-            SELECT
-              c.id,
-              c.document_id,
-              d.title,
-              d.source,
-              c.content,
-              c.vector,
-              c.section_index,
-              bm25(knowledge_chunks_fts) AS fts_rank
-            FROM knowledge_chunks_fts
-            JOIN knowledge_chunks c ON c.id = knowledge_chunks_fts.chunk_id
-            JOIN knowledge_documents d ON d.id = c.document_id
-            WHERE knowledge_chunks_fts MATCH ?1
-            ORDER BY fts_rank
-            LIMIT ?2
-            ",
-        )
-        .map_err(|error| format!("Failed to prepare knowledge search: {error}"))?;
-    let rows = stmt
-        .query_map(
-            params![fts_query, MAX_SEARCH_CANDIDATES as i64],
-            map_candidate,
-        )
-        .map_err(|error| format!("Failed to run knowledge search: {error}"))?;
-    rows.collect::<Result<Vec<_>, _>>()
-        .map_err(|error| format!("Failed to read knowledge search results: {error}"))
-}
-
-fn recent_candidates(conn: &Connection) -> Result<Vec<SearchCandidate>, String> {
-    let mut stmt = conn
-        .prepare(
-            "
-            SELECT
-              c.id,
-              c.document_id,
-              d.title,
-              d.source,
-              c.content,
-              c.vector,
-              c.section_index,
-              NULL AS fts_rank
-            FROM knowledge_chunks c
-            JOIN knowledge_documents d ON d.id = c.document_id
-            ORDER BY d.updated_at DESC, c.section_index ASC
-            LIMIT ?1
-            ",
-        )
-        .map_err(|error| format!("Failed to prepare fallback knowledge search: {error}"))?;
-    let rows = stmt
-        .query_map(params![MAX_SEARCH_CANDIDATES as i64], map_candidate)
-        .map_err(|error| format!("Failed to run fallback knowledge search: {error}"))?;
-    rows.collect::<Result<Vec<_>, _>>()
-        .map_err(|error| format!("Failed to read fallback knowledge search results: {error}"))
-}
-
-fn map_candidate(row: &rusqlite::Row<'_>) -> rusqlite::Result<SearchCandidate> {
-    Ok(SearchCandidate {
-        chunk_id: row.get(0)?,
-        document_id: row.get(1)?,
-        title: row.get(2)?,
-        source: row.get(3)?,
-        content: row.get(4)?,
-        vector: row.get(5)?,
-        section_index: row.get::<_, i64>(6)?.max(0) as usize,
-        fts_rank: row.get::<_, Option<f64>>(7)?.map(|rank| rank as f32),
-    })
-}
-
-fn normalize_document_for_store(mut document: KnowledgeDocument) -> KnowledgeDocument {
-    document.content = normalize_content_for_storage(&document.content);
-    if document.chunks.is_empty() && !document.content.trim().is_empty() {
-        let created_at = if document.created_at.trim().is_empty() {
-            Utc::now().to_rfc3339()
-        } else {
-            document.created_at.clone()
-        };
-        document.chunks = chunk_text(&document.content)
-            .into_iter()
-            .enumerate()
-            .map(|(index, content)| KnowledgeChunk {
-                id: format!("{}-{index}", document.id),
-                document_id: document.id.clone(),
-                vector: embed_text_local(&content),
-                content,
-                created_at: created_at.clone(),
-            })
-            .collect();
-    }
-    document.chunk_count = document.chunks.len();
-    document
-}
-
-fn document_context_from_results(results: Vec<SearchResult>) -> String {
-    if results.is_empty() {
-        return String::new();
-    }
-    let mut context = String::from("\n\nCompany file context:\n");
-    let mut used_chars = context.len();
-    for result in diversify_results(
-        results,
-        MAX_CONTEXT_RESULTS,
-        MAX_CONTEXT_RESULTS_PER_DOCUMENT,
-    ) {
-        let source = if result.source.trim().is_empty() {
-            "local file".to_string()
-        } else {
-            result.source.trim().to_string()
-        };
-        let excerpt = truncate_chars(&result.content, 1_600);
-        let line = format!(
-            "- File: {} | Source: {} | Match: {:.0}%\n  Evidence: {}\n",
-            result.title,
-            source,
-            (result.score * 100.0).round(),
-            excerpt
-        );
-        if used_chars + line.len() > MAX_CONTEXT_CHARS {
-            break;
-        }
-        used_chars += line.len();
-        context.push_str(&line);
-    }
-    context
-}
-
-fn build_fts_query(query: &str) -> Option<String> {
-    let tokens = unique_tokens(query)
-        .into_iter()
-        .take(10)
-        .map(|token| format!("{token}*"))
-        .collect::<Vec<_>>();
-
-    if tokens.is_empty() {
-        None
-    } else {
-        Some(tokens.join(" OR "))
-    }
-}
-
-fn merge_candidates(
-    primary: Vec<SearchCandidate>,
-    secondary: Vec<SearchCandidate>,
-) -> Vec<SearchCandidate> {
-    let mut seen = HashSet::new();
-    let mut merged = Vec::with_capacity(primary.len() + secondary.len());
-    for candidate in primary.into_iter().chain(secondary) {
-        if seen.insert(candidate.chunk_id.clone()) {
-            merged.push(candidate);
-        }
-        if merged.len() >= MAX_SEARCH_CANDIDATES {
-            break;
-        }
-    }
-    merged
-}
-
-fn unique_tokens(content: &str) -> Vec<String> {
-    let mut seen = HashSet::new();
-    tokenize(content)
-        .into_iter()
-        .filter(|token| seen.insert(token.clone()))
-        .collect()
-}
-
-fn lexical_match_score(query_terms: &[String], candidate: &SearchCandidate) -> f32 {
-    if query_terms.is_empty() {
-        return 0.0;
-    }
-    let content_terms = unique_tokens(&candidate.content)
-        .into_iter()
-        .collect::<HashSet<_>>();
-    let matches = query_terms
-        .iter()
-        .filter(|term| {
-            content_terms.contains(*term)
-                || content_terms
-                    .iter()
-                    .any(|content_term| content_term.starts_with(term.as_str()))
-        })
-        .count();
-    matches as f32 / query_terms.len() as f32
-}
-
-fn metadata_match_score(query_terms: &[String], candidate: &SearchCandidate) -> f32 {
-    if query_terms.is_empty() {
-        return 0.0;
-    }
-    let metadata = unique_tokens(&format!("{} {}", candidate.title, candidate.source))
-        .into_iter()
-        .collect::<HashSet<_>>();
-    let matches = query_terms
-        .iter()
-        .filter(|term| metadata.contains(*term))
-        .count();
-    let exact_title_boost = if candidate
-        .title
-        .to_lowercase()
-        .contains(&query_terms.join(" "))
-    {
-        0.25
-    } else {
-        0.0
-    };
-    ((matches as f32 / query_terms.len() as f32) + exact_title_boost).clamp(0.0, 1.0)
-}
-
-fn fts_rank_score(rank: f32) -> f32 {
-    (1.0 / (1.0 + rank.abs())).clamp(0.0, 1.0)
-}
-
-fn diversify_results(
-    results: Vec<SearchResult>,
-    limit: usize,
-    max_per_document: usize,
-) -> Vec<SearchResult> {
-    let mut counts: HashMap<String, usize> = HashMap::new();
-    let mut selected = Vec::new();
-    for result in results {
-        let count = counts.entry(result.document_id.clone()).or_default();
-        if *count >= max_per_document {
-            continue;
-        }
-        *count += 1;
-        selected.push(result);
-        if selected.len() >= limit {
-            break;
-        }
-    }
-    selected
-}
 
 fn existing_document_for_hash(
     conn: &Connection,
@@ -568,86 +279,7 @@ fn existing_document_for_hash(
     .map_err(|error| format!("Failed to check existing company file: {error}"))
 }
 
-fn normalize_content_for_storage(content: &str) -> String {
-    content
-        .replace("\r\n", "\n")
-        .replace('\r', "\n")
-        .lines()
-        .map(str::trim_end)
-        .collect::<Vec<_>>()
-        .join("\n")
-        .trim()
-        .to_string()
-}
 
-fn content_hash(content: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(content.as_bytes());
-    hex::encode(hasher.finalize())
-}
-
-fn legacy_hash_marker() -> &'static str {
-    "legacy-unhashed"
-}
-
-fn token_count(content: &str) -> usize {
-    content.split_whitespace().count()
-}
-
-fn truncate_chars(content: &str, max_chars: usize) -> String {
-    let mut output = String::new();
-    for character in content.chars().take(max_chars) {
-        output.push(character);
-    }
-    if content.chars().count() > max_chars {
-        output.push_str("...");
-    }
-    output
-}
-
-fn vector_to_blob(vector: &[f32]) -> Vec<u8> {
-    vector
-        .iter()
-        .flat_map(|value| value.to_le_bytes())
-        .collect::<Vec<_>>()
-}
-
-fn blob_to_vector(blob: &[u8]) -> Result<Vec<f32>, String> {
-    if blob.len() % std::mem::size_of::<f32>() != 0 || blob.is_empty() {
-        return Err("Stored vector has invalid byte length".to_string());
-    }
-    Ok(blob
-        .chunks_exact(std::mem::size_of::<f32>())
-        .map(|bytes| f32::from_le_bytes(bytes.try_into().unwrap()))
-        .collect())
-}
-
-fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
-    if a.len() != b.len() {
-        return 0.0;
-    }
-    let dot_product: f32 = a.iter().zip(b.iter()).map(|(left, right)| left * right).sum();
-    let norm_a: f32 = a.iter().map(|val| val * val).sum::<f32>().sqrt();
-    let norm_b: f32 = b.iter().map(|val| val * val).sum::<f32>().sqrt();
-
-    if norm_a == 0.0 || norm_b == 0.0 {
-        0.0
-    } else {
-        dot_product / (norm_a * norm_b)
-    }
-}
-
-#[derive(Debug)]
-struct SearchCandidate {
-    chunk_id: String,
-    document_id: String,
-    title: String,
-    source: String,
-    content: String,
-    vector: Vec<u8>,
-    section_index: usize,
-    fts_rank: Option<f32>,
-}
 
 #[derive(Debug)]
 struct ExistingDocument {
@@ -675,8 +307,9 @@ pub async fn reindex_stale_embeddings(app: &AppHandle, settings: &ModelSettings)
     };
 
     // Test one embedding call first — bail early if provider has no embeddings
-    if crate::providers::call_embedding(settings, "test").await.is_err() {
-        eprintln!("Embedding provider unavailable — skipping re-index");
+    if let Err(e) = crate::providers::call_embedding(settings, "test").await {
+        eprintln!("Embedding provider unavailable — skipping re-index: {}", e);
+        let _ = app.emit("index-warning", format!("Background re-indexing paused: Embedding provider unavailable ({})", e));
         return;
     }
 
@@ -696,6 +329,7 @@ pub async fn reindex_stale_embeddings(app: &AppHandle, settings: &ModelSettings)
         };
         rows
     };
+
 
     // Re-index business memories
     let stale_memories: Vec<(String, String, String, String)> = {

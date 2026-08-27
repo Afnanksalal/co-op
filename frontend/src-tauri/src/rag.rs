@@ -1,7 +1,7 @@
 use chrono::Utc;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
 
 use crate::constants::{
@@ -52,7 +52,7 @@ pub async fn add_knowledge_document(
     let document_id = Uuid::new_v4().to_string();
     let created_at = Utc::now().to_rfc3339();
     let texts = chunk_text(&request.content);
-    let batch = embed_batch(&settings, &texts).await;
+    let batch = embed_batch(Some(&app), &settings, &texts).await;
     let chunks: Vec<KnowledgeChunk> = texts
         .into_iter()
         .zip(batch.vectors)
@@ -189,7 +189,7 @@ pub fn chunk_text(content: &str) -> Vec<String> {
 /// Embed an entire batch into one consistent space.
 /// If the provider cannot embed every item successfully, the whole batch uses
 /// the local lexical space — never a mixed provider/local index.
-pub async fn embed_batch(settings: &ModelSettings, texts: &[String]) -> EmbeddedBatch {
+pub async fn embed_batch(app: Option<&AppHandle>, settings: &ModelSettings, texts: &[String]) -> EmbeddedBatch {
     if texts.is_empty() {
         return EmbeddedBatch {
             vectors: Vec::new(),
@@ -220,6 +220,10 @@ pub async fn embed_batch(settings: &ModelSettings, texts: &[String]) -> Embedded
             }
         }
     }
+    
+    if let Some(app) = app {
+        let _ = app.emit("index-warning", "Embedding provider unavailable or inconsistent, falling back to local search index.");
+    }
 
     EmbeddedBatch {
         vectors: texts.iter().map(|text| embed_text_local(text)).collect(),
@@ -246,6 +250,7 @@ pub async fn embed_texts_batch(settings: &ModelSettings, texts: &[&str]) -> Vec<
         Ok(vectors) => vectors,
         Err(e) => {
             eprintln!("Batch embedding provider unavailable ({}), using local fallback", e);
+            // Warning is already emitted by embed_batch, or this is called from reindex where warning is handled
             texts.iter().map(|t| embed_text_local(t)).collect()
         }
     }

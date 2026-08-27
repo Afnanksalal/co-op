@@ -137,7 +137,7 @@ When reviewing output (A2A or full review), the engine must use dynamic temperat
 
 ## Guardrails
 
-The runtime guardrail layer is centralized in `frontend/src-tauri/src/guardrails.rs`. Every model-facing surface should pass through it before adding provider calls.
+The runtime guardrail layer is centralized in `frontend/src-tauri/src/guardrails.rs` (with core rules in `guardrails_rules.rs`). Every model-facing surface should pass through it before adding provider calls.
 
 ```mermaid
 flowchart LR
@@ -161,13 +161,15 @@ Rules:
 
 Implementation anchors:
 
-- `guardrails.rs` classifies question type (factual, planning, action request, comparison, brainstorming) to drive proportional response formatting, while applying context-aware input/output gates.
+- `guardrails.rs` (and `guardrails_rules.rs`) classifies question type (factual, planning, action request, comparison, brainstorming) to drive proportional response formatting, while applying context-aware input/output gates.
 - `chat.rs` uses adaptive formatting, source-gated web research, memory context, and A2A review filters that discard generic corporate filler.
 - `chat.rs` emits safe progress events so the UI can show what stage is running without exposing hidden reasoning.
 - `workflows.rs` uses the same guardrails and adaptive question typing for work plans, applying a strict "unknowns" policy to prevent hallucination from sparse company profiles.
+- `knowledge_store/` encapsulates all local RAG behavior, including `search.rs` for SQLite FTS5 + lexical vector matching, and background migrations for legacy vectors.
+- `providers.rs` and `providers_email.rs` abstract the underlying API contracts for Ollama, OpenAI-compatible APIs, Firecrawl, Resend, and SendGrid.
 - `research.rs` always requires Firecrawl-backed sources and validates the sourced summary.
 - `research_sources.rs` plans and filters web sources, including multi-query competitor searches from company, offering, buyer, and region context.
-- `outreach.rs` requires source-backed lead discovery and blocks unsafe generated email output.
+- `outreach.rs` requires source-backed lead discovery, blocks unsafe generated email output, and enforces honest per-email send outcomes and draft editing.
 - `tools.rs` applies the same model output gate to pitch review.
 
 Research inputs used for the guardrail direction:
