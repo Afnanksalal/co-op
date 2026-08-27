@@ -16,6 +16,37 @@ const SERVICE: &str = "co-op-desktop";
 const SECRETS_FILE: &str = "secrets.json";
 const SECRETS_SCHEMA_VERSION: u32 = 1;
 
+/// Secret slots for values stored in the local credential system.
+///
+/// ## Local Secret Threat Model
+///
+/// Co-Op stores provider API keys, activation tokens, and email service keys
+/// using two backends:
+///
+/// 1. **OS keyring** (Windows Credential Manager / macOS Keychain / Linux
+///    Secret Service) — preferred. Access is gated by OS-level user
+///    authentication and is not trivially extractable from disk.
+/// 2. **Encrypted file** (`secrets.json`) — fallback when the OS keyring is
+///    unavailable or fails. The AES-256-GCM encryption key is derived from
+///    `SHA-256(service | install_id | machine_fingerprint)` where the machine
+///    fingerprint is `SHA-256(OS | ARCH | HOSTNAME | USERNAME)`. This is **not**
+///    hardware-bound (no TPM / Secure Enclave). An attacker with read access to
+///    the app data directory **and** knowledge of the machine identity can
+///    derive the key and decrypt the file.
+///
+/// **Design choice**: the OS keyring is the preferred source of truth for
+/// loading secrets. If both the keyring and file contain a value, the keyring
+/// wins. The file backend exists only to prevent data loss when the keyring
+/// is unavailable (e.g. headless Linux, broken credential store).
+///
+/// **What is NOT protected against**:
+/// - Root/admin access on the local machine (both backends are vulnerable)
+/// - Physical access with the ability to log in as the same OS user
+///
+/// **What IS protected against**:
+/// - Secrets appearing in plaintext in `state.json` (stripped before save)
+/// - Secrets appearing in application logs (guardrails log only categories)
+/// - Casual read of app data directory (file secrets are AES-256-GCM encrypted)
 #[derive(Debug, Copy, Clone)]
 pub enum SecretSlot {
     ActivationToken,
@@ -177,7 +208,7 @@ fn select_preferred_secret(
     file_secret: Option<String>,
     keyring_secret: Option<String>,
 ) -> Option<String> {
-    file_secret.or(keyring_secret)
+    keyring_secret.or(file_secret)
 }
 
 fn load_keyring_secret(install_id: &str, slot: SecretSlot) -> Option<String> {
@@ -364,12 +395,22 @@ mod tests {
     }
 
     #[test]
-    fn encrypted_file_secret_wins_over_stale_keyring_value() {
+    fn keyring_secret_wins_over_stale_file_value() {
         let selected = select_preferred_secret(
-            Some("new-key-from-file".to_string()),
-            Some("old-key-from-keyring".to_string()),
+            Some("old-key-from-file".to_string()),
+            Some("new-key-from-keyring".to_string()),
         );
 
-        assert_eq!(selected.as_deref(), Some("new-key-from-file"));
+        assert_eq!(selected.as_deref(), Some("new-key-from-keyring"));
+    }
+
+    #[test]
+    fn file_secret_used_when_keyring_unavailable() {
+        let selected = select_preferred_secret(
+            Some("file-key".to_string()),
+            None,
+        );
+
+        assert_eq!(selected.as_deref(), Some("file-key"));
     }
 }

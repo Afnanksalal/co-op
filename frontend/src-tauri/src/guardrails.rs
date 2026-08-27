@@ -24,7 +24,7 @@ pub struct GuardrailDecision {
     pub high_risk: bool,
 }
 
-fn log_guardrail_event(action: &str, category: &str, _input_preview: &str) {
+fn log_guardrail_event(action: &str, category: &str, _input: &str) {
     log::info!("guardrail/{action}: category={category}");
 }
 
