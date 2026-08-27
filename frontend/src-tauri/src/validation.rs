@@ -123,15 +123,8 @@ pub fn validate_model_settings(settings: &mut ModelSettings) -> Result<(), Strin
     {
         return Err("Provider API key is required for OpenAI-compatible routing".to_string());
     }
-    if settings
-        .firecrawl_api_key
-        .as_deref()
-        .map(str::trim)
-        .unwrap_or("")
-        .is_empty()
-    {
-        return Err("Web search key is required for source-backed business research".to_string());
-    }
+    // Firecrawl key is optional — Ollama-only owners can work without web search.
+    // The key is validated at research-time, not at settings-save time.
     if settings.email_provider != "none" {
         if settings
             .email_api_key
@@ -435,7 +428,7 @@ mod tests {
     }
 
     #[test]
-    fn model_settings_are_valid_with_required_web_key() {
+    fn model_settings_are_valid_with_web_key() {
         let mut settings = ModelSettings {
             firecrawl_api_key: Some("fc-test".to_string()),
             ..ModelSettings::default()
@@ -444,24 +437,44 @@ mod tests {
         assert!(validate_model_settings(&mut settings).is_ok());
     }
 
+    // Issue #9: Firecrawl key is no longer required for Ollama-only users.
     #[test]
-    fn model_settings_require_keys_for_external_provider_and_web_search() {
+    fn model_settings_are_valid_without_web_key() {
+        let mut settings = ModelSettings::default();
+
+        assert!(
+            validate_model_settings(&mut settings).is_ok(),
+            "Ollama-only settings must be valid without a Firecrawl key"
+        );
+    }
+
+    // Issue #9: OpenAI-compatible provider still requires its own API key.
+    #[test]
+    fn openai_compatible_provider_requires_api_key() {
         let mut settings = ModelSettings {
             provider: "openai_compatible".to_string(),
-            firecrawl_api_key: Some("fc-test".to_string()),
             ..ModelSettings::default()
         };
-        assert!(validate_model_settings(&mut settings).is_err());
 
-        let mut settings = ModelSettings::default();
         assert!(validate_model_settings(&mut settings).is_err());
+    }
+
+    // Issue #9: OpenAI-compatible with key passes.
+    #[test]
+    fn openai_compatible_provider_with_key_passes() {
+        let mut settings = ModelSettings {
+            provider: "openai_compatible".to_string(),
+            openai_api_key: Some("sk-test".to_string()),
+            ..ModelSettings::default()
+        };
+
+        assert!(validate_model_settings(&mut settings).is_ok());
     }
 
     #[test]
     fn old_assistant_only_research_setting_is_upgraded() {
         let mut settings = ModelSettings {
             research_provider: "llm".to_string(),
-            firecrawl_api_key: Some("fc-test".to_string()),
             ..ModelSettings::default()
         };
 
@@ -521,6 +534,96 @@ mod tests {
         assert!(validate_campaign_request(&request).is_err());
     }
 
+    // Issue #15: ai_personalized mode requires a goal.
+    #[test]
+    fn campaign_ai_personalized_requires_goal() {
+        let request = CampaignRequest {
+            name: "Launch".to_string(),
+            mode: "ai_personalized".to_string(),
+            target_lead_type: "company".to_string(),
+            subject_template: String::new(),
+            body_template: String::new(),
+            campaign_goal: "ab".to_string(),
+            tone: "professional".to_string(),
+            call_to_action: "Book a call".to_string(),
+        };
+
+        assert!(validate_campaign_request(&request).is_err());
+    }
+
+    // Issue #15: single_template mode requires subject and body.
+    #[test]
+    fn campaign_single_template_requires_subject_and_body() {
+        let request = CampaignRequest {
+            name: "Launch".to_string(),
+            mode: "single_template".to_string(),
+            target_lead_type: "person".to_string(),
+            subject_template: String::new(),
+            body_template: "Hello {{name}}".to_string(),
+            campaign_goal: String::new(),
+            tone: "professional".to_string(),
+            call_to_action: "Book a call".to_string(),
+        };
+
+        assert!(validate_campaign_request(&request).is_err());
+    }
+
+    // Issue #15: valid single_template passes.
+    #[test]
+    fn campaign_single_template_valid() {
+        let request = CampaignRequest {
+            name: "Launch".to_string(),
+            mode: "single_template".to_string(),
+            target_lead_type: "company".to_string(),
+            subject_template: "Quick idea for {{company}}".to_string(),
+            body_template: "Hello {{name}}".to_string(),
+            campaign_goal: String::new(),
+            tone: "professional".to_string(),
+            call_to_action: "Book a call".to_string(),
+        };
+
+        assert!(validate_campaign_request(&request).is_ok());
+    }
+
+    // Issue #10: looks_like_email correctly classifies.
+    #[test]
+    fn looks_like_email_validates_common_formats() {
+        assert!(looks_like_email("alice@example.com"));
+        assert!(looks_like_email("  bob@co-op.dev  "));
+        assert!(!looks_like_email("not-an-email"));
+        assert!(!looks_like_email("@nodomain"));
+        assert!(!looks_like_email("user@"));
+        assert!(!looks_like_email(""));
+    }
+
+    // Issue #15: email provider requires key and sender when not "none".
+    #[test]
+    fn email_provider_requires_key_and_sender() {
+        let mut settings = ModelSettings {
+            email_provider: "resend".to_string(),
+            ..ModelSettings::default()
+        };
+
+        assert!(validate_model_settings(&mut settings).is_err());
+
+        settings.email_api_key = Some("re-test".to_string());
+
+        assert!(validate_model_settings(&mut settings).is_err());
+
+        settings.email_from = "hello@example.com".to_string();
+
+        assert!(validate_model_settings(&mut settings).is_ok());
+    }
+
+    // Issue #15: "none" email provider needs no key.
+    #[test]
+    fn no_email_provider_needs_no_key() {
+        let mut settings = ModelSettings::default();
+
+        assert_eq!(settings.email_provider, "none");
+        assert!(validate_model_settings(&mut settings).is_ok());
+    }
+
     #[test]
     fn cap_table_rejects_impossible_ownership() {
         let request = CapTableRequest {
@@ -534,4 +637,49 @@ mod tests {
 
         assert!(validate_cap_table(&request).is_err());
     }
+
+    // Issue #15: lead validation rejects invalid email when provided.
+    #[test]
+    fn lead_rejects_invalid_email() {
+        let request = LeadRequest {
+            lead_type: "company".to_string(),
+            name: "Acme".to_string(),
+            company_name: "Acme Corp".to_string(),
+            email: "not-valid".to_string(),
+            website: String::new(),
+            profile_url: String::new(),
+            platform: String::new(),
+            niche: String::new(),
+            location: String::new(),
+            description: String::new(),
+            lead_score: 0,
+            status: "new".to_string(),
+            source: "manual".to_string(),
+        };
+
+        assert!(validate_lead_request(&request).is_err());
+    }
+
+    // Issue #10: lead accepts empty email (discovery may not find emails).
+    #[test]
+    fn lead_accepts_empty_email() {
+        let request = LeadRequest {
+            lead_type: "company".to_string(),
+            name: "Acme".to_string(),
+            company_name: "Acme Corp".to_string(),
+            email: String::new(),
+            website: "https://acme.com".to_string(),
+            profile_url: String::new(),
+            platform: String::new(),
+            niche: String::new(),
+            location: String::new(),
+            description: String::new(),
+            lead_score: 0,
+            status: "new".to_string(),
+            source: "manual".to_string(),
+        };
+
+        assert!(validate_lead_request(&request).is_ok());
+    }
 }
+

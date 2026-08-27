@@ -458,3 +458,107 @@ fn update_campaign_status_from_emails(state: &mut DesktopState, campaign_id: &st
         };
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_campaign(id: &str) -> Campaign {
+        Campaign {
+            id: id.to_string(),
+            name: "Test".to_string(),
+            mode: "ai_personalized".to_string(),
+            target_lead_type: "company".to_string(),
+            subject_template: String::new(),
+            body_template: String::new(),
+            campaign_goal: "Test goal for campaign".to_string(),
+            tone: "professional".to_string(),
+            call_to_action: "Book a call".to_string(),
+            status: "draft".to_string(),
+            created_at: "2026-01-01T00:00:00Z".to_string(),
+        }
+    }
+
+    fn test_email(campaign_id: &str, status: &str) -> CampaignEmail {
+        CampaignEmail {
+            id: Uuid::new_v4().to_string(),
+            campaign_id: campaign_id.to_string(),
+            lead_id: "lead-1".to_string(),
+            to: "test@example.com".to_string(),
+            subject: "Hello".to_string(),
+            body: "Body text".to_string(),
+            status: status.to_string(),
+            provider_message: None,
+            created_at: "2026-01-01T00:00:00Z".to_string(),
+            sent_at: None,
+        }
+    }
+
+    // Issue #15: All emails sent → campaign status is "sent".
+    #[test]
+    fn campaign_status_all_sent() {
+        let mut state = DesktopState::default();
+        state.campaigns.push(test_campaign("c1"));
+        state.campaign_emails.push(test_email("c1", "sent"));
+        state.campaign_emails.push(test_email("c1", "sent"));
+
+        update_campaign_status_from_emails(&mut state, "c1");
+
+        assert_eq!(state.campaigns[0].status, "sent");
+    }
+
+    // Issue #15: Some sent, some failed → "partially_sent".
+    #[test]
+    fn campaign_status_partially_sent() {
+        let mut state = DesktopState::default();
+        state.campaigns.push(test_campaign("c1"));
+        state.campaign_emails.push(test_email("c1", "sent"));
+        state.campaign_emails.push(test_email("c1", "failed"));
+
+        update_campaign_status_from_emails(&mut state, "c1");
+
+        assert_eq!(state.campaigns[0].status, "partially_sent");
+    }
+
+    // Issue #15: All failed → "send_failed".
+    #[test]
+    fn campaign_status_all_failed() {
+        let mut state = DesktopState::default();
+        state.campaigns.push(test_campaign("c1"));
+        state.campaign_emails.push(test_email("c1", "failed"));
+        state.campaign_emails.push(test_email("c1", "failed"));
+
+        update_campaign_status_from_emails(&mut state, "c1");
+
+        assert_eq!(state.campaigns[0].status, "send_failed");
+    }
+
+    // Issue #15: No sends attempted → "emails_generated".
+    #[test]
+    fn campaign_status_no_sends() {
+        let mut state = DesktopState::default();
+        state.campaigns.push(test_campaign("c1"));
+        state.campaign_emails.push(test_email("c1", "generated"));
+        state.campaign_emails.push(test_email("c1", "generated"));
+
+        update_campaign_status_from_emails(&mut state, "c1");
+
+        assert_eq!(state.campaigns[0].status, "emails_generated");
+    }
+
+    // Issue #15: Emails from other campaigns don't affect status.
+    #[test]
+    fn campaign_status_ignores_other_campaigns() {
+        let mut state = DesktopState::default();
+        state.campaigns.push(test_campaign("c1"));
+        state.campaigns.push(test_campaign("c2"));
+        state.campaign_emails.push(test_email("c1", "sent"));
+        state.campaign_emails.push(test_email("c2", "failed"));
+
+        update_campaign_status_from_emails(&mut state, "c1");
+
+        assert_eq!(state.campaigns[0].status, "sent");
+        assert_eq!(state.campaigns[1].status, "draft"); // c2 untouched
+    }
+}
+
