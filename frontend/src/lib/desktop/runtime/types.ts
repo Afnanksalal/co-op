@@ -310,6 +310,7 @@ export interface WorkflowRun {
 
 export interface DesktopState {
   installId: string;
+  lastLocalWarning?: string;
   activation: ActivationState | null;
   modelSettings: ModelSettings;
   workflowRuns: WorkflowRun[];

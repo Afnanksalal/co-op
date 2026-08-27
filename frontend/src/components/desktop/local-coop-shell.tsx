@@ -110,6 +110,16 @@ export function LocalCoOpShell() {
     };
   }, [runtimeAvailable]);
 
+  useEffect(() => {
+    if (state?.lastLocalWarning) {
+      toast.warning('Warning', {
+        description: state.lastLocalWarning,
+        duration: 8000,
+        id: 'local-warning'
+      });
+    }
+  }, [state?.lastLocalWarning]);
+
   function setMessage(value: string) {
     const text = successToastText(value);
     if (!text) {

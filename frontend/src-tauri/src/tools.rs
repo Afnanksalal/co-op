@@ -134,7 +134,7 @@ pub async fn analyze_pitch_deck(
         },
     );
     state.pitch_decks.truncate(MAX_PITCH_DECKS);
-    let _ = remember_business_event(
+    remember_business_event(
         &app,
         &mut state,
         "decision",

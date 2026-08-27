@@ -22,6 +22,7 @@ mod storage;
 mod tools;
 mod types;
 mod validation;
+#[macro_use]
 mod workflows;
 mod workspace;
 
@@ -42,7 +43,7 @@ pub use rag::{add_knowledge_document, search_knowledge};
 pub use research::run_research_query;
 pub use settings::save_model_settings;
 pub use tools::{analyze_pitch_deck, run_alert_now, run_calculator, save_alert, save_cap_table};
-pub use workflows::{run_business_workflow, approve_workflow_run, reject_workflow_run};
+pub use workflows::*;
 pub use workspace::{save_bookmark, save_integration, save_workspace_profile};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -66,9 +67,9 @@ pub fn run() {
             delete_chat_session,
             pin_chat_session,
             run_alert_now,
-            run_business_workflow,
-            approve_workflow_run,
-            reject_workflow_run,
+            workflows::runner::run_business_workflow,
+            workflows::runner::approve_workflow_run,
+            workflows::runner::reject_workflow_run,
             run_calculator,
             run_research_query,
             save_alert,

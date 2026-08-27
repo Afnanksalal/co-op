@@ -71,7 +71,7 @@ pub async fn run_research_query(
     };
     state.research_runs.insert(0, run.clone());
     state.research_runs.truncate(MAX_RESEARCH_RUNS);
-    let _ = remember_business_event(
+    remember_business_event(
         &app,
         &mut state,
         "research",

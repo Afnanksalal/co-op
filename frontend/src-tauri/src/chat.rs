@@ -423,7 +423,7 @@ pub async fn run_agent_chat(
     state.chat_sessions[index].research_enabled = use_web;
     state.chat_sessions[index].council_mode = request.council_mode;
     if request.rag_enabled {
-        let _ = remember_business_event(
+        remember_business_event(
             &app,
             &mut state,
             "conversation",

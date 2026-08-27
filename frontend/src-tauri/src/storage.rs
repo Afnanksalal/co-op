@@ -63,6 +63,7 @@ pub fn to_response(state: DesktopState) -> DesktopStateResponse {
 
     DesktopStateResponse {
         install_id: state.install_id,
+        last_local_warning: state.last_local_warning,
         activation: state.activation.as_ref().map(ActivationStateView::from),
         model_settings: ModelSettingsView::from(&state.model_settings),
         workflow_runs: state.workflow_runs,
