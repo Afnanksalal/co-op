@@ -169,6 +169,23 @@ export async function sendCampaignEmails(request: CampaignEmailRequest): Promise
   return invokeDesktop<DesktopState>('send_campaign_emails', { request });
 }
 
+export async function updateCampaignEmail(
+  emailId: string,
+  subject: string,
+  body: string
+): Promise<DesktopState> {
+  if (!isTauriRuntime()) throwDesktopOnly('Email editing');
+  return invokeDesktop<DesktopState>('update_campaign_email', { emailId, subject, body });
+}
+
+export async function sendSingleCampaignEmail(
+  emailId: string,
+  dryRun: boolean
+): Promise<DesktopState> {
+  if (!isTauriRuntime()) throw new Error('Email sending runs inside Co-Op Desktop.');
+  return invokeDesktop<DesktopState>('send_single_campaign_email', { emailId, dryRun });
+}
+
 export async function saveAlert(request: AlertRequest): Promise<DesktopState> {
   if (!isTauriRuntime()) throwDesktopOnly('Alerts');
   return invokeDesktop<DesktopState>('save_alert', { request });
