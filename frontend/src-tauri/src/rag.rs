@@ -1,7 +1,7 @@
 use chrono::Utc;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
 
 use crate::constants::LOCAL_FALLBACK_DIMENSIONS;
@@ -30,7 +30,7 @@ pub async fn add_knowledge_document(
     let created_at = Utc::now().to_rfc3339();
     let texts = chunk_text(&request.content);
     let vectors: Vec<Vec<f32>> = futures::future::join_all(
-        texts.iter().map(|text| embed_text(&settings, text))
+        texts.iter().map(|text| embed_text(Some(&app), &settings, text))
     ).await;
     let chunks: Vec<KnowledgeChunk> = texts
         .into_iter()
@@ -165,11 +165,14 @@ pub fn chunk_text(content: &str) -> Vec<String> {
     chunks
 }
 
-pub async fn embed_text(settings: &ModelSettings, content: &str) -> Vec<f32> {
+pub async fn embed_text(app: Option<&AppHandle>, settings: &ModelSettings, content: &str) -> Vec<f32> {
     match call_embedding(settings, content).await {
         Ok(vector) => vector,
         Err(e) => {
             eprintln!("Embedding provider unavailable ({}), using local fallback", e);
+            if let Some(app) = app {
+                let _ = app.emit("index-warning", format!("Embedding provider unavailable, falling back to local search index. Details: {}", e));
+            }
             embed_text_local(content)
         }
     }

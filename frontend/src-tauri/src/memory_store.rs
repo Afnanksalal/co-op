@@ -29,7 +29,7 @@ pub async fn search_business_memories(
     query: &str,
     limit: usize,
 ) -> Result<Vec<MemorySearchResult>, String> {
-    let query_vector = crate::rag::embed_text(settings, query).await;
+    let query_vector = crate::rag::embed_text(Some(app), settings, query).await;
     let conn = open_store(app)?;
     search_memories_with_conn(&conn, query, &query_vector, limit)
 }

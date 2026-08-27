@@ -86,6 +86,30 @@ export function LocalCoOpShell() {
     };
   }, [mobileMenuOpen]);
 
+  useEffect(() => {
+    if (!runtimeAvailable) return;
+    let cancelled = false;
+    let cleanup: (() => void) | undefined;
+    void import('@tauri-apps/api/event')
+      .then(({ listen }) =>
+        listen<string>('index-warning', (event) => {
+          toast.warning('Index Warning', { description: event.payload, duration: 6000 });
+        })
+      )
+      .then((unlisten) => {
+        if (cancelled) {
+          unlisten();
+        } else {
+          cleanup = unlisten;
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+      cleanup?.();
+    };
+  }, [runtimeAvailable]);
+
   function setMessage(value: string) {
     const text = successToastText(value);
     if (!text) {
