@@ -26,8 +26,9 @@ flowchart TD
   Validate["Validate request, settings, and guardrails"]
   Context["Attach company profile, files, memory, and required web sources when outside facts are needed"]
   Provider["Run selected AI provider"]
-  OutputGate["Check answer before saving"]
   Review{"Review required?"}
+  OutputGate["Check answer before saving"]
+  Memory["Record business memory"]
   Save["Save local history"]
   Result["Show clear answer and next actions"]
   Error["Show recoverable error"]
@@ -36,10 +37,11 @@ flowchart TD
   License --> Validate
   Validate --> Context
   Context --> Provider
-  Provider --> OutputGate
-  OutputGate --> Review
-  Review -- "No" --> Save
-  Review -- "Yes" --> Provider
+  Provider --> Review
+  Review -- "No" --> OutputGate
+  Review -- "Yes (A2A / council)" --> Provider
+  OutputGate --> Memory
+  Memory --> Save
   Save --> Result
   License -. "invalid" .-> Error
   Validate -. "invalid" .-> Error
@@ -277,3 +279,14 @@ Before adding a provider:
 - Add tests for routing and missing-key behavior.
 - Update owner-facing settings UI.
 - Update this document and `docs/DATA_PLANE.md` if data boundaries change.
+
+## Intentionally Not Implemented
+
+These features are out of scope by design. Do not implement them without a product decision:
+
+- **Token-level streaming:** Provider calls use unary HTTP POST. Streaming would require `reqwest` stream features, SSE parsing, and incremental frontend rendering. The cancel button provides immediate relief instead.
+- **Multi-provider fan-out:** Co-Op uses one provider per request. Sending the same prompt to multiple providers simultaneously is explicitly avoided to reduce cost and complexity.
+- **Cloud vector database:** All embeddings live in local SQLite. There is no Pinecone/Weaviate/Qdrant integration.
+- **Connections / integrations tab:** The settings UI surface for MCP/webhook/notion/crm was removed because no backend consumer reads `state.integrations`. Re-add only when a concrete consumer exists.
+- **Automatic email sending without preview:** All campaign emails require per-draft preview and explicit send. There is no batch auto-send.
+- **Provider-specific embedding models:** Embeddings use the same model configured for chat. There is no separate embedding model selector.

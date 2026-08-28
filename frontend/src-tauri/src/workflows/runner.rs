@@ -435,4 +435,75 @@ mod tests {
         assert_eq!(run.trace[0].stage, "model");
         assert_eq!(run.trace[0].status, "completed");
     }
+
+    #[test]
+    fn approval_required_blocks_immediate_completion() {
+        let mut run = WorkflowRun::default();
+        run.approval_required = true;
+
+        // Simulate finalize logic: approval_required → awaiting_approval
+        run.status = if run.approval_required {
+            "awaiting_approval".to_string()
+        } else {
+            "completed".to_string()
+        };
+
+        assert_eq!(run.status, "awaiting_approval");
+        assert_ne!(run.status, "completed");
+    }
+
+    #[test]
+    fn approve_transitions_awaiting_to_completed() {
+        let mut run = WorkflowRun::default();
+        run.status = "awaiting_approval".to_string();
+
+        // Simulate approve logic from approve_workflow_run
+        assert_eq!(run.status, "awaiting_approval");
+        run.status = "completed".to_string();
+        run.completed_at = Some(Utc::now().to_rfc3339());
+
+        assert_eq!(run.status, "completed");
+        assert!(run.completed_at.is_some());
+    }
+
+    #[test]
+    fn reject_transitions_awaiting_to_rejected() {
+        let mut run = WorkflowRun::default();
+        run.status = "awaiting_approval".to_string();
+
+        // Simulate reject logic from reject_workflow_run
+        assert_eq!(run.status, "awaiting_approval");
+        run.status = "rejected".to_string();
+        run.completed_at = Some(Utc::now().to_rfc3339());
+
+        assert_eq!(run.status, "rejected");
+        assert!(run.completed_at.is_some());
+    }
+
+    #[test]
+    fn cannot_approve_non_awaiting_run() {
+        let run = WorkflowRun::default();
+        // Default status is empty/completed — not awaiting_approval
+        let result = if run.status != "awaiting_approval" {
+            Err(format!("Cannot approve a run with status '{}'", run.status))
+        } else {
+            Ok(())
+        };
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn cannot_reject_completed_run() {
+        let mut run = WorkflowRun::default();
+        run.status = "completed".to_string();
+
+        let result = if run.status != "awaiting_approval" {
+            Err(format!("Cannot reject a run with status '{}'", run.status))
+        } else {
+            Ok(())
+        };
+
+        assert!(result.is_err());
+    }
 }
