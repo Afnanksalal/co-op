@@ -61,11 +61,11 @@ pub fn remember_business_event(
     content: &str,
     source: &str,
     confidence: f32,
-) -> Result<(), String> {
+) {
     let title = title.trim();
     let content = redact_sensitive_lines(content);
     if title.len() < 2 || content.trim().len() < 10 {
-        return Ok(());
+        return;
     }
     let now = Utc::now().to_rfc3339();
     let memory = BusinessMemory {
@@ -79,19 +79,21 @@ pub fn remember_business_event(
         created_at: now.clone(),
         updated_at: now,
     };
-    store_business_memory(app, &memory)?;
-    refresh_state_memories(app, state);
-    Ok(())
+    if let Err(e) = store_business_memory(app, &memory) {
+        state.last_local_warning = Some(format!("Failed to save memory: {}", e));
+    } else {
+        refresh_state_memories(app, state);
+    }
 }
 
 pub fn remember_workspace_profile(
     app: &AppHandle,
     state: &mut DesktopState,
     profile: &StartupProfile,
-) -> Result<(), String> {
+) {
     let company = profile.company_name.trim();
     if company.is_empty() {
-        return Ok(());
+        return;
     }
     let content = format!(
         "Company: {}\nStage: {}\nMarket: {}\nCustomers: {}\nProblem: {}\nSolution: {}\nCurrent goals: {}",
@@ -111,7 +113,7 @@ pub fn remember_workspace_profile(
         &content,
         "company profile",
         0.95,
-    )
+    );
 }
 
 fn validate_memory_request(request: &MemoryRequest) -> Result<(), String> {

@@ -17,6 +17,8 @@ pub struct DesktopState {
     #[serde(default)]
     pub install_id: String,
     #[serde(default)]
+    pub last_local_warning: Option<String>,
+    #[serde(default)]
     pub activation: Option<ActivationState>,
     #[serde(default)]
     pub model_settings: ModelSettings,
@@ -57,6 +59,7 @@ impl Default for DesktopState {
         Self {
             schema_version: STATE_SCHEMA_VERSION,
             install_id: Uuid::new_v4().to_string(),
+            last_local_warning: None,
             activation: None,
             model_settings: ModelSettings::default(),
             workflow_runs: Vec::new(),
@@ -86,6 +89,7 @@ fn default_schema_version() -> u32 {
 #[serde(rename_all = "camelCase")]
 pub struct DesktopStateResponse {
     pub install_id: String,
+    pub last_local_warning: Option<String>,
     pub activation: Option<ActivationStateView>,
     pub model_settings: ModelSettingsView,
     pub workflow_runs: Vec<WorkflowRun>,

@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 
 import { Button } from '@/components/ui/button';
 
-import { runBusinessWorkflow, type DesktopState, type WorkflowRun } from '@/lib/desktop/runtime';
+import { approveWorkflowRun, rejectWorkflowRun, runBusinessWorkflow, type DesktopState, type WorkflowRun } from '@/lib/desktop/runtime';
 
 import { roleLabels } from '../constants';
 
@@ -81,7 +81,13 @@ export function HistoryPanel({
 
               await refresh();
 
-              setMessage(run.status === 'completed' ? 'Plan completed.' : 'Plan needs attention.');
+              setMessage(
+                run.status === 'completed'
+                  ? 'Plan completed.'
+                  : run.status === 'awaiting_approval'
+                    ? 'Plan needs your approval before it is final.'
+                    : 'Plan needs attention.'
+              );
             } catch (error) {
               setError(errorMessage(error, 'Plan failed'));
             } finally {
@@ -116,7 +122,25 @@ export function HistoryPanel({
         </form>
 
         <section className="min-w-0 space-y-4">
-          {latestRun && <RunCard run={latestRun} />}
+          {latestRun && (
+            <RunCard
+              run={latestRun}
+              onAction={async (action, runId) => {
+                setBusyAction(action);
+                setError('');
+                try {
+                  if (action === 'approve') await approveWorkflowRun(runId);
+                  else await rejectWorkflowRun(runId);
+                  await refresh();
+                  setMessage(action === 'approve' ? 'Plan approved.' : 'Plan rejected.');
+                } catch (error) {
+                  setError(errorMessage(error, `Failed to ${action} plan`));
+                } finally {
+                  setBusyAction('');
+                }
+              }}
+            />
+          )}
 
           {visibleRuns.map((run) => (
             <RunCard key={run.id} run={run} />
@@ -135,7 +159,15 @@ export function HistoryPanel({
   );
 }
 
-export function RunCard({ run, compact = false }: { run: WorkflowRun; compact?: boolean }) {
+export function RunCard({
+  run,
+  compact = false,
+  onAction,
+}: {
+  run: WorkflowRun;
+  compact?: boolean;
+  onAction?: (action: 'approve' | 'reject', runId: string) => void;
+}) {
   const trace = run.trace?.length
     ? run.trace
     : run.steps.map((step, index) => ({
@@ -169,9 +201,12 @@ export function RunCard({ run, compact = false }: { run: WorkflowRun; compact?: 
           </div>
 
           <div className="flex shrink-0 flex-wrap gap-2">
-            {run.approvalRequired && <Badge variant="warning">Needs approval</Badge>}
-
-            <Badge variant={run.status === 'completed' ? 'success' : 'warning'}>
+            <Badge variant={
+              run.status === 'completed' ? 'success'
+                : run.status === 'rejected' ? 'destructive'
+                : run.status === 'awaiting_approval' ? 'warning'
+                : 'outline'
+            }>
               {runStatusDisplay(run.status)}
             </Badge>
           </div>
@@ -211,9 +246,12 @@ export function RunCard({ run, compact = false }: { run: WorkflowRun; compact?: 
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {run.approvalRequired && <Badge variant="warning">Needs approval</Badge>}
-
-          <Badge variant={run.status === 'completed' ? 'success' : 'warning'}>
+          <Badge variant={
+            run.status === 'completed' ? 'success'
+              : run.status === 'rejected' ? 'destructive'
+              : run.status === 'awaiting_approval' ? 'warning'
+              : 'outline'
+          }>
             {runStatusDisplay(run.status)}
           </Badge>
         </div>
@@ -271,6 +309,24 @@ export function RunCard({ run, compact = false }: { run: WorkflowRun; compact?: 
         <p className="mt-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
           {run.error}
         </p>
+      )}
+
+      {run.status === 'awaiting_approval' && onAction && (
+        <div className="mt-4 flex gap-3 border-t border-border pt-4">
+          <Button
+            size="sm"
+            onClick={() => onAction('approve', run.id)}
+          >
+            Accept
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onAction('reject', run.id)}
+          >
+            Reject
+          </Button>
+        </div>
       )}
     </article>
   );

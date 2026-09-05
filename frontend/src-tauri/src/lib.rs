@@ -3,6 +3,7 @@ mod constants;
 mod context_manager;
 mod graph;
 mod guardrails;
+mod guardrails_rules;
 mod knowledge_store;
 mod license;
 mod memory;
@@ -10,6 +11,7 @@ mod memory_store;
 mod outreach;
 mod outreach_helpers;
 mod providers;
+mod providers_email;
 mod rag;
 mod research;
 mod research_sources;
@@ -20,10 +22,13 @@ mod storage;
 mod tools;
 mod types;
 mod validation;
+#[macro_use]
 mod workflows;
 mod workspace;
 
-pub use chat::{run_agent_chat, delete_chat_session, pin_chat_session};
+use tauri::Manager;
+
+pub use chat::{run_agent_chat, delete_chat_session, pin_chat_session, cancel_chat, ChatCancelFlag};
 pub use graph::get_knowledge_graph;
 pub use license::{
     activate_license, clear_activation, get_activation_state, get_machine_fingerprint,
@@ -31,13 +36,14 @@ pub use license::{
 };
 pub use memory::{save_business_memory, search_business_memory};
 pub use outreach::{
-    create_campaign, create_lead, discover_leads, generate_campaign_emails, send_campaign_emails,
+    create_campaign, create_lead, discover_leads, generate_campaign_emails,
+    send_campaign_emails, send_single_campaign_email, update_campaign_email,
 };
 pub use rag::{add_knowledge_document, search_knowledge};
 pub use research::run_research_query;
 pub use settings::save_model_settings;
 pub use tools::{analyze_pitch_deck, run_alert_now, run_calculator, save_alert, save_cap_table};
-pub use workflows::run_business_workflow;
+pub use workflows::*;
 pub use workspace::{save_bookmark, save_integration, save_workspace_profile};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -57,10 +63,13 @@ pub fn run() {
             get_machine_fingerprint,
             heartbeat_license,
             run_agent_chat,
+            cancel_chat,
             delete_chat_session,
             pin_chat_session,
             run_alert_now,
-            run_business_workflow,
+            workflows::runner::run_business_workflow,
+            workflows::runner::approve_workflow_run,
+            workflows::runner::reject_workflow_run,
             run_calculator,
             run_research_query,
             save_alert,
@@ -73,8 +82,11 @@ pub fn run() {
             search_knowledge,
             search_business_memory,
             send_campaign_emails,
+            send_single_campaign_email,
+            update_campaign_email,
         ])
         .setup(|app| {
+            app.manage(ChatCancelFlag::default());
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()

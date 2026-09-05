@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { EnvelopeSimple, Sparkle, UsersThree } from '@phosphor-icons/react';
+import { EnvelopeSimple, PencilSimple, Sparkle, UsersThree } from '@phosphor-icons/react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -10,10 +10,20 @@ import {
   discoverLeads,
   generateCampaignEmails,
   sendCampaignEmails,
+  sendSingleCampaignEmail,
+  updateCampaignEmail,
   type Campaign,
+  type CampaignEmail,
   type DesktopState,
+  type Lead,
 } from '@/lib/desktop/runtime';
-import { blankCampaign, blankLead, optionLabels } from '../constants';
+import {
+  blankCampaign,
+  blankLead,
+  campaignStatusLabels,
+  emailStatusLabels,
+  optionLabels,
+} from '../constants';
 import {
   DesktopPage,
   EmptyState,
@@ -23,7 +33,9 @@ import {
   SelectField,
   TextArea,
 } from '../shared';
-import { leadName } from '../utils';
+import { leadName, looksLikeEmail } from '../utils';
+import { CampaignList } from './customers-campaign-list';
+import { EmailDraftsTab } from './customers-email-tab';
 
 export function OutreachPanel({
   state,
@@ -45,6 +57,10 @@ export function OutreachPanel({
   const webSearchReady =
     state.modelSettings.researchProvider === 'firecrawl' &&
     state.modelSettings.firecrawlApiKeySaved;
+  const leadsWithEmail = state.leads.filter(
+    (l) => l.email.trim() && looksLikeEmail(l.email)
+  );
+  const leadsWithoutEmail = state.leads.length - leadsWithEmail.length;
   const tabs = [
     { id: 'leads', label: `Prospects (${state.leads.length})` },
     { id: 'campaigns', label: `Outreach plans (${state.campaigns.length})` },
@@ -166,6 +182,14 @@ export function OutreachPanel({
           </div>
           <section className="min-w-0 rounded-lg border border-border/50 bg-card p-5">
             <PanelTitle icon={UsersThree} title="Prospects" />
+            {state.leads.length > 0 && leadsWithoutEmail > 0 && (
+              <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm leading-6 text-muted-foreground">
+                <strong className="text-foreground">{leadsWithoutEmail}</strong> of{' '}
+                {state.leads.length} prospects have no email address. Web discovery finds
+                candidates from public sources — add email addresses to each prospect before
+                generating outreach emails.
+              </div>
+            )}
             <div className="grid gap-3">
               {state.leads.map((item) => (
                 <article
@@ -184,9 +208,13 @@ export function OutreachPanel({
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-2">
                       <Badge variant="outline">{item.status}</Badge>
-                      <Badge variant={item.leadScore >= 70 ? 'success' : 'secondary'}>
-                        {item.leadScore}% fit
-                      </Badge>
+                      {item.email.trim() ? (
+                        <Badge variant={item.leadScore >= 70 ? 'success' : 'secondary'}>
+                          {item.leadScore === 0 ? 'Unscored' : `${item.leadScore}% fit`}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline">No email</Badge>
+                      )}
                     </div>
                   </div>
                 </article>
@@ -269,6 +297,7 @@ export function OutreachPanel({
           </form>
           <CampaignList
             campaigns={state.campaigns}
+            leads={state.leads}
             busyAction={busyAction}
             runWithState={runWithState}
           />
@@ -276,113 +305,14 @@ export function OutreachPanel({
       )}
 
       {activeTab === 'emails' && (
-        <section className="rounded-lg border border-border/50 bg-card p-5">
-          <PanelTitle icon={EnvelopeSimple} title="Email drafts" />
-          <div className="grid gap-3">
-            {state.campaignEmails.map((item) => (
-              <article
-                key={item.id}
-                className="rounded-lg border border-border/50 bg-background p-4"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <h3 className="truncate font-medium">{item.subject}</h3>
-                    <p className="mt-1 break-all text-sm text-muted-foreground">{item.to}</p>
-                  </div>
-                  <Badge
-                    variant={
-                      item.status === 'sent'
-                        ? 'success'
-                        : item.status === 'failed'
-                          ? 'destructive'
-                          : 'secondary'
-                    }
-                  >
-                    {item.status}
-                  </Badge>
-                </div>
-                <pre className="coop-scrollbar mt-3 max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted/40 p-3 font-sans text-sm leading-6">
-                  {item.body}
-                </pre>
-                {item.providerMessage && (
-                  <p className="mt-3 text-xs text-muted-foreground">{item.providerMessage}</p>
-                )}
-              </article>
-            ))}
-            {state.campaignEmails.length === 0 && (
-              <EmptyState
-                icon={EnvelopeSimple}
-                title="No email drafts"
-                text="Create an outreach plan, generate drafts, then send through the saved email service."
-              />
-            )}
-          </div>
-        </section>
+        <EmailDraftsTab
+          emails={state.campaignEmails}
+          busyAction={busyAction}
+          runWithState={runWithState}
+        />
       )}
     </DesktopPage>
   );
 }
 
-function CampaignList({
-  campaigns,
-  busyAction,
-  runWithState,
-}: {
-  campaigns: Campaign[];
-  busyAction: string;
-  runWithState: (
-    label: string,
-    action: () => Promise<DesktopState>,
-    success: string
-  ) => Promise<boolean>;
-}) {
-  return (
-    <section className="rounded-lg border border-border bg-card p-5 xl:sticky xl:top-14">
-      <PanelTitle icon={EnvelopeSimple} title="Outreach plans" />
-      <div className="grid gap-3">
-        {campaigns.map((campaign) => (
-          <article key={campaign.id} className="rounded-md border border-border bg-background p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h3 className="font-medium">{campaign.name}</h3>
-                <p className="text-xs text-muted-foreground">
-                  {campaign.mode} - {campaign.status}
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={busyAction === 'generate'}
-                  onClick={() =>
-                    void runWithState(
-                      'generate',
-                      () => generateCampaignEmails({ campaignId: campaign.id }),
-                      'Email drafts generated.'
-                    )
-                  }
-                >
-                  Draft emails
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={busyAction === 'send'}
-                  onClick={() =>
-                    void runWithState(
-                      'send',
-                      () => sendCampaignEmails({ campaignId: campaign.id }),
-                      'Email send attempted.'
-                    )
-                  }
-                >
-                  Send
-                </Button>
-              </div>
-            </div>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
+

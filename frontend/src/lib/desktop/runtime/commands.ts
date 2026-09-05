@@ -91,9 +91,24 @@ export async function runBusinessWorkflow(request: WorkflowRequest): Promise<Wor
   return invokeDesktop<WorkflowRun>('run_business_workflow', { request });
 }
 
+export async function approveWorkflowRun(runId: string): Promise<DesktopState> {
+  if (!isTauriRuntime()) throwDesktopOnly('Workflow approval');
+  return invokeDesktop<DesktopState>('approve_workflow_run', { runId });
+}
+
+export async function rejectWorkflowRun(runId: string): Promise<DesktopState> {
+  if (!isTauriRuntime()) throwDesktopOnly('Workflow rejection');
+  return invokeDesktop<DesktopState>('reject_workflow_run', { runId });
+}
+
 export async function runAgentChat(request: ChatRequest): Promise<DesktopState> {
   if (!isTauriRuntime()) throw new Error('Agent chat runs inside Co-Op Desktop.');
   return invokeDesktop<DesktopState>('run_agent_chat', { request });
+}
+
+export async function cancelChat(): Promise<void> {
+  if (!isTauriRuntime()) return;
+  return invokeDesktop<void>('cancel_chat');
 }
 
 export async function deleteChatSession(sessionId: string): Promise<DesktopState> {
@@ -167,6 +182,23 @@ export async function generateCampaignEmails(request: CampaignEmailRequest): Pro
 export async function sendCampaignEmails(request: CampaignEmailRequest): Promise<DesktopState> {
   if (!isTauriRuntime()) throw new Error('Campaign sending runs inside Co-Op Desktop.');
   return invokeDesktop<DesktopState>('send_campaign_emails', { request });
+}
+
+export async function updateCampaignEmail(
+  emailId: string,
+  subject: string,
+  body: string
+): Promise<DesktopState> {
+  if (!isTauriRuntime()) throwDesktopOnly('Email editing');
+  return invokeDesktop<DesktopState>('update_campaign_email', { emailId, subject, body });
+}
+
+export async function sendSingleCampaignEmail(
+  emailId: string,
+  dryRun: boolean
+): Promise<DesktopState> {
+  if (!isTauriRuntime()) throw new Error('Email sending runs inside Co-Op Desktop.');
+  return invokeDesktop<DesktopState>('send_single_campaign_email', { emailId, dryRun });
 }
 
 export async function saveAlert(request: AlertRequest): Promise<DesktopState> {

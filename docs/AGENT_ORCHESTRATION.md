@@ -26,8 +26,9 @@ flowchart TD
   Validate["Validate request, settings, and guardrails"]
   Context["Attach company profile, files, memory, and required web sources when outside facts are needed"]
   Provider["Run selected AI provider"]
-  OutputGate["Check answer before saving"]
   Review{"Review required?"}
+  OutputGate["Check answer before saving"]
+  Memory["Record business memory"]
   Save["Save local history"]
   Result["Show clear answer and next actions"]
   Error["Show recoverable error"]
@@ -36,10 +37,11 @@ flowchart TD
   License --> Validate
   Validate --> Context
   Context --> Provider
-  Provider --> OutputGate
-  OutputGate --> Review
-  Review -- "No" --> Save
-  Review -- "Yes" --> Provider
+  Provider --> Review
+  Review -- "No" --> OutputGate
+  Review -- "Yes (A2A / council)" --> Provider
+  OutputGate --> Memory
+  Memory --> Save
   Save --> Result
   License -. "invalid" .-> Error
   Validate -. "invalid" .-> Error
@@ -113,7 +115,7 @@ Provider keys are stored in OS credential storage. The cloud license backend nev
 
 Co-Op uses a hybrid embedding architecture to stay completely local and fast, avoiding external vector databases:
 
-- **Provider Embeddings:** If the configured provider (Ollama or OpenAI-compatible) supports an embedding endpoint (`/api/embeddings` or `/v1/embeddings`), Co-Op automatically generates dense vector embeddings for company files and business memories.
+- **Provider Embeddings:** If the configured provider (Ollama or OpenAI-compatible) supports an embedding endpoint (`/api/embeddings` or `/v1/embeddings`), Co-Op automatically generates dense vector embeddings for company files.
 - **Enhanced Local Fallback:** If the provider lacks an embedding endpoint (e.g., Groq) or is unreachable, Co-Op falls back to a 128-dimension lexical hash vector algorithm. This fallback includes suffix-stripping stemming, bigram generation, and a dictionary of 150+ business synonym clusters to map related concepts without needing a language model.
 - **Background Re-indexing:** When a user switches to a provider that supports true embeddings, Co-Op automatically upgrades any legacy hash-based vectors to dense semantic vectors in a background task on the next app startup.
 
@@ -137,7 +139,7 @@ When reviewing output (A2A or full review), the engine must use dynamic temperat
 
 ## Guardrails
 
-The runtime guardrail layer is centralized in `frontend/src-tauri/src/guardrails.rs`. Every model-facing surface should pass through it before adding provider calls.
+The runtime guardrail layer is centralized in `frontend/src-tauri/src/guardrails.rs` (with core rules in `guardrails_rules.rs`). Every model-facing surface should pass through it before adding provider calls.
 
 ```mermaid
 flowchart LR
@@ -161,13 +163,15 @@ Rules:
 
 Implementation anchors:
 
-- `guardrails.rs` classifies question type (factual, planning, action request, comparison, brainstorming) to drive proportional response formatting, while applying context-aware input/output gates.
+- `guardrails.rs` (and `guardrails_rules.rs`) classifies question type (factual, planning, action request, comparison, brainstorming) to drive proportional response formatting, while applying context-aware input/output gates.
 - `chat.rs` uses adaptive formatting, source-gated web research, memory context, and A2A review filters that discard generic corporate filler.
 - `chat.rs` emits safe progress events so the UI can show what stage is running without exposing hidden reasoning.
 - `workflows.rs` uses the same guardrails and adaptive question typing for work plans, applying a strict "unknowns" policy to prevent hallucination from sparse company profiles.
+- `knowledge_store/` encapsulates all local RAG behavior, including `search.rs` for SQLite FTS5 + lexical vector matching, and background migrations for legacy vectors.
+- `providers.rs` and `providers_email.rs` abstract the underlying API contracts for Ollama, OpenAI-compatible APIs, Firecrawl, Resend, and SendGrid.
 - `research.rs` always requires Firecrawl-backed sources and validates the sourced summary.
 - `research_sources.rs` plans and filters web sources, including multi-query competitor searches from company, offering, buyer, and region context.
-- `outreach.rs` requires source-backed lead discovery and blocks unsafe generated email output.
+- `outreach.rs` requires source-backed lead discovery, blocks unsafe generated email output, and enforces honest per-email send outcomes and draft editing.
 - `tools.rs` applies the same model output gate to pitch review.
 
 Research inputs used for the guardrail direction:
@@ -275,3 +279,14 @@ Before adding a provider:
 - Add tests for routing and missing-key behavior.
 - Update owner-facing settings UI.
 - Update this document and `docs/DATA_PLANE.md` if data boundaries change.
+
+## Intentionally Not Implemented
+
+These features are out of scope by design. Do not implement them without a product decision:
+
+- **Token-level streaming:** Provider calls use unary HTTP POST. Streaming would require `reqwest` stream features, SSE parsing, and incremental frontend rendering. The cancel button provides immediate relief instead.
+- **Multi-provider fan-out:** Co-Op uses one provider per request. Sending the same prompt to multiple providers simultaneously is explicitly avoided to reduce cost and complexity.
+- **Cloud vector database:** All embeddings live in local SQLite. There is no Pinecone/Weaviate/Qdrant integration.
+- **Connections / integrations tab:** The settings UI surface for MCP/webhook/notion/crm was removed because no backend consumer reads `state.integrations`. Re-add only when a concrete consumer exists.
+- **Automatic email sending without preview:** All campaign emails require per-draft preview and explicit send. There is no batch auto-send.
+- **Provider-specific embedding models:** Embeddings use the same model configured for chat. There is no separate embedding model selector.

@@ -4,6 +4,7 @@ import { type FormEvent, useEffect, useRef, useState } from 'react';
 import {
   isTauriRuntime,
   runAgentChat,
+  cancelChat,
   deleteChatSession,
   pinChatSession,
   type ChatProgressEvent,
@@ -260,6 +261,7 @@ export function ChatPanel({
           busy={busyAction === 'chat'}
           onMessageChange={setMessage}
           onSubmit={submitChat}
+          onCancel={() => void cancelChat()}
         />
       </section>
     </div>

@@ -50,7 +50,7 @@ pub(crate) fn parse_generated_leads(
             if parts.len() < 9 {
                 return None;
             }
-            let score = parts[8].parse::<u8>().unwrap_or(50).min(100);
+            let score = parts[8].parse::<u8>().unwrap_or(0).min(100);
             let lead = Lead {
                 id: Uuid::new_v4().to_string(),
                 lead_type: lead_type.to_string(),
@@ -114,7 +114,7 @@ pub(crate) fn fallback_leads_from_sources(
             niche: String::new(),
             location: String::new(),
             description: source.description.clone(),
-            lead_score: 50,
+            lead_score: 0,
             status: "new".to_string(),
             source: "web search".to_string(),
             created_at: Utc::now().to_rfc3339(),

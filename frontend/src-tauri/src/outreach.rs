@@ -5,7 +5,8 @@ use tauri::AppHandle;
 use uuid::Uuid;
 
 use crate::constants::{
-    MAX_CAMPAIGN_SEND_BATCH, MAX_GENERATED_EMAILS_PER_CAMPAIGN, MAX_LEADS, MAX_RESEARCH_RUNS,
+    MAX_CAMPAIGN_SEND_BATCH, MAX_EMAIL_BODY_LENGTH, MAX_EMAIL_SUBJECT_LENGTH,
+    MAX_GENERATED_EMAILS_PER_CAMPAIGN, MAX_LEADS, MAX_RESEARCH_RUNS,
 };
 use crate::guardrails::{validate_business_input, validate_model_output};
 use crate::outreach_helpers::{
@@ -17,8 +18,8 @@ use crate::providers::{call_model, search_firecrawl, send_email};
 use crate::research_sources::format_sources;
 use crate::storage::{load_or_create_state, require_usable_activation, save_state, to_response};
 use crate::types::{
-    Campaign, CampaignEmail, CampaignEmailRequest, CampaignRequest, DesktopStateResponse,
-    DiscoverLeadsRequest, Lead, LeadRequest, ResearchRun,
+    Campaign, CampaignEmail, CampaignEmailRequest, CampaignRequest, DesktopState,
+    DesktopStateResponse, DiscoverLeadsRequest, Lead, LeadRequest, ResearchRun,
 };
 use crate::validation::{
     looks_like_email, validate_campaign_request, validate_lead_request, validate_read_only,
@@ -395,13 +396,213 @@ pub async fn send_campaign_emails(
             }
         }
     }
-    if let Some(campaign) = state
-        .campaigns
-        .iter_mut()
-        .find(|campaign| campaign.id == request.campaign_id)
-    {
-        campaign.status = "sent_or_attempted".to_string();
-    }
+    update_campaign_status_from_emails(&mut state, &request.campaign_id);
     save_state(&app, &state)?;
     Ok(to_response(state))
 }
+
+#[tauri::command]
+pub fn update_campaign_email(
+    app: AppHandle,
+    email_id: String,
+    subject: String,
+    body: String,
+) -> Result<DesktopStateResponse, String> {
+    if subject.trim().is_empty() || subject.len() > MAX_EMAIL_SUBJECT_LENGTH {
+        return Err(format!(
+            "Email subject must be 1-{MAX_EMAIL_SUBJECT_LENGTH} characters"
+        ));
+    }
+    if body.trim().is_empty() || body.len() > MAX_EMAIL_BODY_LENGTH {
+        return Err(format!(
+            "Email body must be 1-{MAX_EMAIL_BODY_LENGTH} characters"
+        ));
+    }
+    let mut state = load_or_create_state(&app)?;
+    require_usable_activation(&state)?;
+    let email = state
+        .campaign_emails
+        .iter_mut()
+        .find(|e| e.id == email_id && e.status == "generated")
+        .ok_or_else(|| "Email draft not found or already sent".to_string())?;
+    email.subject = subject.trim().to_string();
+    email.body = body.trim().to_string();
+    save_state(&app, &state)?;
+    Ok(to_response(state))
+}
+
+#[tauri::command]
+pub async fn send_single_campaign_email(
+    app: AppHandle,
+    email_id: String,
+    dry_run: bool,
+) -> Result<DesktopStateResponse, String> {
+    let mut state = load_or_create_state(&app)?;
+    require_usable_activation(&state)?;
+    let settings = validate_read_only(&state.model_settings)?;
+    let index = state
+        .campaign_emails
+        .iter()
+        .position(|e| e.id == email_id)
+        .ok_or_else(|| "Email draft not found".to_string())?;
+    if state.campaign_emails[index].status == "sent" {
+        return Err("Email already sent".to_string());
+    }
+    if dry_run {
+        state.campaign_emails[index].status = "dry_run_ok".to_string();
+        state.campaign_emails[index].provider_message =
+            Some("Dry run — not actually sent".to_string());
+    } else {
+        let email = state.campaign_emails[index].clone();
+        match send_email(&settings, &email.to, &email.subject, &email.body).await {
+            Ok(message) => {
+                state.campaign_emails[index].status = "sent".to_string();
+                state.campaign_emails[index].provider_message = Some(message);
+                state.campaign_emails[index].sent_at = Some(Utc::now().to_rfc3339());
+            }
+            Err(error) => {
+                state.campaign_emails[index].status = "failed".to_string();
+                state.campaign_emails[index].provider_message = Some(error);
+            }
+        }
+    }
+    if let Some(campaign_id) = state.campaign_emails.get(index).map(|e| e.campaign_id.clone()) {
+        update_campaign_status_from_emails(&mut state, &campaign_id);
+    }
+    state.model_settings = settings;
+    save_state(&app, &state)?;
+    Ok(to_response(state))
+}
+
+fn update_campaign_status_from_emails(state: &mut DesktopState, campaign_id: &str) {
+    let sent = state
+        .campaign_emails
+        .iter()
+        .filter(|e| e.campaign_id == campaign_id && e.status == "sent")
+        .count();
+    let failed = state
+        .campaign_emails
+        .iter()
+        .filter(|e| e.campaign_id == campaign_id && e.status == "failed")
+        .count();
+    let total = state
+        .campaign_emails
+        .iter()
+        .filter(|e| e.campaign_id == campaign_id)
+        .count();
+    if let Some(campaign) = state.campaigns.iter_mut().find(|c| c.id == campaign_id) {
+        campaign.status = if sent == total && total > 0 {
+            "sent".to_string()
+        } else if sent > 0 {
+            "partially_sent".to_string()
+        } else if failed > 0 {
+            "send_failed".to_string()
+        } else {
+            "emails_generated".to_string()
+        };
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_campaign(id: &str) -> Campaign {
+        Campaign {
+            id: id.to_string(),
+            name: "Test".to_string(),
+            mode: "ai_personalized".to_string(),
+            target_lead_type: "company".to_string(),
+            subject_template: String::new(),
+            body_template: String::new(),
+            campaign_goal: "Test goal for campaign".to_string(),
+            tone: "professional".to_string(),
+            call_to_action: "Book a call".to_string(),
+            status: "draft".to_string(),
+            created_at: "2026-01-01T00:00:00Z".to_string(),
+        }
+    }
+
+    fn test_email(campaign_id: &str, status: &str) -> CampaignEmail {
+        CampaignEmail {
+            id: Uuid::new_v4().to_string(),
+            campaign_id: campaign_id.to_string(),
+            lead_id: "lead-1".to_string(),
+            to: "test@example.com".to_string(),
+            subject: "Hello".to_string(),
+            body: "Body text".to_string(),
+            status: status.to_string(),
+            provider_message: None,
+            created_at: "2026-01-01T00:00:00Z".to_string(),
+            sent_at: None,
+        }
+    }
+
+    // Issue #15: All emails sent → campaign status is "sent".
+    #[test]
+    fn campaign_status_all_sent() {
+        let mut state = DesktopState::default();
+        state.campaigns.push(test_campaign("c1"));
+        state.campaign_emails.push(test_email("c1", "sent"));
+        state.campaign_emails.push(test_email("c1", "sent"));
+
+        update_campaign_status_from_emails(&mut state, "c1");
+
+        assert_eq!(state.campaigns[0].status, "sent");
+    }
+
+    // Issue #15: Some sent, some failed → "partially_sent".
+    #[test]
+    fn campaign_status_partially_sent() {
+        let mut state = DesktopState::default();
+        state.campaigns.push(test_campaign("c1"));
+        state.campaign_emails.push(test_email("c1", "sent"));
+        state.campaign_emails.push(test_email("c1", "failed"));
+
+        update_campaign_status_from_emails(&mut state, "c1");
+
+        assert_eq!(state.campaigns[0].status, "partially_sent");
+    }
+
+    // Issue #15: All failed → "send_failed".
+    #[test]
+    fn campaign_status_all_failed() {
+        let mut state = DesktopState::default();
+        state.campaigns.push(test_campaign("c1"));
+        state.campaign_emails.push(test_email("c1", "failed"));
+        state.campaign_emails.push(test_email("c1", "failed"));
+
+        update_campaign_status_from_emails(&mut state, "c1");
+
+        assert_eq!(state.campaigns[0].status, "send_failed");
+    }
+
+    // Issue #15: No sends attempted → "emails_generated".
+    #[test]
+    fn campaign_status_no_sends() {
+        let mut state = DesktopState::default();
+        state.campaigns.push(test_campaign("c1"));
+        state.campaign_emails.push(test_email("c1", "generated"));
+        state.campaign_emails.push(test_email("c1", "generated"));
+
+        update_campaign_status_from_emails(&mut state, "c1");
+
+        assert_eq!(state.campaigns[0].status, "emails_generated");
+    }
+
+    // Issue #15: Emails from other campaigns don't affect status.
+    #[test]
+    fn campaign_status_ignores_other_campaigns() {
+        let mut state = DesktopState::default();
+        state.campaigns.push(test_campaign("c1"));
+        state.campaigns.push(test_campaign("c2"));
+        state.campaign_emails.push(test_email("c1", "sent"));
+        state.campaign_emails.push(test_email("c2", "failed"));
+
+        update_campaign_status_from_emails(&mut state, "c1");
+
+        assert_eq!(state.campaigns[0].status, "sent");
+        assert_eq!(state.campaigns[1].status, "draft"); // c2 untouched
+    }
+}
+

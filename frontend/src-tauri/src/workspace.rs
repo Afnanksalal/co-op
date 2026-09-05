@@ -21,7 +21,7 @@ pub fn save_workspace_profile(
     require_usable_activation(&state)?;
     state.workspace = profile;
     let profile_snapshot = state.workspace.clone();
-    let _ = remember_workspace_profile(&app, &mut state, &profile_snapshot);
+    remember_workspace_profile(&app, &mut state, &profile_snapshot);
     save_state(&app, &state)?;
     Ok(to_response(state))
 }

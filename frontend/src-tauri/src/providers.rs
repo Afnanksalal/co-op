@@ -3,9 +3,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::time::Duration as StdDuration;
 
-use crate::constants::{MAX_EMAIL_BODY_LENGTH, MAX_EMAIL_SUBJECT_LENGTH, REQUEST_TIMEOUT_SECS};
+use crate::constants::REQUEST_TIMEOUT_SECS;
 use crate::types::{ModelSettings, ResearchSource};
 use crate::validation::sanitize_http_base_url;
+
+pub use crate::providers_email::send_email;
 
 #[derive(Debug, Clone, Serialize)]
 struct ChatMessage<'a> {
@@ -62,40 +64,6 @@ struct OpenAiMessage {
     content: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
-struct ResendEmailRequest<'a> {
-    from: &'a str,
-    to: Vec<&'a str>,
-    subject: &'a str,
-    html: &'a str,
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct SendGridEmailRequest<'a> {
-    personalizations: Vec<SendGridPersonalization<'a>>,
-    from: SendGridEmail<'a>,
-    subject: &'a str,
-    content: Vec<SendGridContent<'a>>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct SendGridPersonalization<'a> {
-    to: Vec<SendGridEmail<'a>>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct SendGridEmail<'a> {
-    email: &'a str,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    name: Option<&'a str>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct SendGridContent<'a> {
-    #[serde(rename = "type")]
-    content_type: &'a str,
-    value: &'a str,
-}
 
 pub fn http_client() -> Result<reqwest::Client, String> {
     reqwest::Client::builder()
@@ -413,6 +381,70 @@ async fn embed_openai_compatible(
         .ok_or_else(|| "OpenAI-compatible provider returned no embedding".to_string())
 }
 
+#[derive(Debug, Clone, Serialize)]
+struct OpenAiBatchEmbeddingRequest<'a> {
+    model: &'a str,
+    input: Vec<&'a str>,
+}
+
+/// Embed multiple texts in a single HTTP call (OpenAI-compatible) or
+/// sequentially (Ollama). Returns one vector per input text.
+pub async fn call_embedding_batch(
+    settings: &ModelSettings,
+    texts: &[&str],
+) -> Result<Vec<Vec<f32>>, String> {
+    if texts.is_empty() {
+        return Ok(vec![]);
+    }
+    match settings.provider.as_str() {
+        "ollama" => {
+            let mut results = Vec::with_capacity(texts.len());
+            for text in texts {
+                results.push(call_embedding(settings, text).await?);
+            }
+            Ok(results)
+        }
+        "openai_compatible" => {
+            let api_key = settings
+                .openai_api_key
+                .as_deref()
+                .filter(|v| !v.trim().is_empty())
+                .ok_or_else(|| "OpenAI-compatible provider selected but no API key is saved".to_string())?;
+            let request = OpenAiBatchEmbeddingRequest {
+                model: &settings.openai_model,
+                input: texts.to_vec(),
+            };
+            let openai_base_url = sanitize_http_base_url(
+                &settings.openai_base_url,
+                true,
+                false,
+                "OpenAI-compatible URL",
+            )?;
+            let response = http_client()?
+                .post(format!("{}/embeddings", openai_base_url))
+                .bearer_auth(api_key)
+                .json(&request)
+                .send()
+                .await
+                .map_err(|e| format!("Batch embedding request failed: {e}"))?;
+            let response = ensure_success(response, "OpenAI-compatible batch embeddings").await?;
+            let body = response
+                .json::<OpenAiEmbeddingResponse>()
+                .await
+                .map_err(|e| format!("Batch embedding response was not valid JSON: {e}"))?;
+            if body.data.len() != texts.len() {
+                return Err(format!(
+                    "Batch embedding returned {} vectors for {} inputs",
+                    body.data.len(),
+                    texts.len()
+                ));
+            }
+            Ok(body.data.into_iter().map(|d| d.embedding).collect())
+        }
+        provider => Err(format!("Unsupported embedding provider: {provider}")),
+    }
+}
+
 pub async fn search_firecrawl(
     settings: &ModelSettings,
     query: &str,
@@ -491,115 +523,6 @@ async fn search_firecrawl_v1(
         .await
         .map_err(|error| format!("Firecrawl response was not valid JSON: {error}"))?;
     Ok(parse_firecrawl_sources(payload))
-}
-
-pub async fn send_email(
-    settings: &ModelSettings,
-    to: &str,
-    subject: &str,
-    body: &str,
-) -> Result<String, String> {
-    if subject.trim().is_empty() || subject.len() > MAX_EMAIL_SUBJECT_LENGTH {
-        return Err(format!(
-            "Email subject must be 1-{MAX_EMAIL_SUBJECT_LENGTH} characters"
-        ));
-    }
-    if body.trim().is_empty() || body.len() > MAX_EMAIL_BODY_LENGTH {
-        return Err(format!(
-            "Email body must be 1-{MAX_EMAIL_BODY_LENGTH} characters"
-        ));
-    }
-    match settings.email_provider.as_str() {
-        "resend" => send_resend(settings, to, subject, body).await,
-        "sendgrid" => send_sendgrid(settings, to, subject, body).await,
-        "none" => Err("No email provider configured".to_string()),
-        provider => Err(format!("Unsupported email provider: {provider}")),
-    }
-}
-
-async fn send_resend(
-    settings: &ModelSettings,
-    to: &str,
-    subject: &str,
-    body: &str,
-) -> Result<String, String> {
-    let api_key = settings
-        .email_api_key
-        .as_deref()
-        .ok_or_else(|| "Resend API key is not saved".to_string())?;
-    let from = formatted_sender(settings);
-    let request = ResendEmailRequest {
-        from: &from,
-        to: vec![to],
-        subject,
-        html: &markdownish_to_html(body),
-    };
-    let response = http_client()?
-        .post("https://api.resend.com/emails")
-        .bearer_auth(api_key)
-        .json(&request)
-        .send()
-        .await
-        .map_err(|error| format!("Resend request failed: {error}"))?;
-    let _ = ensure_success(response, "Resend").await?;
-    Ok("Sent with Resend".to_string())
-}
-
-async fn send_sendgrid(
-    settings: &ModelSettings,
-    to: &str,
-    subject: &str,
-    body: &str,
-) -> Result<String, String> {
-    let api_key = settings
-        .email_api_key
-        .as_deref()
-        .ok_or_else(|| "SendGrid API key is not saved".to_string())?;
-    let html = markdownish_to_html(body);
-    let request = SendGridEmailRequest {
-        personalizations: vec![SendGridPersonalization {
-            to: vec![SendGridEmail {
-                email: to,
-                name: None,
-            }],
-        }],
-        from: SendGridEmail {
-            email: &settings.email_from,
-            name: optional_sender_name(settings),
-        },
-        subject,
-        content: vec![SendGridContent {
-            content_type: "text/html",
-            value: &html,
-        }],
-    };
-    let response = http_client()?
-        .post("https://api.sendgrid.com/v3/mail/send")
-        .bearer_auth(api_key)
-        .json(&request)
-        .send()
-        .await
-        .map_err(|error| format!("SendGrid request failed: {error}"))?;
-    let _ = ensure_success(response, "SendGrid").await?;
-    Ok("Sent with SendGrid".to_string())
-}
-
-fn formatted_sender(settings: &ModelSettings) -> String {
-    let sender_name = settings.email_from_name.trim();
-    if sender_name.is_empty() {
-        settings.email_from.trim().to_string()
-    } else {
-        format!("{sender_name} <{}>", settings.email_from.trim())
-    }
-}
-
-fn optional_sender_name(settings: &ModelSettings) -> Option<&str> {
-    let sender_name = settings.email_from_name.trim();
-    if sender_name.is_empty() {
-        None
-    } else {
-        Some(sender_name)
-    }
 }
 
 fn parse_firecrawl_sources(payload: Value) -> Vec<ResearchSource> {
@@ -712,7 +635,7 @@ fn string_field(value: &Value, keys: &[&str]) -> Option<String> {
     None
 }
 
-async fn ensure_success(
+pub(crate) async fn ensure_success(
     response: reqwest::Response,
     label: &str,
 ) -> Result<reqwest::Response, String> {
@@ -770,21 +693,7 @@ fn redact_provider_error_tokens(value: &str) -> String {
     redacted.join(" ")
 }
 
-fn markdownish_to_html(value: &str) -> String {
-    value
-        .lines()
-        .map(|line| format!("<p>{}</p>", escape_html(line)))
-        .collect::<Vec<String>>()
-        .join("")
-}
 
-fn escape_html(value: &str) -> String {
-    value
-        .replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-}
 
 #[cfg(test)]
 mod tests {
@@ -797,32 +706,6 @@ mod tests {
         assert!(!sanitized.contains("sk-secret"));
         assert!(!sanitized.contains("api_key"));
         assert!(sanitized.contains("[redacted]"));
-    }
-
-    #[test]
-    fn email_html_escapes_untrusted_body() {
-        let html = markdownish_to_html("Hi <script>alert(1)</script> & \"team\"");
-
-        assert!(html.contains("&lt;script&gt;"));
-        assert!(html.contains("&amp;"));
-        assert!(html.contains("&quot;team&quot;"));
-    }
-
-    #[test]
-    fn sender_format_omits_blank_display_name() {
-        let mut settings = ModelSettings {
-            email_from: "owner@example.com".to_string(),
-            email_from_name: String::new(),
-            ..ModelSettings::default()
-        };
-
-        assert_eq!(formatted_sender(&settings), "owner@example.com");
-        assert_eq!(optional_sender_name(&settings), None);
-
-        settings.email_from_name = "Ops Team".to_string();
-
-        assert_eq!(formatted_sender(&settings), "Ops Team <owner@example.com>");
-        assert_eq!(optional_sender_name(&settings), Some("Ops Team"));
     }
 
     #[test]

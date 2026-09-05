@@ -9,7 +9,7 @@ export const blankLead = {
   niche: '',
   location: '',
   description: '',
-  leadScore: 50,
+  leadScore: 0,
   status: 'new',
   source: 'manual',
 };
@@ -155,6 +155,24 @@ export const runStatusLabels: Record<string, string> = {
   completed: 'Done',
   running: 'Running',
   failed: 'Needs attention',
+  awaiting_approval: 'Awaiting approval',
+  rejected: 'Rejected',
+};
+
+export const campaignStatusLabels: Record<string, string> = {
+  draft: 'Draft',
+  emails_generated: 'Drafts ready',
+  sent: 'All sent',
+  partially_sent: 'Partially sent',
+  send_failed: 'Send failed',
+};
+
+export const emailStatusLabels: Record<string, string> = {
+  generated: 'Draft',
+  sent: 'Sent',
+  failed: 'Failed',
+  skipped_duplicate: 'Skipped',
+  dry_run_ok: 'Dry run OK',
 };
 
 export const memoryTypeLabels: Record<string, string> = {
