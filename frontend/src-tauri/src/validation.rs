@@ -85,7 +85,7 @@ pub fn validate_model_settings(settings: &mut ModelSettings) -> Result<(), Strin
         .unwrap_or(false);
     if has_firecrawl_key {
         settings.firecrawl_base_url =
-            sanitize_http_base_url(&settings.firecrawl_base_url, true, false, "Firecrawl URL")?;
+            sanitize_http_base_url(&settings.firecrawl_base_url, false, false, "Firecrawl URL")?;
     }
     settings.max_run_tokens = settings
         .max_run_tokens
@@ -424,6 +424,20 @@ mod tests {
         assert!(sanitize_http_base_url("http://localhost:11434", true, false, "Ollama").is_ok());
         assert!(sanitize_http_base_url("http://127.0.0.1:11434/", true, false, "Ollama").is_ok());
         assert!(sanitize_http_base_url("http://example.com", true, false, "Provider").is_err());
+        assert!(sanitize_http_base_url(
+            "http://127.0.0.1:3002",
+            false,
+            false,
+            "Firecrawl"
+        )
+        .is_err());
+        assert!(sanitize_http_base_url(
+            "https://api.firecrawl.dev",
+            false,
+            false,
+            "Firecrawl"
+        )
+        .is_ok());
     }
 
     #[test]

@@ -8,6 +8,7 @@ use crate::types::{ModelSettings, ResearchSource};
 use crate::validation::sanitize_http_base_url;
 
 pub use crate::providers_email::send_email;
+pub use crate::providers_stream::call_model_streaming;
 
 #[derive(Debug, Clone, Serialize)]
 struct ChatMessage<'a> {
@@ -410,8 +411,9 @@ pub async fn call_embedding_batch(
                 .as_deref()
                 .filter(|v| !v.trim().is_empty())
                 .ok_or_else(|| "OpenAI-compatible provider selected but no API key is saved".to_string())?;
+            let model = openai_embedding_model(settings);
             let request = OpenAiBatchEmbeddingRequest {
-                model: &settings.openai_model,
+                model: &model,
                 input: texts.to_vec(),
             };
             let openai_base_url = sanitize_http_base_url(
@@ -456,7 +458,7 @@ pub async fn search_firecrawl(
         .filter(|value| !value.trim().is_empty())
         .ok_or_else(|| "Web search key is not saved".to_string())?;
     let base_url =
-        sanitize_http_base_url(&settings.firecrawl_base_url, true, false, "Web search URL")?;
+        sanitize_http_base_url(&settings.firecrawl_base_url, false, false, "Web search URL")?;
     let request = json!({
         "query": query,
         "limit": limit.clamp(1, 10),
@@ -500,7 +502,7 @@ async fn search_firecrawl_v1(
         .as_deref()
         .ok_or_else(|| "Web search key is not saved".to_string())?;
     let base_url =
-        sanitize_http_base_url(&settings.firecrawl_base_url, true, false, "Web search URL")?;
+        sanitize_http_base_url(&settings.firecrawl_base_url, false, false, "Web search URL")?;
     let request = json!({
         "query": query,
         "limit": limit.clamp(1, 10),

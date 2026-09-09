@@ -29,11 +29,16 @@ pub async fn search_store(
     query: &str,
     limit: usize,
 ) -> Result<Vec<SearchResult>, String> {
-    let query_vector = crate::rag::embed_query_provider(settings, query)
-        .await
-        .unwrap_or_else(|| crate::rag::embed_text_local(query));
+    let local_query = crate::rag::embed_text_local(query);
+    let provider_query = crate::rag::embed_query_provider(settings, query).await;
     let conn = open_store(app)?;
-    search_with_conn(&conn, query, &query_vector, limit)
+    search_with_query_vectors(
+        &conn,
+        query,
+        provider_query.as_deref().unwrap_or(&local_query),
+        provider_query.as_ref().map(|_| local_query.as_slice()),
+        limit,
+    )
 }
 
 pub async fn document_context_for_app(app: &AppHandle, settings: &ModelSettings, query: &str) -> Result<String, String> {
@@ -41,10 +46,21 @@ pub async fn document_context_for_app(app: &AppHandle, settings: &ModelSettings,
     Ok(document_context_from_results(results))
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn search_with_conn(
     conn: &Connection,
     query: &str,
     query_vector: &[f32],
+    limit: usize,
+) -> Result<Vec<SearchResult>, String> {
+    search_with_query_vectors(conn, query, query_vector, None, limit)
+}
+
+pub(crate) fn search_with_query_vectors(
+    conn: &Connection,
+    query: &str,
+    primary_query: &[f32],
+    fallback_query: Option<&[f32]>,
     limit: usize,
 ) -> Result<Vec<SearchResult>, String> {
     let query_terms = unique_tokens(query);
@@ -64,7 +80,7 @@ pub(crate) fn search_with_conn(
         .into_iter()
         .filter_map(|candidate| {
             let vector = blob_to_vector(&candidate.vector).ok()?;
-            let semantic_score = cosine_similarity(query_vector, &vector).max(0.0);
+            let semantic_score = semantic_score_for_stored(primary_query, fallback_query, &vector);
             let lexical_score = lexical_match_score(&query_terms, &candidate);
             let metadata_score = metadata_match_score(&query_terms, &candidate);
             let fts_score = candidate.fts_rank.map(fts_rank_score).unwrap_or(0.0);
@@ -98,6 +114,20 @@ pub(crate) fn search_with_conn(
     });
     results.truncate(limit.clamp(1, 20));
     Ok(results)
+}
+
+pub(crate) fn semantic_score_for_stored(
+    primary_query: &[f32],
+    fallback_query: Option<&[f32]>,
+    stored: &[f32],
+) -> f32 {
+    let primary = cosine_similarity(primary_query, stored).max(0.0);
+    if primary > 0.0 {
+        return primary;
+    }
+    fallback_query
+        .map(|query| cosine_similarity(query, stored).max(0.0))
+        .unwrap_or(0.0)
 }
 
 fn search_candidates_with_fts(

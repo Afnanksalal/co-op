@@ -8,6 +8,7 @@ import {
   deleteChatSession,
   pinChatSession,
   type ChatProgressEvent,
+  type ChatTokenEvent,
   type DesktopState,
 } from '@/lib/desktop/runtime';
 import { ChatComposer } from './chat-composer';
@@ -18,6 +19,7 @@ import { ChatWorkPanel, mergeChatProgressEvent, type PendingChat } from './chat-
 import { ChatSidebar } from './chat-sidebar';
 
 const CHAT_PROGRESS_EVENT = 'chat-progress';
+const CHAT_TOKEN_EVENT = 'chat-token';
 
 function createDraftSessionId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -49,6 +51,7 @@ export function ChatPanel({
   const [pendingChat, setPendingChat] = useState<PendingChat | null>(null);
   const [progressEvents, setProgressEvents] = useState<ChatProgressEvent[]>([]);
   const [progressTick, setProgressTick] = useState(0);
+  const [streamingText, setStreamingText] = useState('');
   const messageListRef = useRef<HTMLDivElement>(null);
   const pendingSessionRef = useRef<string | null>(null);
   const activeSession = sessionId
@@ -83,6 +86,7 @@ export function ChatPanel({
     pendingForView?.sessionId,
     progressEvents.length,
     progressTick,
+    streamingText,
   ]);
 
 
@@ -109,6 +113,36 @@ export function ChatPanel({
           const activeSessionId = pendingSessionRef.current;
           if (!activeSessionId || event.payload.sessionId !== activeSessionId) return;
           setProgressEvents((current) => mergeChatProgressEvent(current, event.payload));
+        })
+      )
+      .then((unlisten) => {
+        if (cancelled) {
+          unlisten();
+        } else {
+          cleanup = unlisten;
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+      cleanup?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+
+    let cancelled = false;
+    let cleanup: (() => void) | undefined;
+
+    void import('@tauri-apps/api/event')
+      .then(({ listen }) =>
+        listen<ChatTokenEvent>(CHAT_TOKEN_EVENT, (event) => {
+          const activeSessionId = pendingSessionRef.current;
+          if (!activeSessionId || event.payload.sessionId !== activeSessionId) return;
+          if (!event.payload.delta) return;
+          setStreamingText((current) => current + event.payload.delta);
         })
       )
       .then((unlisten) => {
@@ -172,6 +206,7 @@ export function ChatPanel({
     setSessionId(nextSessionId);
     setPendingChat(pending);
     setProgressEvents([]);
+    setStreamingText('');
     setMessage('');
     void runWithState(
       'chat',
@@ -193,6 +228,7 @@ export function ChatPanel({
       }
       setPendingChat(null);
       setProgressEvents([]);
+      setStreamingText('');
     });
   }
 
@@ -247,6 +283,16 @@ export function ChatPanel({
                     events={progressEvents}
                     tick={progressTick}
                   />
+                  {streamingText ? (
+                    <ChatMessageBubble
+                      message={{
+                        id: `${pendingForView.sessionId}-pending-assistant`,
+                        role: 'assistant',
+                        content: streamingText,
+                        agentType: pendingForView.agentType,
+                      }}
+                    />
+                  ) : null}
                 </>
               )}
             </div>

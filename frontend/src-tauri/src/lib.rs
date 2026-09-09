@@ -12,6 +12,7 @@ mod outreach;
 mod outreach_helpers;
 mod providers;
 mod providers_email;
+mod providers_stream;
 mod rag;
 mod research;
 mod research_sources;
@@ -42,6 +43,7 @@ pub use outreach::{
 pub use rag::{add_knowledge_document, search_knowledge};
 pub use research::run_research_query;
 pub use settings::save_model_settings;
+pub use storage::acknowledge_local_warning;
 pub use tools::{analyze_pitch_deck, run_alert_now, run_calculator, save_alert, save_cap_table};
 pub use workflows::*;
 pub use workspace::{save_bookmark, save_integration, save_workspace_profile};
@@ -52,6 +54,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             activate_license,
             add_knowledge_document,
+            acknowledge_local_warning,
             analyze_pitch_deck,
             clear_activation,
             create_campaign,

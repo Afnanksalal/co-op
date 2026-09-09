@@ -10,10 +10,10 @@
 Breaks the local-first product contract. Core app should work offline with a private model.
 
 **Acceptance criteria**
-- [ ] Assistant settings can be saved without a Firecrawl key
-- [ ] Chat / workflows / RAG work when research is off and no Firecrawl key is saved
-- [ ] Web research actions still fail closed with a clear message when key is missing
-- [ ] Settings UI does not force the Sources tab when only assistant settings changed
+- [x] Assistant settings can be saved without a Firecrawl key
+- [x] Chat / workflows / RAG work when research is off and no Firecrawl key is saved
+- [x] Web research actions still fail closed with a clear message when key is missing
+- [x] Settings UI does not force the Sources tab when only assistant settings changed
 
 ---
 
@@ -28,10 +28,10 @@ Lead extraction leaves `email` empty by design (good for anti-hallucination), bu
 Owners think they found emailable prospects when they only have source-page candidates.
 
 **Acceptance criteria**
-- [ ] Distinguish **source candidates** vs **contacts with email** in UI and data model/status
-- [ ] Never show invented fit scores for title-fallback leads (or label them as unverified)
-- [ ] Campaign generate CTA disabled / explained until leads have valid emails
-- [ ] Clear empty-state copy after discovery when emails are missing
+- [x] Distinguish **source candidates** vs **contacts with email** in UI and data model/status
+- [x] Never show invented fit scores for title-fallback leads (or label them as unverified)
+- [x] Campaign generate CTA disabled / explained until leads have valid emails
+- [x] Clear empty-state copy after discovery when emails are missing
 
 ---
 
@@ -48,8 +48,9 @@ Pick one and implement fully:
 - **Option B (better):** Add real `awaiting_approval` status with accept/reject before treating output as final
 
 Also:
-- [ ] Docs/UI copy match the chosen semantics
-- [ ] History badge colors/words match status
+- [x] Docs/UI copy match the chosen semantics (Option B)
+- [x] History badge colors/words match status
+- [x] Memory and `completed_at` wait until Accept
 
 ---
 
@@ -61,10 +62,10 @@ Provider calls hardcode `stream: false`. No abort/cancel path in Rust or UI. Ask
 Latency and stuck runs are the main Ask UX pain and waste tokens/trust.
 
 **Acceptance criteria**
-- [ ] Primary assistant answer streams tokens to the UI
-- [ ] User can cancel an in-flight Ask run
-- [ ] Cancel stops further model/research work (best-effort)
-- [ ] Existing chat-progress stages still work for research/review phases
+- [x] Primary assistant answer streams tokens to the UI
+- [x] User can cancel an in-flight Ask run
+- [x] Cancel stops further model/research work (best-effort)
+- [x] Existing chat-progress stages still work for research/review phases
 
 ---
 
@@ -103,7 +104,7 @@ Pick one:
 
 ---
 
-### [ ] [Issue #15] Outreach send funnel: email required, preview, honest status
+### [x] [Issue #15] Outreach send funnel: email required, preview, honest status
 **Problem**
 Discovery often cannot produce sendable leads. Generate requires valid emails (good) but the funnel from "Find prospects" does not explain that. Send marks campaign `sent_or_attempted` even if all fail; weak preview/edit gate before batch send.
 
@@ -111,10 +112,11 @@ Discovery often cannot produce sendable leads. Generate requires valid emails (g
 Emailing prospects is the highest-risk owner action and has the weakest end-to-end story.
 
 **Acceptance criteria**
-- [ ] Explicit "email required" step before generate/send
-- [ ] Per-draft preview/edit before send batch
-- [ ] Campaign status reflects actual outcomes (not all-or-nothing attempted)
-- [ ] Optional dry-run / test send path
+- [x] Explicit "email required" step before generate/send
+- [x] Per-draft preview/edit before send batch
+- [x] Campaign status reflects actual outcomes (not all-or-nothing attempted)
+- [x] Optional dry-run / test send path
+- [x] Batch "Send all" requires a second Confirm send (`confirmSend`)
 
 ---
 
@@ -149,7 +151,7 @@ These are exactly where regressions will ship after the workflow merge.
 **Acceptance criteria**
 - [ ] Rust tests: settings/chat allowed without Firecrawl when research off
 - [ ] Rust tests: lead fallback is labeled/unverified (no fake strong fit)
-- [ ] Rust tests: approval status naming/behavior matches chosen design (#11)
+- [x] Rust tests: approval status naming/behavior matches chosen design (#11)
 - [ ] Rust tests: embed batch never mixes spaces / wrong versions
 - [ ] At least one frontend smoke test for settings save gating (if test runner exists or add minimal one)
 
@@ -174,7 +176,7 @@ Next features dump into these files; reviews and ownership get harder.
 
 ---
 
-### [ ] [Issue #19] Align AGENT_ORCHESTRATION docs with runtime behavior
+### [x] [Issue #19] Align AGENT_ORCHESTRATION docs with runtime behavior
 **Problem**
 `docs/AGENT_ORCHESTRATION.md` drifts from code:
 - implies provider embeddings for memories (code keeps memories local lexical)
@@ -184,9 +186,9 @@ Next features dump into these files; reviews and ownership get harder.
 Next agents/PRs will implement features under wrong assumptions.
 
 **Acceptance criteria**
-- [ ] Docs describe actual embedding spaces (files vs memories)
-- [ ] Docs describe actual review vs approval semantics after #11 lands
-- [ ] Short "what is intentionally not implemented" section for dead ends
+- [x] Docs describe actual embedding spaces (files vs memories)
+- [x] Docs describe actual review vs approval semantics after #11 lands
+- [x] Short "what is intentionally not implemented" section for dead ends
 
 ---
 

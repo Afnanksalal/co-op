@@ -124,6 +124,8 @@ pub struct CampaignRequest {
 #[serde(rename_all = "camelCase")]
 pub struct CampaignEmailRequest {
     pub campaign_id: String,
+    #[serde(default)]
+    pub confirm_send: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]

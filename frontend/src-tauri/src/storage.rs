@@ -54,6 +54,14 @@ pub fn save_state(app: &AppHandle, state: &DesktopState) -> Result<(), String> {
         .map_err(|error| format!("Failed to replace local state atomically: {error}"))
 }
 
+#[tauri::command]
+pub fn acknowledge_local_warning(app: AppHandle) -> Result<DesktopStateResponse, String> {
+    let mut state = load_or_create_state(&app)?;
+    state.last_local_warning = None;
+    save_state(&app, &state)?;
+    Ok(to_response(state))
+}
+
 pub fn to_response(state: DesktopState) -> DesktopStateResponse {
     let is_usable = state
         .activation

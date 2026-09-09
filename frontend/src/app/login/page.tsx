@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { LandingBackground } from '@/components/ui/background';
+import { isTauriRuntime } from '@/lib/desktop/runtime';
 import { clearAllAuthStorage, createClient } from '@/lib/supabase/client';
 
 function safeNext(value: string | null, fallback: string): string {
@@ -56,9 +57,7 @@ function LoginContent() {
   async function handleGoogleSignIn() {
     setIsLoading(true);
     const supabase = createClient();
-    const isTauri =
-      typeof window !== 'undefined' &&
-      Boolean((window as unknown as { __TAURI__?: unknown }).__TAURI__);
+    const isTauri = isTauriRuntime();
     const next = safeNext(searchParams.get('next'), isTauri ? '/activate' : '/account');
 
     const { error } = await supabase.auth.signInWithOAuth({

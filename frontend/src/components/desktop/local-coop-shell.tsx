@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
+  acknowledgeLocalWarning,
   getActivationState,
   isTauriRuntime,
   type DesktopState,
@@ -111,13 +112,15 @@ export function LocalCoOpShell() {
   }, [runtimeAvailable]);
 
   useEffect(() => {
-    if (state?.lastLocalWarning) {
-      toast.warning('Warning', {
-        description: state.lastLocalWarning,
-        duration: 8000,
-        id: 'local-warning'
-      });
-    }
+    if (!state?.lastLocalWarning) return;
+    toast.warning('Warning', {
+      description: state.lastLocalWarning,
+      duration: 8000,
+      id: 'local-warning',
+    });
+    void acknowledgeLocalWarning()
+      .then((next) => setState(next))
+      .catch(() => undefined);
   }, [state?.lastLocalWarning]);
 
   function setMessage(value: string) {

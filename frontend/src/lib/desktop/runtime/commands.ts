@@ -239,6 +239,11 @@ export async function saveIntegration(request: IntegrationRequest): Promise<Desk
   return invokeDesktop<DesktopState>('save_integration', { request });
 }
 
+export async function acknowledgeLocalWarning(): Promise<DesktopState> {
+  if (!isTauriRuntime()) return getActivationState();
+  return invokeDesktop<DesktopState>('acknowledge_local_warning');
+}
+
 function throwDesktopOnly(feature: string): never {
   throw new Error(`Co-Op Desktop is required for ${feature.toLowerCase()}.`);
 }

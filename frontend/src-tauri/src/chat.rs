@@ -11,7 +11,7 @@ use crate::guardrails::{
     QuestionType,
 };
 use crate::memory::{memory_context_from_store, remember_business_event};
-use crate::providers::call_model;
+use crate::providers::{call_model, call_model_streaming};
 use crate::knowledge_store::document_context_for_app;
 use crate::research::research_context_for_business;
 use crate::storage::{load_or_create_state, require_usable_activation, save_state, to_response};
@@ -20,6 +20,7 @@ use crate::validation::{validate_chat_request, validate_read_only};
 use crate::workflows::workspace_context;
 
 const CHAT_PROGRESS_EVENT: &str = "chat-progress";
+const CHAT_TOKEN_EVENT: &str = "chat-token";
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -30,6 +31,13 @@ struct ChatProgressEvent {
     title: &'static str,
     detail: &'static str,
     created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ChatTokenEvent {
+    session_id: String,
+    delta: String,
 }
 
 pub struct ChatCancelFlag(pub AtomicBool);
@@ -68,8 +76,9 @@ pub async fn run_agent_chat(
     require_usable_activation(&state)?;
     let settings = validate_read_only(&state.model_settings)?;
     // Reset cancel flag at start of each chat
-    let cancel_flag = app.state::<ChatCancelFlag>();
-    cancel_flag.0.store(false, Ordering::SeqCst);
+    app.state::<ChatCancelFlag>()
+        .0
+        .store(false, Ordering::SeqCst);
     eprintln!("[DIAG] run_agent_chat: research_enabled={}, rag_enabled={}, agent_type={}", request.research_enabled, request.rag_enabled, request.agent_type);
     
     if !crate::guardrails::message_has_business_context(&request.message.to_lowercase())
@@ -161,6 +170,7 @@ pub async fn run_agent_chat(
     );
 
     let mut local_context = String::new();
+    check_cancel(&app)?;
     if request.rag_enabled {
         emit_chat_progress(
             &app,
@@ -229,6 +239,7 @@ pub async fn run_agent_chat(
     let mut source_context_attached = false;
     
     let mut web_error: Option<String> = None;
+    check_cancel(&app)?;
     if use_web {
         emit_chat_progress(
             &app,
@@ -350,7 +361,18 @@ pub async fn run_agent_chat(
         "Combining company context, sources, and the selected advisor style.",
     );
     check_cancel(&app)?;
-    let mut answer = call_model(&settings, &system_prompt, &prompt, Some(0.2)).await?;
+    let cancel_flag = app.state::<ChatCancelFlag>();
+    let session_id_for_stream = session_id.clone();
+    let app_for_stream = app.clone();
+    let mut answer = call_model_streaming(
+        &settings,
+        &system_prompt,
+        &prompt,
+        Some(0.2),
+        &cancel_flag.0,
+        &mut |delta| emit_chat_token(&app_for_stream, &session_id_for_stream, delta),
+    )
+    .await?;
 
     if request.a2a_enabled && (question_type == QuestionType::Planning || question_type == QuestionType::Brainstorming) {
         check_cancel(&app)?;
@@ -462,6 +484,19 @@ fn emit_chat_progress(
             title,
             detail,
             created_at: Utc::now().to_rfc3339(),
+        },
+    );
+}
+
+fn emit_chat_token(app: &AppHandle, session_id: &str, delta: &str) {
+    if delta.is_empty() {
+        return;
+    }
+    let _ = app.emit(
+        CHAT_TOKEN_EVENT,
+        ChatTokenEvent {
+            session_id: session_id.to_string(),
+            delta: delta.to_string(),
         },
     );
 }
