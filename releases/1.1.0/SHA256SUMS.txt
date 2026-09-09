@@ -1,0 +1,2 @@
+34f23ca724bbda2a99b46d41816e5f13f457f3e44d42967beb2180a2c30c3521  Co-Op_1.1.0_x64-setup.exe
+86c3e15fa012ee8e569df5dd6a34b3e83958d8cf3ad883db04fde0e1fddf1886  Co-Op_1.1.0_x64_en-US.msi

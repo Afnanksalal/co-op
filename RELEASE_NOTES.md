@@ -1,5 +1,27 @@
 # Release Notes
 
+## 1.1.0 - 2026-09-09
+
+This release makes high-risk work actually gated, Ask answers stream as they are written, and campaign send requires a second confirmation before mail goes out.
+
+### Highlights
+
+- Work plans that need approval stay awaiting acceptance. Memory is written only after Accept; Reject does not treat the plan as finished.
+- The primary Ask answer streams tokens to the desktop. Cancel stops further research and aborts the stream between chunks.
+- Batch campaign send requires Confirm send. Campaign status reflects sent, partial, and failed outcomes instead of a single attempted state.
+- Core chat, plans, and file search work without a web-search key. Firecrawl stays required for live research and lead discovery.
+- Lead discovery no longer presents invented fit scores for source-page candidates, and generate/send stay blocked until a real email exists.
+- File reindex upgrades only company-file vectors that actually came from the provider. Business memories stay in the local lexical space.
+- License heartbeat uses the pinned cloud origin from the build, not a URL stored in local state.
+- Hidden Connections/integrations UI stays out of Settings until a real consumer exists.
+
+### Verification
+
+- Passed backend tests and backend build.
+- Passed frontend typecheck and hosted web build.
+- Passed Rust tests and Rust clippy with warnings denied.
+- Built the Windows NSIS and MSI installers for Co-Op Desktop 1.1.0.
+
 ## 1.0.4 - 2026-06-22
 
 This release reworks the desktop page flow so Company and the other work surfaces scroll like a professional desktop workspace instead of a stack of competing panels.
