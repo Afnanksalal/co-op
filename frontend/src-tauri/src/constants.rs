@@ -40,4 +40,4 @@ pub const MAX_PITCH_DECKS: usize = 250;
 pub const MAX_CAP_TABLES: usize = 250;
 pub const MAX_BOOKMARKS: usize = 1_000;
 pub const MAX_INTEGRATIONS: usize = 250;
-pub const APP_VERSION_FALLBACK: &str = "1.0.0";
+pub const APP_VERSION_FALLBACK: &str = "1.1.0";
