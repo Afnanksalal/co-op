@@ -4,7 +4,8 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
 use crate::constants::MAX_DOCUMENTS;
-use crate::rag::{chunk_text, embed_text_local, embed_texts_batch};
+use crate::constants::PROVIDER_EMBEDDING_VERSION;
+use crate::rag::{chunk_text, embed_batch, embed_text_local, EmbeddingSpace};
 use crate::types::{DesktopState, KnowledgeChunk, KnowledgeDocument, ModelSettings};
 
 pub(crate) mod schema;
@@ -297,23 +298,23 @@ struct ReindexProgressEvent {
     stage: &'static str,
 }
 
-/// Re-embed all knowledge chunks and business memories that still have old
-/// hash-based vectors (embedding_version = 0). Runs in batches of 5 using
-/// batch embedding API. Emits `reindex-progress` events for UI observability.
+/// Re-embed company-file chunks that still have hash-based vectors.
+/// Business memories stay in the local lexical space and are never upgraded.
 pub async fn reindex_stale_embeddings(app: &AppHandle, settings: &ModelSettings) {
     let conn = match open_store(app) {
         Ok(c) => c,
         Err(_) => return,
     };
 
-    // Test one embedding call first — bail early if provider has no embeddings
     if let Err(e) = crate::providers::call_embedding(settings, "test").await {
         eprintln!("Embedding provider unavailable — skipping re-index: {}", e);
-        let _ = app.emit("index-warning", format!("Background re-indexing paused: Embedding provider unavailable ({})", e));
+        let _ = app.emit(
+            "index-warning",
+            format!("Background re-indexing paused: Embedding provider unavailable ({})", e),
+        );
         return;
     }
 
-    // Re-index knowledge chunks
     let stale_chunks: Vec<(String, String)> = {
         let mut stmt = match conn.prepare(
             "SELECT id, content FROM knowledge_chunks WHERE embedding_version = 0 LIMIT 500",
@@ -321,70 +322,55 @@ pub async fn reindex_stale_embeddings(app: &AppHandle, settings: &ModelSettings)
             Ok(s) => s,
             Err(_) => return,
         };
-        let rows = match stmt.query_map([], |row| {
+        let mapped = match stmt.query_map([], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
         }) {
-            Ok(rows) => rows.filter_map(|r| r.ok()).collect(),
+            Ok(rows) => rows,
             Err(_) => return,
         };
-        rows
-    };
-
-
-    // Re-index business memories
-    let stale_memories: Vec<(String, String, String, String)> = {
-        let mut stmt = match conn.prepare(
-            "SELECT id, title, memory_type, content FROM business_memories WHERE embedding_version = 0 LIMIT 500",
-        ) {
-            Ok(s) => s,
-            Err(_) => return,
-        };
-        let rows = match stmt.query_map([], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-                row.get::<_, String>(3)?,
-            ))
-        }) {
-            Ok(rows) => rows.filter_map(|r| r.ok()).collect(),
-            Err(_) => return,
-        };
-        rows
+        let chunks: Vec<(String, String)> = mapped.filter_map(|row| row.ok()).collect();
+        chunks
     };
 
     let total_chunks = stale_chunks.len();
-    let total_memories = stale_memories.len();
-    if total_chunks == 0 && total_memories == 0 {
+    if total_chunks == 0 {
         return;
     }
 
     let mut processed: usize = 0;
     let mut errors: usize = 0;
-    let total = total_chunks + total_memories;
-
     let emit_progress = |app: &AppHandle, processed: usize, errors: usize, stage: &'static str| {
-        let _ = app.emit("reindex-progress", ReindexProgressEvent {
-            total_chunks,
-            total_memories,
-            processed,
-            errors,
-            stage,
-        });
+        let _ = app.emit(
+            "reindex-progress",
+            ReindexProgressEvent {
+                total_chunks,
+                total_memories: 0,
+                processed,
+                errors,
+                stage,
+            },
+        );
     };
 
     emit_progress(app, 0, 0, "started");
 
-    // Batch-embed chunks
     for batch in stale_chunks.chunks(5) {
-        let texts: Vec<&str> = batch.iter().map(|(_, content)| content.as_str()).collect();
-        let vectors = embed_texts_batch(settings, &texts).await;
-        for ((id, _), vector) in batch.iter().zip(vectors.iter()) {
+        let texts: Vec<String> = batch.iter().map(|(_, content)| content.clone()).collect();
+        let embedded = embed_batch(Some(app), settings, &texts).await;
+        if embedded.space != EmbeddingSpace::Provider {
+            processed += batch.len();
+            emit_progress(app, processed, errors, "chunks");
+            continue;
+        }
+        for ((id, _), vector) in batch.iter().zip(embedded.vectors.iter()) {
             let blob = vector_to_blob(vector);
-            if conn.execute(
-                "UPDATE knowledge_chunks SET vector = ?1, embedding_version = 1 WHERE id = ?2",
-                rusqlite::params![blob, id],
-            ).is_err() {
+            if conn
+                .execute(
+                    "UPDATE knowledge_chunks SET vector = ?1, embedding_version = ?2 WHERE id = ?3",
+                    rusqlite::params![blob, PROVIDER_EMBEDDING_VERSION, id],
+                )
+                .is_err()
+            {
                 errors += 1;
             }
         }
@@ -393,31 +379,10 @@ pub async fn reindex_stale_embeddings(app: &AppHandle, settings: &ModelSettings)
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     }
 
-    // Batch-embed memories
-    for batch in stale_memories.chunks(5) {
-        let combined: Vec<String> = batch.iter()
-            .map(|(_, title, memory_type, content)| format!("{} {} {}", title, memory_type, content))
-            .collect();
-        let texts: Vec<&str> = combined.iter().map(|s| s.as_str()).collect();
-        let vectors = embed_texts_batch(settings, &texts).await;
-        for ((id, _, _, _), vector) in batch.iter().zip(vectors.iter()) {
-            let blob = vector_to_blob(vector);
-            if conn.execute(
-                "UPDATE business_memories SET vector = ?1, embedding_version = 1 WHERE id = ?2",
-                rusqlite::params![blob, id],
-            ).is_err() {
-                errors += 1;
-            }
-        }
-        processed += batch.len();
-        emit_progress(app, processed, errors, "memories");
-        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-    }
-
-    emit_progress(app, total, errors, "done");
+    emit_progress(app, total_chunks, errors, "done");
     eprintln!(
-        "Re-indexed {} chunks and {} memories with provider embeddings ({} errors)",
-        total_chunks, total_memories, errors
+        "Re-indexed {} file chunks with provider embeddings ({} errors). Memories stay local.",
+        total_chunks, errors
     );
 }
 

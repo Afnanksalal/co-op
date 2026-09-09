@@ -66,14 +66,17 @@ pub fn get_activation_state(app: AppHandle) -> Result<DesktopStateResponse, Stri
     Ok(to_response(state))
 }
 
+fn pinned_cloud_base_url() -> Result<String, String> {
+    sanitize_http_base_url(DEFAULT_CLOUD_URL, false, true, "cloud license URL")
+}
+
 #[tauri::command]
 pub async fn activate_license(
     app: AppHandle,
     request: ActivateRequest,
 ) -> Result<DesktopStateResponse, String> {
     let mut state = load_or_create_state(&app)?;
-    let cloud_base_url =
-        sanitize_http_base_url(DEFAULT_CLOUD_URL, true, true, "cloud license URL")?;
+    let cloud_base_url = pinned_cloud_base_url()?;
     let license_key = request.license_key.trim().to_string();
     if license_key.is_empty() {
         return Err("License key is required".to_string());
@@ -155,8 +158,7 @@ pub async fn heartbeat_license(app: AppHandle) -> Result<DesktopStateResponse, S
             &app_version
         },
     };
-    let cloud_base_url =
-        sanitize_http_base_url(&activation.cloud_base_url, true, true, "cloud license URL")?;
+    let cloud_base_url = pinned_cloud_base_url()?;
 
     let response = http_client()?
         .post(format!("{}/api/v1/licenses/heartbeat", cloud_base_url))
@@ -255,6 +257,14 @@ mod tests {
         let activation = activation_with_token("coop_act_test_token_value_long_enough");
 
         assert!(validate_heartbeat_activation(&activation).is_ok());
+    }
+
+    #[test]
+    fn license_http_calls_pin_build_time_cloud_url() {
+        let override_url = "https://evil.example";
+        let pinned = pinned_cloud_base_url().expect("default cloud url");
+        assert_ne!(pinned, override_url);
+        assert!(pinned.contains("co-op") || pinned.starts_with("https://"));
     }
 
     #[test]

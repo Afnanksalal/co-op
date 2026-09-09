@@ -1,6 +1,6 @@
 use crate::types::StartupProfile;
 
-pub fn workspace_context(profile: &crate::types::StartupProfile) -> String {
+pub fn workspace_context(profile: &StartupProfile) -> String {
     let mut lines: Vec<String> = Vec::new();
 
     let founder_name = profile.founder_name.trim();

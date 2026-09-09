@@ -373,6 +373,7 @@ pub async fn send_campaign_emails(
     if indexes.is_empty() {
         return Err("No generated unsent campaign emails found".to_string());
     }
+    require_campaign_send_confirmation(request.confirm_send)?;
 
     let mut sent_recipients =
         sent_recipients_for_campaign(&state.campaign_emails, &request.campaign_id);
@@ -472,6 +473,14 @@ pub async fn send_single_campaign_email(
     state.model_settings = settings;
     save_state(&app, &state)?;
     Ok(to_response(state))
+}
+
+fn require_campaign_send_confirmation(confirm_send: bool) -> Result<(), String> {
+    if confirm_send {
+        Ok(())
+    } else {
+        Err("Confirm send is required before sending campaign emails".to_string())
+    }
 }
 
 fn update_campaign_status_from_emails(state: &mut DesktopState, campaign_id: &str) {
@@ -588,6 +597,12 @@ mod tests {
         update_campaign_status_from_emails(&mut state, "c1");
 
         assert_eq!(state.campaigns[0].status, "emails_generated");
+    }
+
+    #[test]
+    fn send_all_requires_explicit_confirmation() {
+        assert!(require_campaign_send_confirmation(false).is_err());
+        assert!(require_campaign_send_confirmation(true).is_ok());
     }
 
     // Issue #15: Emails from other campaigns don't affect status.

@@ -207,3 +207,12 @@ fn index_exists(conn: &Connection, index_name: &str) -> Result<bool, String> {
     .map(|value| value.unwrap_or(false))
     .map_err(|error| format!("Failed to inspect index: {error}"))
 }
+
+#[test]
+fn mixed_embedding_spaces_fall_back_to_matching_query_vector() {
+    let local = crate::rag::embed_text_local("runway burn cash");
+    let provider = vec![0.2; 8];
+    assert_eq!(semantic_score_for_stored(&provider, None, &local), 0.0);
+    let score = semantic_score_for_stored(&provider, Some(&local), &local);
+    assert!(score > 0.9);
+}

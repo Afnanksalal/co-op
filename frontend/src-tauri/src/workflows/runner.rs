@@ -12,7 +12,7 @@ use crate::memory::{memory_context_from_store, remember_business_event};
 use crate::providers::call_model;
 use crate::knowledge_store::document_context_for_app;
 use crate::research::research_context_for_business;
-use crate::storage::{load_or_create_state, require_usable_activation, save_state};
+use crate::storage::{load_or_create_state, require_usable_activation, save_state, to_response};
 use crate::types::{WorkflowRequest, WorkflowRun, WorkflowTraceEvent};
 use crate::validation::{validate_read_only, validate_workflow_request};
 
@@ -320,11 +320,7 @@ fn finalize_workflow(
     match output {
         Ok(content) => {
             validate_model_output(&content, web_required, source_context_attached, false)?;
-            run.status = if run.approval_required {
-                "awaiting_approval".to_string()
-            } else {
-                "completed".to_string()
-            };
+            run.status = successful_workflow_status(run.approval_required).to_string();
             run.output = Some(content);
             push_trace(
                 &mut run,
@@ -341,12 +337,18 @@ fn finalize_workflow(
         }
     }
 
-    run.completed_at = Some(Utc::now().to_rfc3339());
-    let memory_output = run.output.clone();
+    if run.status != "awaiting_approval" {
+        run.completed_at = Some(Utc::now().to_rfc3339());
+    }
+    let memory_output = if should_persist_workflow_memory(&run.status) {
+        run.output.clone()
+    } else {
+        None
+    };
     state.workflow_runs.insert(0, run.clone());
     state.workflow_runs.truncate(MAX_STORED_WORKFLOW_RUNS);
     if let Some(content) = memory_output {
-        let _ = remember_business_event(
+        remember_business_event(
             &app,
             &mut state,
             "plan",
@@ -361,37 +363,73 @@ fn finalize_workflow(
 }
 
 #[tauri::command]
-pub async fn approve_workflow_run(app: AppHandle, run_id: String) -> Result<crate::types::DesktopState, String> {
+pub async fn approve_workflow_run(app: AppHandle, run_id: String) -> Result<crate::types::DesktopStateResponse, String> {
     let mut state = load_or_create_state(&app)?;
-    let run = state
-        .workflow_runs
-        .iter_mut()
-        .find(|r| r.id == run_id)
-        .ok_or_else(|| "Workflow run not found".to_string())?;
-    if run.status != "awaiting_approval" {
-        return Err(format!("Cannot approve a run with status '{}'", run.status));
+    {
+        let run = state
+            .workflow_runs
+            .iter_mut()
+            .find(|r| r.id == run_id)
+            .ok_or_else(|| "Workflow run not found".to_string())?;
+        apply_workflow_decision(run, true)?;
     }
-    run.status = "completed".to_string();
-    run.completed_at = Some(Utc::now().to_rfc3339());
+    if let Some(run) = state.workflow_runs.iter().find(|r| r.id == run_id).cloned() {
+        if let Some(content) = run.output {
+            remember_business_event(
+                &app,
+                &mut state,
+                "plan",
+                &run.objective,
+                &content,
+                "plans",
+                0.84,
+            );
+        }
+    }
     save_state(&app, &state)?;
-    Ok(state)
+    Ok(to_response(state))
 }
 
 #[tauri::command]
-pub async fn reject_workflow_run(app: AppHandle, run_id: String) -> Result<crate::types::DesktopState, String> {
+pub async fn reject_workflow_run(app: AppHandle, run_id: String) -> Result<crate::types::DesktopStateResponse, String> {
     let mut state = load_or_create_state(&app)?;
     let run = state
         .workflow_runs
         .iter_mut()
         .find(|r| r.id == run_id)
         .ok_or_else(|| "Workflow run not found".to_string())?;
-    if run.status != "awaiting_approval" {
-        return Err(format!("Cannot reject a run with status '{}'", run.status));
-    }
-    run.status = "rejected".to_string();
-    run.completed_at = Some(Utc::now().to_rfc3339());
+    apply_workflow_decision(run, false)?;
     save_state(&app, &state)?;
-    Ok(state)
+    Ok(to_response(state))
+}
+
+pub(crate) fn successful_workflow_status(approval_required: bool) -> &'static str {
+    if approval_required {
+        "awaiting_approval"
+    } else {
+        "completed"
+    }
+}
+
+pub(crate) fn should_persist_workflow_memory(status: &str) -> bool {
+    status == "completed"
+}
+
+pub(crate) fn apply_workflow_decision(run: &mut WorkflowRun, approve: bool) -> Result<(), String> {
+    if run.status != "awaiting_approval" {
+        return Err(format!(
+            "Cannot {} a run with status '{}'",
+            if approve { "approve" } else { "reject" },
+            run.status
+        ));
+    }
+    run.status = if approve {
+        "completed".to_string()
+    } else {
+        "rejected".to_string()
+    };
+    run.completed_at = Some(Utc::now().to_rfc3339());
+    Ok(())
 }
 
 fn push_trace(run: &mut WorkflowRun, stage: &str, label: &str, status: &str, detail: &str) {
@@ -438,72 +476,48 @@ mod tests {
 
     #[test]
     fn approval_required_blocks_immediate_completion() {
-        let mut run = WorkflowRun::default();
-        run.approval_required = true;
-
-        // Simulate finalize logic: approval_required → awaiting_approval
-        run.status = if run.approval_required {
-            "awaiting_approval".to_string()
-        } else {
-            "completed".to_string()
-        };
-
-        assert_eq!(run.status, "awaiting_approval");
-        assert_ne!(run.status, "completed");
+        assert_eq!(successful_workflow_status(true), "awaiting_approval");
+        assert_eq!(successful_workflow_status(false), "completed");
+        assert!(!should_persist_workflow_memory("awaiting_approval"));
+        assert!(should_persist_workflow_memory("completed"));
     }
 
     #[test]
     fn approve_transitions_awaiting_to_completed() {
-        let mut run = WorkflowRun::default();
-        run.status = "awaiting_approval".to_string();
-
-        // Simulate approve logic from approve_workflow_run
-        assert_eq!(run.status, "awaiting_approval");
-        run.status = "completed".to_string();
-        run.completed_at = Some(Utc::now().to_rfc3339());
-
+        let mut run = WorkflowRun {
+            status: "awaiting_approval".to_string(),
+            ..Default::default()
+        };
+        apply_workflow_decision(&mut run, true).expect("approve awaiting run");
         assert_eq!(run.status, "completed");
         assert!(run.completed_at.is_some());
     }
 
     #[test]
     fn reject_transitions_awaiting_to_rejected() {
-        let mut run = WorkflowRun::default();
-        run.status = "awaiting_approval".to_string();
-
-        // Simulate reject logic from reject_workflow_run
-        assert_eq!(run.status, "awaiting_approval");
-        run.status = "rejected".to_string();
-        run.completed_at = Some(Utc::now().to_rfc3339());
-
+        let mut run = WorkflowRun {
+            status: "awaiting_approval".to_string(),
+            ..Default::default()
+        };
+        apply_workflow_decision(&mut run, false).expect("reject awaiting run");
         assert_eq!(run.status, "rejected");
         assert!(run.completed_at.is_some());
     }
 
     #[test]
     fn cannot_approve_non_awaiting_run() {
-        let run = WorkflowRun::default();
-        // Default status is empty/completed — not awaiting_approval
-        let result = if run.status != "awaiting_approval" {
-            Err(format!("Cannot approve a run with status '{}'", run.status))
-        } else {
-            Ok(())
-        };
-
-        assert!(result.is_err());
+        let mut run = WorkflowRun::default();
+        let error = apply_workflow_decision(&mut run, true).expect_err("empty status cannot approve");
+        assert!(error.contains("Cannot approve"));
     }
 
     #[test]
     fn cannot_reject_completed_run() {
-        let mut run = WorkflowRun::default();
-        run.status = "completed".to_string();
-
-        let result = if run.status != "awaiting_approval" {
-            Err(format!("Cannot reject a run with status '{}'", run.status))
-        } else {
-            Ok(())
+        let mut run = WorkflowRun {
+            status: "completed".to_string(),
+            ..Default::default()
         };
-
-        assert!(result.is_err());
+        let error = apply_workflow_decision(&mut run, false).expect_err("completed cannot reject");
+        assert!(error.contains("Cannot reject"));
     }
 }

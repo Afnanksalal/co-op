@@ -70,7 +70,7 @@ Advisor chat supports:
 - Competitor.
 - Sales.
 
-The desktop UI subscribes to safe `chat-progress` events while a chat run is executing. These events are owner-facing workflow status only:
+The desktop UI subscribes to safe `chat-progress` events while a chat run is executing, and to `chat-token` events for the primary answer. Progress events are owner-facing workflow status only:
 
 - Understand the request.
 - Load company context.
@@ -117,9 +117,11 @@ Co-Op uses a hybrid embedding architecture to stay completely local and fast, av
 
 - **Provider Embeddings:** If the configured provider (Ollama or OpenAI-compatible) supports an embedding endpoint (`/api/embeddings` or `/v1/embeddings`), Co-Op automatically generates dense vector embeddings for company files.
 - **Enhanced Local Fallback:** If the provider lacks an embedding endpoint (e.g., Groq) or is unreachable, Co-Op falls back to a 128-dimension lexical hash vector algorithm. This fallback includes suffix-stripping stemming, bigram generation, and a dictionary of 150+ business synonym clusters to map related concepts without needing a language model.
-- **Background Re-indexing:** When a user switches to a provider that supports true embeddings, Co-Op automatically upgrades any legacy hash-based vectors to dense semantic vectors in a background task on the next app startup.
+- **Background Re-indexing:** When a user switches to a provider that supports true embeddings, Co-Op upgrades stale **file** chunk vectors in a background task. It only writes a provider embedding version when the batch actually came from the provider. Local fallback results are left unchanged so search never mixes spaces under a fake upgrade.
+- **Memories stay local:** Business memories always use the local lexical embedding space. Reindex never upgrades them to provider vectors.
+- **Mixed-space search:** File search scores stored vectors against a matching query embedding. If a stored file vector is still local while the current provider query is dense, search falls back to a local query vector instead of treating a dimension mismatch as a hit.
 
-All embeddings (whether dense provider vectors or local fallback hashes) are stored directly inside the local SQLite database alongside the text chunks.
+All embeddings (whether dense provider vectors or local fallback hashes) are stored directly inside the local SQLite database alongside the text chunks. Provider embedding calls use a dedicated embedding model name, not the chat model, unless the configured chat model itself looks like an embedding model.
 
 ## Review Policy
 
@@ -165,10 +167,10 @@ Implementation anchors:
 
 - `guardrails.rs` (and `guardrails_rules.rs`) classifies question type (factual, planning, action request, comparison, brainstorming) to drive proportional response formatting, while applying context-aware input/output gates.
 - `chat.rs` uses adaptive formatting, source-gated web research, memory context, and A2A review filters that discard generic corporate filler.
-- `chat.rs` emits safe progress events so the UI can show what stage is running without exposing hidden reasoning.
-- `workflows.rs` uses the same guardrails and adaptive question typing for work plans, applying a strict "unknowns" policy to prevent hallucination from sparse company profiles.
-- `knowledge_store/` encapsulates all local RAG behavior, including `search.rs` for SQLite FTS5 + lexical vector matching, and background migrations for legacy vectors.
-- `providers.rs` and `providers_email.rs` abstract the underlying API contracts for Ollama, OpenAI-compatible APIs, Firecrawl, Resend, and SendGrid.
+- `chat.rs` emits safe progress events and streams the primary answer with `chat-token` events. Extra review passes stay unary. Cancel sets a flag that stops further research and aborts the token stream between chunks.
+- `workflows/runner.rs` uses the same guardrails and adaptive question typing for work plans, applying a strict "unknowns" policy to prevent hallucination from sparse company profiles. High-risk plans stay `awaiting_approval` until the owner accepts or rejects; memory is written only after accept.
+- `knowledge_store/` encapsulates all local RAG behavior, including `search.rs` for SQLite FTS5 + lexical vector matching, and background file-chunk reindex. Memories remain local-only.
+- `providers.rs`, `providers_stream.rs`, and `providers_email.rs` abstract the underlying API contracts for Ollama, OpenAI-compatible APIs, Firecrawl, Resend, and SendGrid.
 - `research.rs` always requires Firecrawl-backed sources and validates the sourced summary.
 - `research_sources.rs` plans and filters web sources, including multi-query competitor searches from company, offering, buyer, and region context.
 - `outreach.rs` requires source-backed lead discovery, blocks unsafe generated email output, and enforces honest per-email send outcomes and draft editing.
@@ -265,7 +267,7 @@ Every answer should be written for an owner who needs to make progress. Response
 - Include risks and approvals where needed.
 - Give concrete next actions.
 - Avoid technical terms unless the user is in Settings or documentation.
-- Mark legal, finance, security, privacy, hiring, termination, payment, and compliance actions for human review.
+- Mark legal, finance, security, privacy, hiring, termination, payment, and compliance actions for human review. Work plans that require approval are not treated as complete until the owner accepts them in History.
 
 ## Extending The Harness
 
@@ -284,9 +286,9 @@ Before adding a provider:
 
 These features are out of scope by design. Do not implement them without a product decision:
 
-- **Token-level streaming:** Provider calls use unary HTTP POST. Streaming would require `reqwest` stream features, SSE parsing, and incremental frontend rendering. The cancel button provides immediate relief instead.
+- **Streaming extra review passes:** The primary Ask answer streams tokens. A2A/council review stays a unary call.
 - **Multi-provider fan-out:** Co-Op uses one provider per request. Sending the same prompt to multiple providers simultaneously is explicitly avoided to reduce cost and complexity.
 - **Cloud vector database:** All embeddings live in local SQLite. There is no Pinecone/Weaviate/Qdrant integration.
 - **Connections / integrations tab:** The settings UI surface for MCP/webhook/notion/crm was removed because no backend consumer reads `state.integrations`. Re-add only when a concrete consumer exists.
-- **Automatic email sending without preview:** All campaign emails require per-draft preview and explicit send. There is no batch auto-send.
-- **Provider-specific embedding models:** Embeddings use the same model configured for chat. There is no separate embedding model selector.
+- **Automatic email sending without preview:** Campaign emails require per-draft preview. Batch send requires a second Confirm send click (`confirmSend`). There is no silent auto-send.
+- **Owner-facing embedding model selector:** Provider embedding calls pick a dedicated embedding model automatically. There is no separate Settings control for embedding model names.

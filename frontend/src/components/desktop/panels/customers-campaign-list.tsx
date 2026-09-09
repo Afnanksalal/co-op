@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { EnvelopeSimple } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import {
@@ -26,6 +27,8 @@ export function CampaignList({
     success: string
   ) => Promise<boolean>;
 }) {
+  const [confirmingCampaignId, setConfirmingCampaignId] = useState<string | null>(null);
+
   return (
     <section className="rounded-lg border border-border bg-card p-5 xl:sticky xl:top-14">
       <PanelTitle icon={EnvelopeSimple} title="Outreach plans" />
@@ -73,22 +76,46 @@ export function CampaignList({
                     >
                       Draft emails
                     </Button>
-                    {hasDrafts && (
+                    {hasDrafts && confirmingCampaignId === campaign.id ? (
+                      <>
+                        <Button
+                          size="sm"
+                          disabled={busyAction === 'send'}
+                          onClick={() =>
+                            void runWithState(
+                              'send',
+                              () =>
+                                sendCampaignEmails({
+                                  campaignId: campaign.id,
+                                  confirmSend: true,
+                                }),
+                              'Emails sent.'
+                            ).then((saved) => {
+                              if (saved) setConfirmingCampaignId(null);
+                            })
+                          }
+                        >
+                          Confirm send
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={busyAction === 'send'}
+                          onClick={() => setConfirmingCampaignId(null)}
+                        >
+                          Cancel
+                        </Button>
+                      </>
+                    ) : hasDrafts ? (
                       <Button
                         size="sm"
                         variant="outline"
                         disabled={busyAction === 'send'}
-                        onClick={() =>
-                          void runWithState(
-                            'send',
-                            () => sendCampaignEmails({ campaignId: campaign.id }),
-                            'Emails sent.'
-                          )
-                        }
+                        onClick={() => setConfirmingCampaignId(campaign.id)}
                       >
                         Send all
                       </Button>
-                    )}
+                    ) : null}
                   </div>
                   {!hasEmailableLeads && (
                     <p className="text-xs text-muted-foreground">

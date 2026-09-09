@@ -199,24 +199,18 @@ pub async fn embed_batch(app: Option<&AppHandle>, settings: &ModelSettings, text
 
     if let Ok(probe) = call_embedding(settings, "co-op embedding capability probe").await {
         if !probe.is_empty() {
-            let mut vectors = Vec::with_capacity(texts.len());
-            let mut consistent = true;
-            for text in texts {
-                match call_embedding(settings, text).await {
-                    Ok(vector) if vector.len() == probe.len() && !vector.is_empty() => {
-                        vectors.push(vector);
-                    }
-                    _ => {
-                        consistent = false;
-                        break;
-                    }
+            let refs: Vec<&str> = texts.iter().map(String::as_str).collect();
+            if let Ok(vectors) = call_embedding_batch(settings, &refs).await {
+                let consistent = vectors.len() == texts.len()
+                    && vectors
+                        .iter()
+                        .all(|vector| vector.len() == probe.len() && !vector.is_empty());
+                if consistent {
+                    return EmbeddedBatch {
+                        vectors,
+                        space: EmbeddingSpace::Provider,
+                    };
                 }
-            }
-            if consistent && vectors.len() == texts.len() {
-                return EmbeddedBatch {
-                    vectors,
-                    space: EmbeddingSpace::Provider,
-                };
             }
         }
     }
@@ -240,19 +234,6 @@ pub async fn embed_query_provider(
     match call_embedding(settings, content).await {
         Ok(vector) if !vector.is_empty() => Some(vector),
         _ => None,
-    }
-}
-
-/// Batch-embed multiple texts. Uses provider batch API when available,
-/// falls back to local embeddings for the entire batch on provider failure.
-pub async fn embed_texts_batch(settings: &ModelSettings, texts: &[&str]) -> Vec<Vec<f32>> {
-    match call_embedding_batch(settings, texts).await {
-        Ok(vectors) => vectors,
-        Err(e) => {
-            eprintln!("Batch embedding provider unavailable ({}), using local fallback", e);
-            // Warning is already emitted by embed_batch, or this is called from reindex where warning is handled
-            texts.iter().map(|t| embed_text_local(t)).collect()
-        }
     }
 }
 

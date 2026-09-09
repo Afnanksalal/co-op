@@ -50,13 +50,11 @@ export function SettingsPanel({
   };
 
   const needsModelKey = settings.provider === 'openai_compatible' && !settings.openaiApiKeySaved;
-  const needsFirecrawlKey = !settings.firecrawlApiKeySaved;
   const needsEmailKey = settings.emailProvider !== 'none' && !settings.emailApiKeySaved;
   const modelReady =
     settings.provider !== 'openai_compatible' ||
     settings.openaiApiKeySaved ||
     openaiApiKey.trim().length > 0;
-  const researchReady = settings.firecrawlApiKeySaved || firecrawlApiKey.trim().length > 0;
   const emailReady =
     settings.emailProvider === 'none' ||
     ((settings.emailApiKeySaved || emailApiKey.trim().length > 0) &&
@@ -191,8 +189,8 @@ export function SettingsPanel({
           <div className="space-y-5">
             <PanelTitle icon={MagnifyingGlass} title="Web sources" />
             <p className="text-sm leading-6 text-muted-foreground">
-              Web search is required for market, competitor, legal, customer, pricing, investor, and
-              risk answers. Keys stay on this computer.
+              Web search is optional for chat and plans. It is required for market, competitor,
+              legal, customer, pricing, investor, and risk answers. Keys stay on this computer.
             </p>
             <div className="grid gap-4 md:grid-cols-2">
               <div>
@@ -207,7 +205,7 @@ export function SettingsPanel({
                 <SecretStatus
                   saved={settings.firecrawlApiKeySaved}
                   pending={firecrawlApiKey.trim().length > 0}
-                  required={needsFirecrawlKey}
+                  required={false}
                 />
               </div>
             </div>

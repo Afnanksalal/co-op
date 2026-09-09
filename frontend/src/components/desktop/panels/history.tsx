@@ -60,6 +60,21 @@ export function HistoryPanel({
     ? state.workflowRuns.filter((run) => run.id !== latestRun.id)
     : state.workflowRuns;
 
+  async function handleRunAction(action: 'approve' | 'reject', runId: string) {
+    setBusyAction(action);
+    setError('');
+    try {
+      if (action === 'approve') await approveWorkflowRun(runId);
+      else await rejectWorkflowRun(runId);
+      await refresh();
+      setMessage(action === 'approve' ? 'Plan approved.' : 'Plan rejected.');
+    } catch (error) {
+      setError(errorMessage(error, `Failed to ${action} plan`));
+    } finally {
+      setBusyAction('');
+    }
+  }
+
   return (
     <DesktopPage>
       <div className="grid items-start gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
@@ -125,25 +140,12 @@ export function HistoryPanel({
           {latestRun && (
             <RunCard
               run={latestRun}
-              onAction={async (action, runId) => {
-                setBusyAction(action);
-                setError('');
-                try {
-                  if (action === 'approve') await approveWorkflowRun(runId);
-                  else await rejectWorkflowRun(runId);
-                  await refresh();
-                  setMessage(action === 'approve' ? 'Plan approved.' : 'Plan rejected.');
-                } catch (error) {
-                  setError(errorMessage(error, `Failed to ${action} plan`));
-                } finally {
-                  setBusyAction('');
-                }
-              }}
+              onAction={handleRunAction}
             />
           )}
 
           {visibleRuns.map((run) => (
-            <RunCard key={run.id} run={run} />
+            <RunCard key={run.id} run={run} onAction={handleRunAction} />
           ))}
 
           {!latestRun && visibleRuns.length === 0 && (

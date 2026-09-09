@@ -98,6 +98,11 @@ export interface ChatProgressEvent {
   createdAt: string;
 }
 
+export interface ChatTokenEvent {
+  sessionId: string;
+  delta: string;
+}
+
 export interface KnowledgeChunk {
   id: string;
   documentId: string;
@@ -418,6 +423,7 @@ export interface CampaignRequest {
 
 export interface CampaignEmailRequest {
   campaignId: string;
+  confirmSend?: boolean;
 }
 
 export interface AlertRequest {

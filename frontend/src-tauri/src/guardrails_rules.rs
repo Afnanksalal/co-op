@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::sync::OnceLock;
 use regex::RegexSet;
 use unicode_normalization::UnicodeNormalization;
