@@ -115,7 +115,7 @@ pub(crate) fn fallback_leads_from_sources(
             location: String::new(),
             description: source.description.clone(),
             lead_score: 0,
-            status: "new".to_string(),
+            status: "unverified".to_string(),
             source: "web search".to_string(),
             created_at: Utc::now().to_rfc3339(),
         })
@@ -376,6 +376,25 @@ mod tests {
         assert!(!is_url_from_sources("https://fake-company.com", &sources));
         assert!(!is_url_from_sources("https://hallucinated.io", &sources));
         assert!(!is_url_from_sources("", &sources));
+    }
+
+    #[test]
+    fn fallback_leads_are_unverified_with_zero_fit_score() {
+        let sources = vec![ResearchSource {
+            title: "Acme Corp - Cloud Solutions".to_string(),
+            url: "https://acme.com".to_string(),
+            description: "Cloud infrastructure provider".to_string(),
+            content: "We provide cloud solutions".to_string(),
+        }];
+
+        let leads = fallback_leads_from_sources(&sources, "company", 5);
+        assert_eq!(leads.len(), 1);
+        let lead = &leads[0];
+        assert_eq!(lead.company_name, "Acme Corp - Cloud Solutions");
+        assert_eq!(lead.email, "");
+        assert_eq!(lead.lead_score, 0, "Fallback candidate must not have a fabricated fit score");
+        assert_eq!(lead.status, "unverified", "Fallback candidate must be marked unverified");
+        assert_eq!(lead.source, "web search");
     }
 
     fn test_lead(lead_type: &str) -> Lead {

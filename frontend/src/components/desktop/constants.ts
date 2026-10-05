@@ -159,6 +159,15 @@ export const runStatusLabels: Record<string, string> = {
   rejected: 'Rejected',
 };
 
+export const leadStatusLabels: Record<string, string> = {
+  new: 'New',
+  unverified: 'Source candidate',
+  contacted: 'Contacted',
+  qualified: 'Qualified',
+  replied: 'Replied',
+  converted: 'Converted',
+};
+
 export const campaignStatusLabels: Record<string, string> = {
   draft: 'Draft',
   emails_generated: 'Drafts ready',

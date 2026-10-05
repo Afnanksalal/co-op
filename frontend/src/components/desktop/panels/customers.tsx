@@ -22,6 +22,7 @@ import {
   blankLead,
   campaignStatusLabels,
   emailStatusLabels,
+  leadStatusLabels,
   optionLabels,
 } from '../constants';
 import {
@@ -185,9 +186,10 @@ export function OutreachPanel({
             {state.leads.length > 0 && leadsWithoutEmail > 0 && (
               <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm leading-6 text-muted-foreground">
                 <strong className="text-foreground">{leadsWithoutEmail}</strong> of{' '}
-                {state.leads.length} prospects have no email address. Web discovery finds
-                candidates from public sources — add email addresses to each prospect before
-                generating outreach emails.
+                {state.leads.length} {state.leads.length === 1 ? 'prospect is a' : 'prospects are'}{' '}
+                source candidates with no verified email. Web discovery finds public page candidates
+                without inventing contact data or qualification scores. Add verified email addresses before
+                drafting or sending outreach emails.
               </div>
             )}
             <div className="grid gap-3">
@@ -207,11 +209,19 @@ export function OutreachPanel({
                       </p>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-2">
-                      <Badge variant="outline">{item.status}</Badge>
-                      {item.email.trim() ? (
-                        <Badge variant={item.leadScore >= 70 ? 'success' : 'secondary'}>
-                          {item.leadScore === 0 ? 'Unscored' : `${item.leadScore}% fit`}
-                        </Badge>
+                      <Badge variant="outline">
+                        {leadStatusLabels[item.status] ?? item.status}
+                      </Badge>
+                      {item.email.trim() && looksLikeEmail(item.email) ? (
+                        item.leadScore > 0 ? (
+                          <Badge variant={item.leadScore >= 70 ? 'success' : 'secondary'}>
+                            {`${item.leadScore}% fit`}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline">Unscored</Badge>
+                        )
+                      ) : item.status === 'unverified' ? (
+                        <Badge variant="outline">Unverified candidate</Badge>
                       ) : (
                         <Badge variant="outline">No email</Badge>
                       )}
