@@ -87,10 +87,6 @@ export function SettingsPanel({
         ? 'Save web sources'
         : 'Save email settings';
 
-
-
-
-
   return (
     <DesktopPage className="mx-auto w-full max-w-5xl space-y-5">
       <SettingsHeader currentTab={settingsTab} onTabChange={setSettingsTab} options={settingTabs} />

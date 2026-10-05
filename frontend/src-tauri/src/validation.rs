@@ -61,6 +61,10 @@ pub fn validate_read_only(settings: &ModelSettings) -> Result<ModelSettings, Str
     Ok(cloned)
 }
 
+pub fn validate_research_ready(settings: &ModelSettings) -> Result<(), String> {
+    crate::research_sources::ensure_web_search_ready(settings)
+}
+
 pub fn validate_model_settings(settings: &mut ModelSettings) -> Result<(), String> {
     settings.provider = settings.provider.trim().to_string();
     settings.council_mode = settings.council_mode.trim().to_string();
@@ -467,6 +471,29 @@ mod tests {
         assert!(
             validate_model_settings(&mut settings).is_ok(),
             "Ollama-only settings must be valid without a Firecrawl key"
+        );
+        assert!(
+            validate_read_only(&settings).is_ok(),
+            "validate_read_only must pass without a Firecrawl key for local operations"
+        );
+    }
+
+    // Issue #9: Research readiness requires Firecrawl key and fails closed when missing.
+    #[test]
+    fn research_ready_requires_firecrawl_key() {
+        let settings = ModelSettings::default();
+        assert!(
+            validate_research_ready(&settings).is_err(),
+            "validate_research_ready must fail when Firecrawl key is missing"
+        );
+
+        let with_key = ModelSettings {
+            firecrawl_api_key: Some("fc-valid-test-key".to_string()),
+            ..ModelSettings::default()
+        };
+        assert!(
+            validate_research_ready(&with_key).is_ok(),
+            "validate_research_ready must pass when Firecrawl key is configured"
         );
     }
 
