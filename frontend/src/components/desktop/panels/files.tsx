@@ -242,14 +242,19 @@ export function RagPanel({
                 Co-Op connects your profile, files, customers, research, and plans so answers stay
                 grounded.
               </p>
-              <div className="mt-2">
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 <Badge variant={state.modelSettings.provider === 'ollama' ? 'outline' : 'secondary'}>
                   {state.modelSettings.provider === 'ollama'
-                    ? `Ollama embeddings (${state.modelSettings.ollamaModel})`
+                    ? `Ollama embeddings (local, ${state.modelSettings.ollamaModel})`
                     : state.modelSettings.provider === 'openai_compatible'
-                      ? `Provider embeddings (${state.modelSettings.openaiModel})`
+                      ? state.modelSettings.openaiApiKeySaved
+                        ? `Provider embeddings (batch enabled, ${state.modelSettings.openaiModel})`
+                        : 'Local embeddings (no API key)'
                       : 'Local embeddings'}
                 </Badge>
+                <span className="text-xs text-muted-foreground">
+                  Memories remain in the local lexical index
+                </span>
               </div>
             </div>
             <Button type="button" variant="outline" onClick={refreshGraph}>

@@ -216,3 +216,25 @@ fn mixed_embedding_spaces_fall_back_to_matching_query_vector() {
     let score = semantic_score_for_stored(&provider, Some(&local), &local);
     assert!(score > 0.9);
 }
+
+#[test]
+fn stale_chunks_preserve_version_zero_until_provider_succeeds() {
+    let mut conn = Connection::open_in_memory().expect("sqlite memory db");
+    configure_connection(&conn).expect("configure sqlite");
+    init_schema(&conn).expect("schema");
+
+    let doc = test_document("Stale doc", "Stale chunk content needing reindex");
+    store_document_with_conn(&mut conn, &doc, crate::constants::LOCAL_EMBEDDING_VERSION)
+        .expect("store local doc");
+
+    let version: i64 = conn
+        .query_row(
+            "SELECT embedding_version FROM knowledge_chunks WHERE document_id = ?1 LIMIT 1",
+            rusqlite::params![doc.id],
+            |row| row.get(0),
+        )
+        .expect("query version");
+
+    assert_eq!(version, crate::constants::LOCAL_EMBEDDING_VERSION);
+    assert_ne!(version, PROVIDER_EMBEDDING_VERSION);
+}

@@ -141,6 +141,23 @@ export function SettingsPanel({
                   />
                 </div>
               )}
+              <div className="md:col-span-2 rounded-lg border border-border/80 bg-background/60 p-3.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-muted-foreground">Embedding Mode</span>
+                  <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold transition-colors border-transparent bg-secondary text-secondary-foreground">
+                    {settings.provider === 'openai_compatible'
+                      ? settings.openaiApiKeySaved || openaiApiKey.trim().length > 0
+                        ? `Provider embeddings (batch enabled, ${settings.openaiModel})`
+                        : 'Local embeddings (key missing)'
+                      : `Ollama embeddings (sequential, ${settings.ollamaModel})`}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                  {settings.provider === 'openai_compatible'
+                    ? 'Documents use provider batch embeddings up to 64 chunks per request. Business memories remain stored in the local lexical index.'
+                    : 'Documents use local Ollama embeddings sequentially. Business memories remain stored in the local lexical index.'}
+                </p>
+              </div>
             </div>
             <AdvancedSection
               open={advancedOpen}

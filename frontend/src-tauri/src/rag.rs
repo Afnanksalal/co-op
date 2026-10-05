@@ -197,26 +197,50 @@ pub async fn embed_batch(app: Option<&AppHandle>, settings: &ModelSettings, text
         };
     }
 
-    if let Ok(probe) = call_embedding(settings, "co-op embedding capability probe").await {
-        if !probe.is_empty() {
+    let mut provider_failure_reason: Option<String> = None;
+
+    match call_embedding(settings, "co-op embedding capability probe").await {
+        Ok(probe) if !probe.is_empty() => {
             let refs: Vec<&str> = texts.iter().map(String::as_str).collect();
-            if let Ok(vectors) = call_embedding_batch(settings, &refs).await {
-                let consistent = vectors.len() == texts.len()
-                    && vectors
-                        .iter()
-                        .all(|vector| vector.len() == probe.len() && !vector.is_empty());
-                if consistent {
-                    return EmbeddedBatch {
-                        vectors,
-                        space: EmbeddingSpace::Provider,
-                    };
+            match call_embedding_batch(settings, &refs).await {
+                Ok(vectors) => {
+                    let consistent = vectors.len() == texts.len()
+                        && vectors
+                            .iter()
+                            .all(|vector| vector.len() == probe.len() && !vector.is_empty());
+                    if consistent {
+                        return EmbeddedBatch {
+                            vectors,
+                            space: EmbeddingSpace::Provider,
+                        };
+                    } else {
+                        provider_failure_reason = Some(format!(
+                            "Batch embedding count mismatch (expected {}, got {}) or inconsistent dimensions",
+                            texts.len(),
+                            vectors.len()
+                        ));
+                    }
+                }
+                Err(err) => {
+                    provider_failure_reason = Some(crate::providers::sanitize_provider_error(&err));
                 }
             }
+        }
+        Ok(_) => {
+            provider_failure_reason = Some("Provider returned empty probe vector".to_string());
+        }
+        Err(err) => {
+            provider_failure_reason = Some(crate::providers::sanitize_provider_error(&err));
         }
     }
     
     if let Some(app) = app {
-        let _ = app.emit("index-warning", "Embedding provider unavailable or inconsistent, falling back to local search index.");
+        let warning_msg = if let Some(reason) = provider_failure_reason {
+            format!("Provider embeddings unavailable ({reason}); using local embeddings.")
+        } else {
+            "Embedding provider unavailable or inconsistent; falling back to local embeddings.".to_string()
+        };
+        let _ = app.emit("index-warning", warning_msg);
     }
 
     EmbeddedBatch {

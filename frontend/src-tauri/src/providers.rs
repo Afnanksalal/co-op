@@ -388,8 +388,16 @@ struct OpenAiBatchEmbeddingRequest<'a> {
     input: Vec<&'a str>,
 }
 
-/// Embed multiple texts in a single HTTP call (OpenAI-compatible) or
-/// sequentially (Ollama). Returns one vector per input text.
+/// Maximum number of text inputs per batch request to prevent payload overflow.
+pub const MAX_EMBEDDING_BATCH_SIZE: usize = 64;
+
+/// Returns true if the configured provider supports true batch embedding requests.
+pub fn supports_batch_embeddings(settings: &ModelSettings) -> bool {
+    settings.provider.as_str() == "openai_compatible"
+}
+
+/// Embed multiple texts in batches (OpenAI-compatible) or
+/// sequentially (Ollama). Returns one vector per input text in original order.
 pub async fn call_embedding_batch(
     settings: &ModelSettings,
     texts: &[&str],
@@ -412,36 +420,43 @@ pub async fn call_embedding_batch(
                 .filter(|v| !v.trim().is_empty())
                 .ok_or_else(|| "OpenAI-compatible provider selected but no API key is saved".to_string())?;
             let model = openai_embedding_model(settings);
-            let request = OpenAiBatchEmbeddingRequest {
-                model: &model,
-                input: texts.to_vec(),
-            };
             let openai_base_url = sanitize_http_base_url(
                 &settings.openai_base_url,
                 true,
                 false,
                 "OpenAI-compatible URL",
             )?;
-            let response = http_client()?
-                .post(format!("{}/embeddings", openai_base_url))
-                .bearer_auth(api_key)
-                .json(&request)
-                .send()
-                .await
-                .map_err(|e| format!("Batch embedding request failed: {e}"))?;
-            let response = ensure_success(response, "OpenAI-compatible batch embeddings").await?;
-            let body = response
-                .json::<OpenAiEmbeddingResponse>()
-                .await
-                .map_err(|e| format!("Batch embedding response was not valid JSON: {e}"))?;
-            if body.data.len() != texts.len() {
-                return Err(format!(
-                    "Batch embedding returned {} vectors for {} inputs",
-                    body.data.len(),
-                    texts.len()
-                ));
+
+            let mut all_vectors = Vec::with_capacity(texts.len());
+
+            for chunk_slice in texts.chunks(MAX_EMBEDDING_BATCH_SIZE) {
+                let request = OpenAiBatchEmbeddingRequest {
+                    model: &model,
+                    input: chunk_slice.to_vec(),
+                };
+                let response = http_client()?
+                    .post(format!("{}/embeddings", openai_base_url))
+                    .bearer_auth(api_key)
+                    .json(&request)
+                    .send()
+                    .await
+                    .map_err(|e| format!("Batch embedding request failed: {e}"))?;
+                let response = ensure_success(response, "OpenAI-compatible batch embeddings").await?;
+                let body = response
+                    .json::<OpenAiEmbeddingResponse>()
+                    .await
+                    .map_err(|e| format!("Batch embedding response was not valid JSON: {e}"))?;
+                if body.data.len() != chunk_slice.len() {
+                    return Err(format!(
+                        "Batch embedding returned {} vectors for {} inputs",
+                        body.data.len(),
+                        chunk_slice.len()
+                    ));
+                }
+                all_vectors.extend(body.data.into_iter().map(|d| d.embedding));
             }
-            Ok(body.data.into_iter().map(|d| d.embedding).collect())
+
+            Ok(all_vectors)
         }
         provider => Err(format!("Unsupported embedding provider: {provider}")),
     }
@@ -772,5 +787,15 @@ Useful text
         assert!(!cleaned.contains("---"));
         assert!(!cleaned.contains("###"));
         assert!(cleaned.contains("Useful text"));
+    }
+
+    #[test]
+    fn batch_embedding_capabilities_are_reported_truthfully() {
+        let mut settings = ModelSettings::default();
+        settings.provider = "ollama".to_string();
+        assert!(!supports_batch_embeddings(&settings), "Ollama embeds sequentially, not in batch");
+
+        settings.provider = "openai_compatible".to_string();
+        assert!(supports_batch_embeddings(&settings), "OpenAI-compatible endpoints support true vector batching");
     }
 }

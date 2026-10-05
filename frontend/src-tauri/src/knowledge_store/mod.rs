@@ -354,10 +354,11 @@ pub async fn reindex_stale_embeddings(app: &AppHandle, settings: &ModelSettings)
 
     emit_progress(app, 0, 0, "started");
 
-    for batch in stale_chunks.chunks(5) {
+    for batch in stale_chunks.chunks(16) {
         let texts: Vec<String> = batch.iter().map(|(_, content)| content.clone()).collect();
         let embedded = embed_batch(Some(app), settings, &texts).await;
         if embedded.space != EmbeddingSpace::Provider {
+            errors += batch.len();
             processed += batch.len();
             emit_progress(app, processed, errors, "chunks");
             continue;
@@ -380,6 +381,15 @@ pub async fn reindex_stale_embeddings(app: &AppHandle, settings: &ModelSettings)
     }
 
     emit_progress(app, total_chunks, errors, "done");
+    if errors > 0 {
+        let _ = app.emit(
+            "index-warning",
+            format!(
+                "Re-indexing completed with {} error(s). Affected records remain in the local lexical index.",
+                errors
+            ),
+        );
+    }
     eprintln!(
         "Re-indexed {} file chunks with provider embeddings ({} errors). Memories stay local.",
         total_chunks, errors
