@@ -413,4 +413,18 @@ mod tests {
 
         assert_eq!(selected.as_deref(), Some("file-key"));
     }
+
+    #[test]
+    fn returns_none_when_both_keyring_and_file_are_missing() {
+        let selected = select_preferred_secret(None, None);
+        assert_eq!(selected, None);
+    }
+
+    #[test]
+    fn secret_slots_have_stable_identifiers() {
+        assert_eq!(SecretSlot::ActivationToken.as_str(), "activation_token");
+        assert_eq!(SecretSlot::OpenAiApiKey.as_str(), "openai_api_key");
+        assert_eq!(SecretSlot::FirecrawlApiKey.as_str(), "firecrawl_api_key");
+        assert_eq!(SecretSlot::EmailApiKey.as_str(), "email_api_key");
+    }
 }

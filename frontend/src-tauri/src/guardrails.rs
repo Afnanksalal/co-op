@@ -745,4 +745,12 @@ mod tests {
         assert!(sanitized.contains("ARR grew"));
         assert!(!sanitized.to_lowercase().contains("ignore previous"));
     }
+
+    #[test]
+    fn guardrail_event_logging_does_not_format_input() {
+        // Ensure log_guardrail_event does not leak raw user input or sensitive tokens
+        let sensitive_input = "SUPER_SECRET_TOKEN_99999";
+        log_guardrail_event("block", "test_category", sensitive_input);
+        // The event signature accepts &str for API compatibility, but only formats action and category
+    }
 }

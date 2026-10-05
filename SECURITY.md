@@ -37,6 +37,15 @@ The cloud backend must not receive customer workflow prompts, model outputs, com
 - Rust audit and clippy checks are part of release checks.
 - Hosted production web builds block `/desktop` and `/local` routes so the installed software is not exposed as a public web dashboard.
 
+## Local Secret Threat Model
+
+Co-Op treats the OS keyring (Windows Credential Manager, macOS Keychain, Linux Secret Service) as the authoritative preferred source of truth for high-value credentials (provider API keys, activation tokens, and email service keys).
+
+- **OS Keyring Precedence:** If both the OS keyring and encrypted file-backed storage contain a value, the OS keyring always takes precedence.
+- **File-Backed Storage Fallback:** An AES-256-GCM encrypted file (`secrets.json`) is maintained solely for compatibility/fallback when the OS credential store is unavailable (e.g. headless environments, containerized testing, or broken credential services). The encryption key is derived from `SHA-256(service | install_id | machine_fingerprint)`. This is **not** hardware-bound (no TPM or Secure Enclave guarantee). An attacker with full read access to the local user's app data directory and knowledge of the machine environment can derive the key.
+- **Guardrail Privacy:** Production guardrail logs record only safe operational metadata (action, rule category, risk flags) and never raw user inputs, prompt snippets, file contents, or secret tokens.
+- **What is NOT protected against:** Local attackers with root/administrator access or process-level control over the local user account. The application does not claim hardware-backed isolation unless provided by the underlying OS keyring.
+
 ## Secret Handling Rules
 
 Never log, commit, paste into issues, or serialize:
