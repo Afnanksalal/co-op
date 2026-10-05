@@ -303,7 +303,13 @@ struct ReindexProgressEvent {
 pub async fn reindex_stale_embeddings(app: &AppHandle, settings: &ModelSettings) {
     let conn = match open_store(app) {
         Ok(c) => c,
-        Err(_) => return,
+        Err(e) => {
+            let _ = app.emit(
+                "index-warning",
+                format!("Background re-indexing failed: unable to open local database ({})", e),
+            );
+            return;
+        }
     };
 
     if let Err(e) = crate::providers::call_embedding(settings, "test").await {
@@ -320,13 +326,25 @@ pub async fn reindex_stale_embeddings(app: &AppHandle, settings: &ModelSettings)
             "SELECT id, content FROM knowledge_chunks WHERE embedding_version = 0 LIMIT 500",
         ) {
             Ok(s) => s,
-            Err(_) => return,
+            Err(e) => {
+                let _ = app.emit(
+                    "index-warning",
+                    format!("Background re-indexing failed: unable to query stale chunks ({})", e),
+                );
+                return;
+            }
         };
         let mapped = match stmt.query_map([], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
         }) {
             Ok(rows) => rows,
-            Err(_) => return,
+            Err(e) => {
+                let _ = app.emit(
+                    "index-warning",
+                    format!("Background re-indexing failed: unable to read stale chunks ({})", e),
+                );
+                return;
+            }
         };
         let chunks: Vec<(String, String)> = mapped.filter_map(|row| row.ok()).collect();
         chunks
@@ -380,6 +398,15 @@ pub async fn reindex_stale_embeddings(app: &AppHandle, settings: &ModelSettings)
     }
 
     emit_progress(app, total_chunks, errors, "done");
+    if errors > 0 {
+        let _ = app.emit(
+            "index-warning",
+            format!(
+                "Re-indexing completed with {} error(s); affected records remain in local index.",
+                errors
+            ),
+        );
+    }
     eprintln!(
         "Re-indexed {} file chunks with provider embeddings ({} errors). Memories stay local.",
         total_chunks, errors

@@ -254,4 +254,17 @@ mod tests {
 
         assert!(validate_memory_request(&request).is_err());
     }
+
+    #[test]
+    fn memory_error_formatting_does_not_leak_secrets() {
+        let mut state = DesktopState::default();
+        let error_msg = "database locked (table: business_memories)";
+        state.last_local_warning = Some(format!("Failed to save memory: {}", error_msg));
+
+        assert!(state.last_local_warning.is_some());
+        let warning = state.last_local_warning.as_ref().unwrap();
+        assert!(warning.starts_with("Failed to save memory:"));
+        assert!(!warning.contains("sk-"));
+        assert!(!warning.contains("api_key"));
+    }
 }
